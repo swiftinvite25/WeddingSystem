@@ -8,8 +8,8 @@ WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
 WHATSAPP_API_VERSION = "v19.0"
 WHATSAPP_API_BASE = f"https://graph.facebook.com/{WHATSAPP_API_VERSION}"
 
-TEMPLATE_NAME = "events_invitation"
-TEMPLATE_LANGUAGE = "en"  # English
+TEMPLATE_NAME = "event_invitation"
+TEMPLATE_LANGUAGE = "sw"  # Swahili
 
 
 def _headers():
@@ -41,7 +41,7 @@ def upload_media(image_bytes: bytes, filename: str, mime_type: str = "image/png"
 
 def send_template_message(to: str, guest_name: str, card_number: str, media_id: str) -> dict:
     """
-    Send events_invitation template.
+    Send event_invitation template.
     Header  : image
     Body    : {{1}} = guest_name, {{2}} = card_number
     Buttons : Nitakuwepo/I'll Be There | Sitokuwepo/Can't Make It
