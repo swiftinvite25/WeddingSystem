@@ -51,7 +51,7 @@ class Guest(Base):
     name = Column(String, nullable=False, default="")
     phone = Column(String, nullable=False, default="")
     qr_code_id = Column(String, unique=True, nullable=False)
-    qr_code_url = Column(String, nullable=True)        # Supabase public URL
+    qr_code_url = Column(String, nullable=True)
     has_entered = Column(Boolean, default=False)
     entry_time = Column(DateTime, nullable=True)
     visual_id = Column(Integer, unique=True, nullable=True)
@@ -62,14 +62,17 @@ class Guest(Base):
     # WhatsApp delivery tracking
     whatsapp_sent = Column(Boolean, default=False)
     whatsapp_sent_at = Column(DateTime, nullable=True)
-    whatsapp_error = Column(String, nullable=True)     # last error message if failed
+    whatsapp_error = Column(String, nullable=True)
+
+    # RSVP tracking
+    rsvp_status = Column(String, nullable=True)   # 'attending' | 'not_attending' | None
+    rsvp_at = Column(DateTime, nullable=True)
 
     def __repr__(self):
         return (
             f"<Guest(id={self.id}, visual_id={self.visual_id}, name='{self.name}', "
-            f"phone='{self.phone}', card_type='{self.card_type}', "
-            f"group_size={self.group_size}, checked_in={self.checked_in_count}, "
-            f"whatsapp_sent={self.whatsapp_sent})>"
+            f"card_type='{self.card_type}', whatsapp_sent={self.whatsapp_sent}, "
+            f"rsvp={self.rsvp_status})>"
         )
 
     def save(self, session):

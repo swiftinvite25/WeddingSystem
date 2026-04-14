@@ -8,58 +8,74 @@
 
   <!-- Summary Cards -->
   <div class="row mb-4">
-    <div class="col-6 col-md-3 mb-3">
+    <div class="col-6 col-md-2 mb-3">
       <div class="card text-center shadow-sm">
-        <div class="card-body">
+        <div class="card-body py-3">
           <h3 class="mb-0">{{ total }}</h3>
-          <small class="text-muted">Total Guests</small>
+          <small class="text-muted">Total</small>
         </div>
       </div>
     </div>
-    <div class="col-6 col-md-3 mb-3">
+    <div class="col-6 col-md-2 mb-3">
       <div class="card text-center shadow-sm border-success">
-        <div class="card-body">
+        <div class="card-body py-3">
           <h3 class="mb-0 text-success">{{ sent }}</h3>
           <small class="text-muted">Sent</small>
         </div>
       </div>
     </div>
-    <div class="col-6 col-md-3 mb-3">
+    <div class="col-6 col-md-2 mb-3">
       <div class="card text-center shadow-sm border-danger">
-        <div class="card-body">
+        <div class="card-body py-3">
           <h3 class="mb-0 text-danger">{{ failed }}</h3>
           <small class="text-muted">Failed</small>
         </div>
       </div>
     </div>
-    <div class="col-6 col-md-3 mb-3">
+    <div class="col-6 col-md-2 mb-3">
       <div class="card text-center shadow-sm border-warning">
-        <div class="card-body">
+        <div class="card-body py-3">
           <h3 class="mb-0 text-warning">{{ pending }}</h3>
           <small class="text-muted">Pending</small>
         </div>
       </div>
     </div>
+    <div class="col-6 col-md-2 mb-3">
+      <div class="card text-center shadow-sm border-primary">
+        <div class="card-body py-3">
+          <h3 class="mb-0 text-primary">{{ attending }}</h3>
+          <small class="text-muted">Attending ✅</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2 mb-3">
+      <div class="card text-center shadow-sm border-secondary">
+        <div class="card-body py-3">
+          <h3 class="mb-0 text-secondary">{{ not_attending }}</h3>
+          <small class="text-muted">Declined ❌</small>
+        </div>
+      </div>
+    </div>
   </div>
 
-  <!-- Bulk Send Controls -->
+  <!-- Bulk Actions -->
   <div class="card shadow-sm mb-4">
     <div class="card-body d-flex flex-wrap gap-2 align-items-center">
       <button class="btn btn-success" id="btn-send-pending" onclick="bulkSend(false)">
-        📤 Send to Pending Guests ({{ pending }})
+        📤 Send to Pending ({{ pending }})
       </button>
       <button class="btn btn-outline-warning" id="btn-send-all" onclick="bulkSend(true)">
-        🔄 Resend to All Guests
+        🔄 Resend to All
       </button>
       <a href="{{ url_for('view_all') }}" class="btn btn-outline-secondary ms-auto">← Back</a>
     </div>
   </div>
 
-  <!-- Progress Bar (hidden until bulk send starts) -->
+  <!-- Progress Bar -->
   <div id="progress-wrap" class="mb-4" style="display:none;">
     <div class="d-flex justify-content-between mb-1">
       <small id="progress-label">Sending...</small>
-      <small id="progress-count">0 / 0</small>
+      <small id="progress-count"></small>
     </div>
     <div class="progress" style="height:20px;">
       <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
@@ -71,47 +87,59 @@
   <!-- Guest Table -->
   <div class="card shadow-sm">
     <div class="card-body p-0">
-      <table class="table table-hover mb-0" id="guests-table">
-        <thead class="table-light">
-          <tr>
-            <th>#</th>
-            <th>Name</th>
-            <th>Phone</th>
-            <th>Card Type</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for guest in guests %}
-          <tr id="row-{{ guest.id }}">
-            <td>{{ guest.visual_id or '—' }}</td>
-            <td>{{ guest.name }}</td>
-            <td>{{ guest.phone }}</td>
-            <td>{{ (guest.card_type or 'single') | title }}</td>
-            <td id="status-{{ guest.id }}">
-              {% if guest.whatsapp_sent %}
-                <span class="badge bg-success">Sent
-                  {% if guest.whatsapp_sent_at %}
-                    <small>({{ guest.whatsapp_sent_at.strftime('%d %b %H:%M') }})</small>
-                  {% endif %}
-                </span>
-              {% elif guest.whatsapp_error %}
-                <span class="badge bg-danger" title="{{ guest.whatsapp_error }}">Failed</span>
-              {% else %}
-                <span class="badge bg-secondary">Pending</span>
-              {% endif %}
-            </td>
-            <td>
-              <button class="btn btn-sm btn-primary" id="btn-{{ guest.id }}"
-                      onclick="sendSingle({{ guest.id }})">
-                Send
-              </button>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-light">
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Card</th>
+              <th>Sent</th>
+              <th>RSVP</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for guest in guests %}
+            <tr id="row-{{ guest.id }}">
+              <td>{{ "%04d"|format(guest.visual_id or 0) }}</td>
+              <td>{{ guest.name }}</td>
+              <td>{{ guest.phone }}</td>
+              <td>{{ (guest.card_type or 'single') | title }}</td>
+              <td id="status-{{ guest.id }}">
+                {% if guest.whatsapp_sent %}
+                  <span class="badge bg-success">Sent
+                    {% if guest.whatsapp_sent_at %}
+                      <small>({{ guest.whatsapp_sent_at.strftime('%d %b %H:%M') }})</small>
+                    {% endif %}
+                  </span>
+                {% elif guest.whatsapp_error %}
+                  <span class="badge bg-danger" title="{{ guest.whatsapp_error }}">Failed</span>
+                {% else %}
+                  <span class="badge bg-secondary">Pending</span>
+                {% endif %}
+              </td>
+              <td id="rsvp-{{ guest.id }}">
+                {% if guest.rsvp_status == 'attending' %}
+                  <span class="badge bg-primary">✅ Attending</span>
+                {% elif guest.rsvp_status == 'not_attending' %}
+                  <span class="badge bg-secondary">❌ Declined</span>
+                {% else %}
+                  <span class="badge bg-light text-muted">—</span>
+                {% endif %}
+              </td>
+              <td>
+                <button class="btn btn-sm btn-primary" id="btn-{{ guest.id }}"
+                        onclick="sendSingle({{ guest.id }})">
+                  {% if guest.whatsapp_sent %}Resend{% else %}Send{% endif %}
+                </button>
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
 
@@ -136,13 +164,11 @@
       } else {
         statusEl.innerHTML = `<span class="badge bg-danger" title="${data.message}">Failed</span>`;
         btn.textContent = 'Retry';
-        console.error(data.message);
       }
     } catch (err) {
       statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
       btn.textContent = 'Retry';
     }
-
     btn.disabled = false;
   }
 
@@ -156,8 +182,8 @@
     const btnAll = document.getElementById('btn-send-all');
 
     progressWrap.style.display = 'block';
-    progressBar.style.width = '0%';
-    progressLabel.textContent = 'Sending...';
+    progressBar.style.width = '5%';
+    progressLabel.textContent = 'Sending — please wait, do not close this page...';
     bulkResult.innerHTML = '';
     btnPending.disabled = true;
     btnAll.disabled = true;
@@ -174,10 +200,10 @@
 
       progressBar.style.width = `${pct}%`;
       progressCount.textContent = `${data.sent} / ${data.total}`;
-      progressLabel.textContent = 'Done';
+      progressLabel.textContent = 'Done!';
 
       let html = `<div class="alert alert-${data.failed > 0 ? 'warning' : 'success'} mt-2">
-        ✅ Sent: <strong>${data.sent}</strong> &nbsp;
+        ✅ Sent: <strong>${data.sent}</strong> &nbsp;&nbsp;
         ❌ Failed: <strong>${data.failed}</strong>
       </div>`;
 
@@ -192,9 +218,7 @@
       }
 
       bulkResult.innerHTML = html;
-
-      // Reload page after 2s to refresh statuses
-      setTimeout(() => location.reload(), 2500);
+      setTimeout(() => location.reload(), 3000);
 
     } catch (err) {
       bulkResult.innerHTML = `<div class="alert alert-danger">Request failed: ${err}</div>`;

@@ -38,6 +38,7 @@ from models import Guest, init_db, get_db_session
 flask_env = os.getenv('FLASK_ENV', 'production')
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
 WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
+WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "wedding_webhook_secret")
 
 if flask_env == 'development':
     current_env_file = '.env.development'
@@ -900,13 +901,99 @@ def clear_all_data():
 
     return redirect(url_for('view_all'))
 
-@app.route('/send_cards', methods=['GET', 'POST'])
+
+# -------------------- WEBHOOK (RSVP receiver) --------------------
+ 
+@app.route('/webhook/whatsapp', methods=['GET', 'POST'])
+def whatsapp_webhook():
+    """
+    GET  — Meta verification handshake (one-time setup)
+    POST — Incoming messages (RSVP button taps)
+    """
+    if request.method == 'GET':
+        mode = request.args.get('hub.mode')
+        token = request.args.get('hub.verify_token')
+        challenge = request.args.get('hub.challenge')
+ 
+        if mode == 'subscribe' and token == WHATSAPP_VERIFY_TOKEN:
+            current_app.logger.info("Webhook verified by Meta.")
+            return challenge, 200
+        return "Forbidden", 403
+ 
+    # POST — process incoming message
+    try:
+        data = request.get_json()
+        current_app.logger.info(f"Webhook payload: {data}")
+ 
+        entries = data.get('entry', [])
+        for entry in entries:
+            for change in entry.get('changes', []):
+                value = change.get('value', {})
+                messages = value.get('messages', [])
+ 
+                for msg in messages:
+                    msg_type = msg.get('type')
+                    from_number = msg.get('from')  # sender's WhatsApp number
+ 
+                    # Only handle button replies
+                    if msg_type == 'button':
+                        button_text = msg.get('button', {}).get('text', '').strip()
+                        _handle_rsvp(from_number, button_text)
+ 
+                    # Also handle interactive quick replies (some clients send this)
+                    elif msg_type == 'interactive':
+                        interactive = msg.get('interactive', {})
+                        if interactive.get('type') == 'button_reply':
+                            button_text = interactive.get('button_reply', {}).get('title', '').strip()
+                            _handle_rsvp(from_number, button_text)
+ 
+    except Exception as e:
+        current_app.logger.error(f"Webhook processing error: {e}", exc_info=True)
+ 
+    # Always return 200 to Meta — otherwise it retries repeatedly
+    return jsonify({"status": "ok"}), 200
+ 
+ 
+def _handle_rsvp(from_number: str, button_text: str):
+    """Match incoming button tap to a guest and save RSVP status."""
+    # Normalize the phone number (strip leading zeros/plus)
+    normalized = to_whatsapp_number(from_number)
+ 
+    # Determine RSVP status from button text
+    button_lower = button_text.lower()
+    if any(x in button_lower for x in ['nitakuwepo', "i'll be there", 'attending']):
+        rsvp_status = 'attending'
+    elif any(x in button_lower for x in ['sitakuwepo', "can't make it", 'not attending']):
+        rsvp_status = 'not_attending'
+    else:
+        current_app.logger.warning(f"Unknown button text from {from_number}: {button_text}")
+        return
+ 
+    with get_db_session() as db:
+        # Try to find guest by phone number
+        guest = db.query(Guest).filter(
+            (Guest.phone == normalized) |
+            (Guest.phone == from_number) |
+            (Guest.phone == f"+{from_number}")
+        ).first()
+ 
+        if not guest:
+            current_app.logger.warning(f"No guest found for number: {from_number}")
+            return
+ 
+        guest.rsvp_status = rsvp_status
+        guest.rsvp_at = datetime.now()
+        db.commit()
+        current_app.logger.info(
+            f"RSVP saved: {guest.name} → {rsvp_status} (from {from_number})"
+        )
+ 
+ 
+# -------------------- send_cards (updated) --------------------
+ 
+@app.route('/send_cards', methods=['GET'])
 @login_required
 def send_cards():
-    """
-    GET  → show the send cards dashboard (counts, per-guest status)
-    POST → trigger bulk send (or single guest if guest_id param provided)
-    """
     with get_db_session() as db:
         guests = db.query(Guest).order_by(Guest.visual_id).all()
  
@@ -914,6 +1001,9 @@ def send_cards():
         sent = sum(1 for g in guests if g.whatsapp_sent)
         failed = sum(1 for g in guests if g.whatsapp_error and not g.whatsapp_sent)
         pending = total - sent
+        attending = sum(1 for g in guests if g.rsvp_status == 'attending')
+        not_attending = sum(1 for g in guests if g.rsvp_status == 'not_attending')
+        no_rsvp = total - attending - not_attending
  
         return render_template(
             'send_cards.html',
@@ -922,40 +1012,39 @@ def send_cards():
             sent=sent,
             failed=failed,
             pending=pending,
+            attending=attending,
+            not_attending=not_attending,
+            no_rsvp=no_rsvp,
         )
  
  
 @app.route('/send_card_single/<int:guest_id>', methods=['POST'])
 @login_required
 def send_card_single(guest_id):
-    """Send card to a single guest — called via AJAX from the dashboard."""
     with get_db_session() as db:
         guest = db.get(Guest, guest_id)
         if not guest:
             return jsonify(success=False, message="Guest not found.")
  
         if not guest.qr_code_url:
-            return jsonify(success=False, message="Guest has no QR code. Generate QR codes first.")
+            return jsonify(success=False, message="No QR code. Generate QR codes first.")
  
         phone = to_whatsapp_number(guest.phone)
         if not phone:
-            return jsonify(success=False, message="Guest has no valid phone number.")
+            return jsonify(success=False, message="No valid phone number.")
  
         try:
-            # Download guest card from Supabase
             card_fname = card_filename_from_guest(guest)
             try:
                 card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
             except Exception:
-                # Card not generated yet — generate it on the fly
                 card_bytes = _generate_card_bytes(guest)
                 if card_bytes:
                     upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes)
  
             if not card_bytes:
-                return jsonify(success=False, message="Could not generate or retrieve guest card.")
+                return jsonify(success=False, message="Could not retrieve or generate card.")
  
-            # Send via WhatsApp
             from whatsapp import send_guest_card as wa_send
             wa_send(
                 to=phone,
@@ -971,11 +1060,7 @@ def send_card_single(guest_id):
             guest.whatsapp_error = None
             db.commit()
  
-            return jsonify(
-                success=True,
-                message=f"Card sent to {guest.name} ({phone})",
-                guest_id=guest_id,
-            )
+            return jsonify(success=True, message=f"Card sent to {guest.name}", guest_id=guest_id)
  
         except Exception as e:
             error_msg = str(e)
@@ -989,10 +1074,6 @@ def send_card_single(guest_id):
 @app.route('/send_cards_bulk', methods=['POST'])
 @login_required
 def send_cards_bulk():
-    """
-    Send cards to all unsent guests (or all if resend=true).
-    Returns a JSON stream of results — called via AJAX.
-    """
     resend = request.json.get('resend', False) if request.is_json else False
  
     with get_db_session() as db:
@@ -1061,48 +1142,38 @@ def send_cards_bulk():
  
  
 # ----------------------------------------------------------------
-# Helper: generate card image bytes in memory (reuses generate logic)
+# Helper: generate card bytes in memory
 # ----------------------------------------------------------------
 def _generate_card_bytes(guest) -> bytes | None:
-    """Generate a guest card image in memory and return PNG bytes."""
     template_path = os.path.join("static", "Card Template.jpg")
     font_path = os.path.join("static", "fonts", "Roboto-Bold.ttf")
- 
     if not os.path.exists(template_path) or not os.path.exists(font_path):
         return None
- 
     try:
         CARD_W, CARD_H = 1240, 1748
         qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
         qr_img = Image.open(BytesIO(qr_data)).resize((175, 175))
- 
         img = Image.open(template_path).convert("RGB")
         draw = ImageDraw.Draw(img)
- 
         name_font = ImageFont.truetype(font_path, 50)
         card_type_font = ImageFont.truetype(font_path, 35)
         visual_id_font = ImageFont.truetype(font_path, 35)
- 
         wrapped = textwrap.fill((guest.name or "").upper(), width=20)
         lines = wrapped.split('\n')
         line_h = name_font.getbbox("A")[3] + 10
         start_y = 550 - (line_h * len(lines)) // 2
         for i, line in enumerate(lines):
             draw.text((550, start_y + i * line_h), line, font=name_font, fill="#000000")
- 
         img.paste(qr_img, (750, CARD_H - 175 - 180))
         draw.text((770, CARD_H - 45 - 355), (guest.card_type or "").upper(),
                   font=card_type_font, fill="#CC3332")
- 
         vis_text = f"NO. {guest.visual_id:04d}"
         box = draw.textbbox((0, 0), vis_text, font=visual_id_font)
         draw.text((CARD_W - (box[2]-box[0]) - 25, CARD_H - (box[3]-box[1]) - 75),
                   vis_text, font=visual_id_font, fill="#CC3332")
- 
         buf = BytesIO()
         img.save(buf, format="PNG")
         return buf.getvalue()
- 
     except Exception as e:
         logging.error(f"_generate_card_bytes failed for {guest.name}: {e}")
         return None
