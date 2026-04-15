@@ -955,45 +955,38 @@ def whatsapp_webhook():
  
  
 def _handle_rsvp(from_number: str, button_text: str):
+    """Match incoming button tap to a guest and save RSVP status."""
+    # Normalize the phone number (strip leading zeros/plus)
     normalized = to_whatsapp_number(from_number)
-    button_lower = button_text.lower().strip()
-
-    current_app.logger.info(f"RSVP attempt — from: {from_number}, normalized: {normalized}, button: '{button_text}'")
-
+ 
+    # Determine RSVP status from button text
+    button_lower = button_text.lower()
     if any(x in button_lower for x in ['nitakuwepo', "i'll be there", 'attending']):
         rsvp_status = 'attending'
     elif any(x in button_lower for x in ['sitakuwepo', "can't make it", 'not attending']):
         rsvp_status = 'not_attending'
     else:
-        current_app.logger.warning(f"Unknown button text: '{button_text}' from {from_number}")
+        current_app.logger.warning(f"Unknown button text from {from_number}: {button_text}")
         return
-
-    try:
-        with get_db_session() as db:
-            # Broaden the search — try all number variants
-            variants = [from_number, normalized, f"+{from_number}"]
-            if normalized and normalized.startswith("+"):
-                variants.append(normalized[1:])  # without the +
-
-            guest = db.query(Guest).filter(
-                Guest.phone.in_(variants)
-            ).first()
-
-            if not guest:
-                current_app.logger.warning(
-                    f"No guest found for number variants: {variants}"
-                )
-                return
-
-            guest.rsvp_status = rsvp_status
-            guest.rsvp_at = datetime.now()
-            db.commit()
-            db.refresh(guest)  # confirm it was written
-            current_app.logger.info(
-                f"✅ RSVP saved: {guest.name} → {rsvp_status}"
-            )
-    except Exception as e:
-        current_app.logger.error(f"RSVP DB error: {e}", exc_info=True)
+ 
+    with get_db_session() as db:
+        # Try to find guest by phone number
+        guest = db.query(Guest).filter(
+            (Guest.phone == normalized) |
+            (Guest.phone == from_number) |
+            (Guest.phone == f"+{from_number}")
+        ).first()
+ 
+        if not guest:
+            current_app.logger.warning(f"No guest found for number: {from_number}")
+            return
+ 
+        guest.rsvp_status = rsvp_status
+        guest.rsvp_at = datetime.now()
+        db.commit()
+        current_app.logger.info(
+            f"RSVP saved: {guest.name} → {rsvp_status} (from {from_number})"
+        )
  
  
 # -------------------- send_cards (updated) --------------------
