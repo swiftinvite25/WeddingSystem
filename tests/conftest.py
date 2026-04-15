@@ -13,7 +13,7 @@ sys.path.insert(0, project_root)
 
 # --- APPLICATION IMPORTS AFTER PATH IS SET ---
 # Import 'app' from app_web.py
-from app_web import app
+from app import app
 
 # Import database components directly that you need by name
 # OR, import the models module itself if you want to reference its globals via models.
