@@ -1177,6 +1177,35 @@ def _generate_card_bytes(guest) -> bytes | None:
     except Exception as e:
         logging.error(f"_generate_card_bytes failed for {guest.name}: {e}")
         return None
+    
+@app.route("/privacy")
+def privacy():
+    return render_template("privacy.html")
+
+@app.route("/data-deletion")
+def data_deletion():
+    return """
+    <html>
+    <head>
+        <title>Data Deletion - SwiftInvite</title>
+    </head>
+    <body style="font-family: Arial; margin: 40px;">
+
+    <h1>User Data Deletion</h1>
+
+    <p>If you would like to delete your data from SwiftInvite, please follow the instructions below:</p>
+
+    <ol>
+        <li>Send an email to: <strong>your@email.com</strong></li>
+        <li>Include your phone number or identifier used in the app</li>
+        <li>We will process your request within 7 days</li>
+    </ol>
+
+    <p>Alternatively, you may contact us directly for assistance.</p>
+
+    </body>
+    </html>
+    """
 
 
 if __name__ == "__main__":
