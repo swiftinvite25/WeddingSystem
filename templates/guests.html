@@ -1,106 +1,232 @@
-<!DOCTYPE html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Guests</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-    <script src="https://code.jquery.com/jquery-3.5.1.min.js"></script>
-  </head>
-  <body>
-    <div class="container mt-4">
-      {% with messages = get_flashed_messages(with_categories=true) %}
-        {% if messages %}
-          {% for category, message in messages %}
-            <div class="alert alert-{{ category }}">{{ message }}</div>
-          {% endfor %}
-        {% endif %}
-      {% endwith %}
+{% extends "base.html" %}
+{% block content %}
 
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        <h1>Wedding Guest System</h1>
-        <a href="{{ url_for('logout') }}" class="btn btn-warning">Logout</a>
-      </div>
-
-      <div class="mb-3">
-        <input id="guestSearch" class="form-control" placeholder="Search guest by name or phone...">
-      </div>
-
-      <div class="mb-3">
-        <a href="{{ url_for('add_guest') }}" class="btn btn-success">Add Single Guest</a>
-        <a href="{{ url_for('upload_csv') }}" class="btn btn-primary">Upload Guests (CSV)</a>
-        <a href="{{ url_for('download_excel') }}" class="btn btn-dark">Download Excel Report</a>
-        <a href="{{ url_for('zip_qr_codes_web') }}" class="btn btn-secondary">Download All QR Codes</a>
-        <a href="{{ url_for('generate_guest_cards') }}" class="btn btn-success">Generate Guest Cards</a>
-        <a href="{{ url_for('download_all_cards') }}" class="btn btn-info">Download All Guest Cards</a>
-        <a href="{{ url_for('scan_qr') }}" class="btn btn-success">Scan QR Code</a>
-        <a href="{{ url_for('regenerate_qr_codes') }}" class="btn btn-dark">Regenerate All QR Codes</a>
-        <a href="{{ url_for('send_cards') }}" class="btn btn-success">Send Cards</a>
-        <a href="{{ url_for('guest_report') }}" class="btn btn-dark">View Reports</a>
-        <a href="{{ url_for('clear_all_data') }}" class="btn btn-danger" onclick="return confirm('ARE YOU ABSOLUTELY SURE?');">Clear All Data</a>
-      </div>
-
-      <table class="table table-striped table-bordered">
-        <thead class="thead-dark">
-          <tr>
-            <th>Visual ID</th><th>Name</th><th>Phone</th><th>QR Code</th><th>Entered?</th><th>Entry Time</th><th>Card Type</th><th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for guest in guests %}
-          <tr>
-            <td>{{ guest.visual_id or 'N/A' }}</td>
-            <td>{{ guest.name }}</td>
-            <td>{{ guest.phone }}</td>
-            <td>{% if guest.qr_code_url %}<a href="{{ guest.qr_code_url }}" target="_blank">View QR</a>{% else %}N/A{% endif %}</td>
-            <td>{% if guest.checked_in_count and guest.checked_in_count >= guest.group_size %}Yes{% else %}No{% endif %}</td>
-            <td>{{ guest.entry_time.strftime('%Y-%m-%d %H:%M:%S') if guest.entry_time else 'N/A' }}</td>
-            <td>{{ guest.card_type|capitalize }}</td>
-            <td>
-              <a href="{{ url_for('edit_guest', guest_id=guest.id) }}" class="btn btn-sm btn-primary">Edit</a>
-              <a href="{{ url_for('delete_guest', guest_id=guest.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Delete {{ guest.name }}?')">Delete</a>
-              {% if guest.visual_id %}
-                <a href="{{ url_for('download_card_by_id', visual_id=guest.visual_id) }}" class="btn btn-sm btn-success">Card</a>
-              {% else %}
-                <button class="btn btn-sm btn-secondary" disabled>Card</button>
-              {% endif %}
-              <a href="https://wa.me/{{ to_whatsapp_number(guest.phone) }}" target="_blank" class="btn btn-sm btn-success">WhatsApp</a>
-            </td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-      
+<!-- Stats Row -->
+<div class="row g-3 mb-4">
+  <div class="col-6 col-md-2">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-total">—</div>
+      <div class="stat-label">Total Guests</div>
     </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-entered" style="color:#75c99a;">—</div>
+      <div class="stat-label">Checked In</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-attending" style="color:#6edff6;">—</div>
+      <div class="stat-label">RSVP Yes</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-not-attending" style="color:#f08090;">—</div>
+      <div class="stat-label">RSVP No</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-single" style="color:var(--gold);">—</div>
+      <div class="stat-label">Single</div>
+    </div>
+  </div>
+  <div class="col-6 col-md-2">
+    <div class="stat-card">
+      <div class="stat-value" id="stat-family" style="color:#ffc849;">—</div>
+      <div class="stat-label">Family/Double</div>
+    </div>
+  </div>
+</div>
 
-    <script>
-    document.getElementById('guestSearch').addEventListener('input', async function(){
-        const q = this.value;
-        const res = await fetch(`/search_guests?q=${encodeURIComponent(q)}`);
-        const guests = await res.json();
-        const tbody = document.querySelector('table tbody');
-        tbody.innerHTML = '';
-        guests.forEach(guest => {
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-              <td>${guest.visual_id || 'N/A'}</td>
-              <td>${guest.name}</td>
-              <td>${guest.phone}</td>
-              <td>${guest.qr_code_url ? `<a href="${guest.qr_code_url}" target="_blank">View QR</a>` : 'N/A'}</td>
-              <td>${guest.checked_in_count >= guest.group_size ? 'Yes' : 'No'}</td>
-              <td>${guest.entry_time}</td>
-              <td>${(guest.card_type || '').charAt(0).toUpperCase() + (guest.card_type || '').slice(1)}</td>
-              <td>
-                <a href="/edit_guest/${guest.id}" class="btn btn-sm btn-primary">Edit</a>
-                <a href="/delete_guest/${guest.id}" class="btn btn-sm btn-danger">Delete</a>
-                ${guest.visual_id ? `<a href="/download_card_by_id/${guest.visual_id}" class="btn btn-sm btn-success">Card</a>` : `<button class="btn btn-sm btn-secondary" disabled>Card</button>`}
-                <a href="https://wa.me/${guest.phone}" target="_blank" class="btn btn-sm btn-success">WhatsApp</a>
-              </td>
-            `;
-            tbody.appendChild(tr);
-        });
-    });
+<!-- Search & Table Card -->
+<div class="card">
+  <div class="card-header d-flex align-items-center justify-content-between flex-wrap gap-2">
+    <span style="font-family:'Playfair Display',serif; font-size:1rem;">Guest List</span>
+    <div style="position:relative; max-width:280px; width:100%;">
+      <i class="bi bi-search" style="position:absolute; left:12px; top:50%; transform:translateY(-50%); color:var(--text-muted); font-size:.85rem;"></i>
+      <input id="guestSearch" class="form-control form-control-sm"
+             placeholder="Search by name or phone…"
+             style="padding-left:34px;">
+    </div>
+  </div>
 
-    </script>
-  </body>
-</html>
+  <div class="table-responsive">
+    <table class="table mb-0" id="guestTable">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Name</th>
+          <th>Phone</th>
+          <th>Card</th>
+          <th>Group</th>
+          <th>Checked In</th>
+          <th>Entry Time</th>
+          <th>RSVP</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody id="guestTbody">
+        {% for guest in guests %}
+        <tr>
+          <td>
+            <span style="font-family:'Playfair Display',serif; color:var(--gold); font-size:.9rem;">
+              {{ "%04d"|format(guest.visual_id or 0) }}
+            </span>
+          </td>
+          <td style="font-weight:500;">{{ guest.name }}</td>
+          <td style="color:var(--text-muted); font-size:.82rem;">{{ guest.phone }}</td>
+          <td>
+            {% if guest.card_type == 'single' %}
+              <span class="badge" style="background:var(--dark-4); color:var(--text-muted);">Single</span>
+            {% elif guest.card_type == 'double' %}
+              <span class="badge" style="background:rgba(13,202,240,.15); color:#6edff6;">Double</span>
+            {% else %}
+              <span class="badge" style="background:rgba(255,193,7,.12); color:#ffc849;">Family</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted); font-size:.82rem;">
+            {{ guest.checked_in_count or 0 }}/{{ guest.group_size }}
+          </td>
+          <td>
+            {% if guest.checked_in_count and guest.checked_in_count >= guest.group_size %}
+              <span class="badge" style="background:rgba(25,135,84,.2); color:#75c99a;">
+                <i class="bi bi-check2"></i> Yes
+              </span>
+            {% else %}
+              <span class="badge" style="background:var(--dark-4); color:var(--text-muted);">No</span>
+            {% endif %}
+          </td>
+          <td style="color:var(--text-muted); font-size:.78rem;">
+            {{ guest.entry_time.strftime('%d %b %H:%M') if guest.entry_time else '—' }}
+          </td>
+          <td>
+            {% if guest.rsvp_status == 'attending' %}
+              <span class="badge" style="background:rgba(13,202,240,.15); color:#6edff6;">
+                <i class="bi bi-check-circle"></i> Attending
+              </span>
+            {% elif guest.rsvp_status == 'not_attending' %}
+              <span class="badge" style="background:rgba(220,53,69,.15); color:#f08090;">
+                <i class="bi bi-x-circle"></i> Declined
+              </span>
+            {% else %}
+              <span style="color:var(--text-muted); font-size:.8rem;">—</span>
+            {% endif %}
+          </td>
+          <td>
+            <div class="d-flex gap-1 flex-wrap">
+              <a href="{{ url_for('edit_guest', guest_id=guest.id) }}"
+                 class="btn btn-sm btn-outline-gold" title="Edit">
+                <i class="bi bi-pencil"></i>
+              </a>
+              <a href="{{ url_for('delete_guest', guest_id=guest.id) }}"
+                 class="btn btn-sm"
+                 style="background:rgba(220,53,69,.12); color:#f08090; border:none;"
+                 onclick="return confirm('Delete {{ guest.name }}?')"
+                 title="Delete">
+                <i class="bi bi-trash3"></i>
+              </a>
+              {% if guest.visual_id %}
+                <a href="{{ url_for('download_card_by_id', visual_id=guest.visual_id) }}"
+                   class="btn btn-sm"
+                   style="background:rgba(25,135,84,.12); color:#75c99a; border:none;"
+                   title="Download Card">
+                  <i class="bi bi-credit-card"></i>
+                </a>
+              {% endif %}
+              <a href="https://wa.me/{{ to_whatsapp_number(guest.phone) }}"
+                 target="_blank"
+                 class="btn btn-sm"
+                 style="background:rgba(37,211,102,.12); color:#25d366; border:none;"
+                 title="WhatsApp">
+                <i class="bi bi-whatsapp"></i>
+              </a>
+            </div>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card-header" style="border-top:1px solid var(--dark-4); border-bottom:none;">
+    <small style="color:var(--text-muted);">
+      {{ guests|length }} guest{{ 's' if guests|length != 1 else '' }} total
+    </small>
+  </div>
+</div>
+
+<script>
+  // Load stats
+  async function loadStats() {
+    try {
+      const [report, rsvpData] = await Promise.all([
+        fetch('/guest_report_data').then(r => r.json()),
+        fetch('/search_guests?q=').then(r => r.json())
+      ]);
+      document.getElementById('stat-total').textContent = report.total_guests ?? '—';
+      document.getElementById('stat-entered').textContent = report.entered_guests ?? '—';
+      document.getElementById('stat-single').textContent = report.single_cards ?? '—';
+      document.getElementById('stat-family').textContent =
+        (report.double_cards ?? 0) + (report.family_cards ?? 0);
+
+      // Count RSVP from guest data
+      const attending = rsvpData.filter(g => g.rsvp_status === 'attending').length;
+      const declined  = rsvpData.filter(g => g.rsvp_status === 'not_attending').length;
+      document.getElementById('stat-attending').textContent = attending;
+      document.getElementById('stat-not-attending').textContent = declined;
+    } catch(e) { console.warn('Stats load failed', e); }
+  }
+  loadStats();
+
+  // Search
+  document.getElementById('guestSearch').addEventListener('input', async function() {
+    const q = this.value.trim();
+    const res = await fetch(`/search_guests?q=${encodeURIComponent(q)}`);
+    const guests = await res.json();
+    const tbody = document.getElementById('guestTbody');
+
+    const cardBadge = (ct) => {
+      if (ct === 'single') return `<span class="badge" style="background:var(--dark-4);color:var(--text-muted);">Single</span>`;
+      if (ct === 'double') return `<span class="badge" style="background:rgba(13,202,240,.15);color:#6edff6;">Double</span>`;
+      return `<span class="badge" style="background:rgba(255,193,7,.12);color:#ffc849;">Family</span>`;
+    };
+
+    const rsvpBadge = (status) => {
+      if (status === 'attending') return `<span class="badge" style="background:rgba(13,202,240,.15);color:#6edff6;"><i class="bi bi-check-circle"></i> Attending</span>`;
+      if (status === 'not_attending') return `<span class="badge" style="background:rgba(220,53,69,.15);color:#f08090;"><i class="bi bi-x-circle"></i> Declined</span>`;
+      return `<span style="color:var(--text-muted);font-size:.8rem;">—</span>`;
+    };
+
+    const checkedBadge = (g) => {
+      const full = g.checked_in_count >= g.group_size;
+      return full
+        ? `<span class="badge" style="background:rgba(25,135,84,.2);color:#75c99a;"><i class="bi bi-check2"></i> Yes</span>`
+        : `<span class="badge" style="background:var(--dark-4);color:var(--text-muted);">No</span>`;
+    };
+
+    tbody.innerHTML = guests.map(g => `
+      <tr>
+        <td><span style="font-family:'Playfair Display',serif;color:var(--gold);font-size:.9rem;">${String(g.visual_id||0).padStart(4,'0')}</span></td>
+        <td style="font-weight:500;">${g.name}</td>
+        <td style="color:var(--text-muted);font-size:.82rem;">${g.phone}</td>
+        <td>${cardBadge(g.card_type)}</td>
+        <td style="color:var(--text-muted);font-size:.82rem;">${g.checked_in_count||0}/${g.group_size||1}</td>
+        <td>${checkedBadge(g)}</td>
+        <td style="color:var(--text-muted);font-size:.78rem;">${g.entry_time !== 'N/A' ? g.entry_time : '—'}</td>
+        <td>${rsvpBadge(g.rsvp_status)}</td>
+        <td>
+          <div class="d-flex gap-1 flex-wrap">
+            <a href="/edit_guest/${g.id}" class="btn btn-sm btn-outline-gold" title="Edit"><i class="bi bi-pencil"></i></a>
+            <a href="/delete_guest/${g.id}" class="btn btn-sm" style="background:rgba(220,53,69,.12);color:#f08090;border:none;" onclick="return confirm('Delete ${g.name}?')" title="Delete"><i class="bi bi-trash3"></i></a>
+            ${g.visual_id ? `<a href="/download_card_by_id/${g.visual_id}" class="btn btn-sm" style="background:rgba(25,135,84,.12);color:#75c99a;border:none;" title="Card"><i class="bi bi-credit-card"></i></a>` : ''}
+            <a href="https://wa.me/${g.phone}" target="_blank" class="btn btn-sm" style="background:rgba(37,211,102,.12);color:#25d366;border:none;" title="WhatsApp"><i class="bi bi-whatsapp"></i></a>
+          </div>
+        </td>
+      </tr>
+    `).join('');
+  });
+</script>
+{% endblock %}
