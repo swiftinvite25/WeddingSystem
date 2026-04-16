@@ -938,63 +938,20 @@ def clear_all_data():
 
 
 # -------------------- WhatsApp number validation --------------------
+# NOTE: Pre-flight WhatsApp checking has been removed.
+# Invalid numbers are now detected automatically during card sending
+# via Meta API error code 131026, and marked as has_whatsapp=False.
 
 @app.route('/check_whatsapp_numbers', methods=['POST'])
 @login_required
 def check_whatsapp_numbers_route():
-    from whatsapp import check_whatsapp_numbers
-
-    force = request.args.get('force') == '1'
-
-    with get_db_session() as db:
-        if force:
-            guests = db.query(Guest).all()
-        else:
-            guests = db.query(Guest).filter(Guest.has_whatsapp == None).all()
-
-        if not guests:
-            return jsonify({"success": True, "message": "All numbers already checked.", "checked": 0,
-                            "has_whatsapp": 0, "no_whatsapp": 0})
-
-        # Build normalized phone -> guest map
-        phone_map = {}
-        for g in guests:
-            normalized = to_whatsapp_number(g.phone)
-            if normalized:
-                phone_map[normalized] = g
-
-        phone_list = list(phone_map.keys())
-        results = {}
-        batch_size = 100
-
-        for i in range(0, len(phone_list), batch_size):
-            batch = phone_list[i:i + batch_size]
-            try:
-                batch_result = check_whatsapp_numbers(batch)
-                results.update(batch_result)
-            except Exception as e:
-                current_app.logger.error(f"WhatsApp contacts batch check failed: {e}")
-                return jsonify({"success": False, "message": str(e)}), 500
-
-        has_wa = no_wa = 0
-        for number, is_valid in results.items():
-            guest = phone_map.get(number)
-            if guest:
-                guest.has_whatsapp = is_valid
-                guest.whatsapp_checked_at = datetime.now()
-                if is_valid:
-                    has_wa += 1
-                else:
-                    no_wa += 1
-
-        db.commit()
-
-        return jsonify({
-            "success": True,
-            "checked": len(results),
-            "has_whatsapp": has_wa,
-            "no_whatsapp": no_wa,
-        })
+    return jsonify({
+        "success": False,
+        "message": (
+            "Pre-flight WhatsApp checking is disabled. "
+            "Invalid numbers are detected automatically when cards are sent."
+        )
+    }), 410
 
 
 # -------------------- Export no-WhatsApp guests to CSV --------------------
@@ -1179,12 +1136,10 @@ def _handle_rsvp(from_number: str, button_text: str):
         current_app.logger.warning(f"Unknown button text from {from_number}: {button_text}")
         return
 
-    # Build all possible variants of the incoming number so we match
-    # regardless of how the number was originally stored in the DB.
     raw = str(from_number).strip().lstrip('+')
     variants = {raw, f"+{raw}"}
     if raw.startswith("255") and len(raw) >= 11:
-        local9 = raw[3:]          # e.g. 674114407
+        local9 = raw[3:]
         variants.update({local9, f"0{local9}", f"+255{local9}"})
     if raw.startswith("0") and len(raw) == 10:
         local9 = raw[1:]
@@ -1225,7 +1180,6 @@ def send_cards():
         not_attending = sum(1 for g in guests if g.rsvp_status == 'not_attending')
         no_rsvp = total - attending - not_attending
 
-        # WhatsApp validation counts
         wa_checked = sum(1 for g in guests if g.has_whatsapp is not None)
         no_whatsapp_count = sum(1 for g in guests if g.has_whatsapp is False)
         sms_sent_count = sum(1 for g in guests if g.sms_sent)
@@ -1246,6 +1200,8 @@ def send_cards():
             sms_enabled=SMS_ENABLED,
         )
 
+
+# -------------------- send_card_single --------------------
 
 @app.route('/send_card_single/<int:guest_id>', methods=['POST'])
 @login_required
@@ -1275,7 +1231,7 @@ def send_card_single(guest_id):
                 return jsonify(success=False, message="Could not retrieve or generate card.")
 
             from whatsapp import send_guest_card as wa_send
-            wa_send(
+            result = wa_send(
                 to=phone,
                 guest_name=guest.name or "Guest",
                 visual_id=guest.visual_id,
@@ -1284,25 +1240,35 @@ def send_card_single(guest_id):
                 filename=card_fname,
             )
 
+            # Detected as invalid WhatsApp number by Meta (error 131026)
+            if result.get("status") == "invalid_number":
+                guest.has_whatsapp = False
+                guest.whatsapp_checked_at = datetime.now()
+                guest.whatsapp_sent = False
+                guest.whatsapp_error = "Not on WhatsApp"
+                db.commit()
+                return jsonify(
+                    success=False,
+                    message="Number is not on WhatsApp.",
+                    guest_id=guest_id
+                )
+
             guest.whatsapp_sent = True
             guest.whatsapp_sent_at = datetime.now()
             guest.whatsapp_error = None
             db.commit()
-
             return jsonify(success=True, message=f"Card sent to {guest.name}", guest_id=guest_id)
 
         except Exception as e:
             error_msg = str(e)
-            # Auto-detect "not on WhatsApp" error code from Meta API
-            if "131026" in error_msg or "not a valid whatsapp" in error_msg.lower():
-                guest.has_whatsapp = False
-                guest.whatsapp_checked_at = datetime.now()
             guest.whatsapp_sent = False
             guest.whatsapp_error = error_msg[:500]
             db.commit()
             current_app.logger.error(f"WhatsApp send failed for guest {guest_id}: {e}", exc_info=True)
             return jsonify(success=False, message=error_msg, guest_id=guest_id)
 
+
+# -------------------- send_cards_bulk --------------------
 
 @app.route('/send_cards_bulk', methods=['POST'])
 @login_required
@@ -1340,7 +1306,7 @@ def send_cards_bulk():
             if not card_bytes:
                 raise ValueError("Could not retrieve or generate card image.")
 
-            wa_send(
+            result = wa_send(
                 to=phone,
                 guest_name=guest.name or "Guest",
                 visual_id=guest.visual_id,
@@ -1352,22 +1318,27 @@ def send_cards_bulk():
             with get_db_session() as db2:
                 g = db2.get(Guest, guest.id)
                 if g:
-                    g.whatsapp_sent = True
-                    g.whatsapp_sent_at = datetime.now()
-                    g.whatsapp_error = None
-                    db2.commit()
-
-            results["sent"] += 1
+                    if result.get("status") == "invalid_number":
+                        # Detected as not on WhatsApp — mark and count as failed
+                        g.has_whatsapp = False
+                        g.whatsapp_checked_at = datetime.now()
+                        g.whatsapp_sent = False
+                        g.whatsapp_error = "Not on WhatsApp"
+                        db2.commit()
+                        results["failed"] += 1
+                        results["errors"].append({"name": guest.name, "error": "Not on WhatsApp"})
+                    else:
+                        g.whatsapp_sent = True
+                        g.whatsapp_sent_at = datetime.now()
+                        g.whatsapp_error = None
+                        db2.commit()
+                        results["sent"] += 1
 
         except Exception as e:
             error_msg = str(e)
             with get_db_session() as db2:
                 g = db2.get(Guest, guest.id)
                 if g:
-                    # Auto-detect "not on WhatsApp" error code
-                    if "131026" in error_msg or "not a valid whatsapp" in error_msg.lower():
-                        g.has_whatsapp = False
-                        g.whatsapp_checked_at = datetime.now()
                     g.whatsapp_sent = False
                     g.whatsapp_error = error_msg[:500]
                     db2.commit()
