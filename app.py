@@ -1196,7 +1196,7 @@ def data_deletion():
     <p>If you would like to delete your data from SwiftInvite, please follow the instructions below:</p>
 
     <ol>
-        <li>Send an email to: <strong>your@email.com</strong></li>
+        <li>Send an email to: <strong>swiftinvite25@gmail.com</strong></li>
         <li>Include your phone number or identifier used in the app</li>
         <li>We will process your request within 7 days</li>
     </ol>
