@@ -64,15 +64,24 @@ class Guest(Base):
     whatsapp_sent_at = Column(DateTime, nullable=True)
     whatsapp_error = Column(String, nullable=True)
 
+    # WhatsApp number validation
+    has_whatsapp = Column(Boolean, nullable=True)       # None=unchecked, True/False=checked
+    whatsapp_checked_at = Column(DateTime, nullable=True)
+
     # RSVP tracking
-    rsvp_status = Column(String, nullable=True)   # 'attending' | 'not_attending' | None
+    rsvp_status = Column(String, nullable=True)         # 'attending' | 'not_attending' | None
     rsvp_at = Column(DateTime, nullable=True)
+
+    # SMS fallback tracking
+    sms_sent = Column(Boolean, default=False)
+    sms_sent_at = Column(DateTime, nullable=True)
+    sms_error = Column(String, nullable=True)
 
     def __repr__(self):
         return (
             f"<Guest(id={self.id}, visual_id={self.visual_id}, name='{self.name}', "
             f"card_type='{self.card_type}', whatsapp_sent={self.whatsapp_sent}, "
-            f"rsvp={self.rsvp_status})>"
+            f"has_whatsapp={self.has_whatsapp}, rsvp={self.rsvp_status})>"
         )
 
     def save(self, session):

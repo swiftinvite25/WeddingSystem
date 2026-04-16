@@ -89,3 +89,39 @@ def send_guest_card(to: str, guest_name: str, visual_id: int,
         card_number=f"{visual_id:04d}",
         media_id=media_id,
     )
+
+
+def check_whatsapp_numbers(phone_numbers: list[str]) -> dict[str, bool]:
+    """
+    Check which numbers have WhatsApp accounts using the Meta contacts endpoint.
+    Accepts a list of numbers in E.164 format (e.g. "255674114407").
+    Returns dict: { "255674114407": True, "255700000000": False }
+
+    Note: This endpoint may not be available on all WhatsApp Business API tiers.
+    If you receive a 403 or "unsupported" error, use the send-and-detect approach
+    instead (check for error code 131026 in send failures).
+    """
+    url = f"{WHATSAPP_API_BASE}/{WHATSAPP_PHONE_NUMBER_ID}/contacts"
+    payload = {
+        "messaging_product": "whatsapp",
+        "contacts": phone_numbers,
+    }
+    response = requests.post(url, headers=_headers(), json=payload)
+    if not response.ok:
+        logging.error(f"Contacts check failed: {response.status_code} {response.text}")
+        response.raise_for_status()
+
+    results = response.json().get("contacts", [])
+    status_map = {}
+    for contact in results:
+        number = contact.get("input")
+        wa_id = contact.get("wa_id")        # present only if valid WhatsApp number
+        status = contact.get("status")      # "valid" or "invalid"
+        status_map[number] = (status == "valid" and wa_id is not None)
+
+    # Mark any numbers that weren't returned at all as False
+    for number in phone_numbers:
+        if number not in status_map:
+            status_map[number] = False
+
+    return status_map
