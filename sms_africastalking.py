@@ -48,6 +48,9 @@ def send_sms(phone: str, message: str) -> dict:
 
     try:
         _init()
+    
+        logging.info(f"AT mode — username: {os.getenv('AT_USERNAME')}, live: {is_live}, sender_id: {sender_id}")
+        logging.info(f"Sending to: {recipients}")
         sms = africastalking.SMS
 
         # Ensure correct phone format
