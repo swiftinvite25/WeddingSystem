@@ -58,25 +58,9 @@
     </div>
   </div>
 
-  <!-- WhatsApp Validation Row -->
+  {% if sms_enabled %}
+  <!-- SMS Stats Row -->
   <div class="row mb-4">
-    <div class="col-6 col-md-3 mb-3">
-      <div class="card text-center shadow-sm border-info">
-        <div class="card-body py-3">
-          <h3 class="mb-0 text-info">{{ no_whatsapp_count }}</h3>
-          <small class="text-muted">No WhatsApp</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3 mb-3">
-      <div class="card text-center shadow-sm">
-        <div class="card-body py-3">
-          <h3 class="mb-0">{{ total - wa_checked }}</h3>
-          <small class="text-muted">Unchecked</small>
-        </div>
-      </div>
-    </div>
-    {% if sms_enabled %}
     <div class="col-6 col-md-3 mb-3">
       <div class="card text-center shadow-sm border-success">
         <div class="card-body py-3">
@@ -85,8 +69,8 @@
         </div>
       </div>
     </div>
-    {% endif %}
   </div>
+  {% endif %}
 
   <!-- Bulk Actions -->
   <div class="card shadow-sm mb-4">
@@ -98,33 +82,12 @@
         🔄 Resend to All
       </button>
 
-      <div class="vr mx-1"></div>
-
-      <!-- WhatsApp number check -->
-      <button class="btn btn-outline-info" id="btn-check-wa" onclick="checkWhatsappNumbers(false)">
-        🔍 Check WhatsApp Numbers
-      </button>
-      {% if wa_checked > 0 %}
-      <button class="btn btn-outline-secondary btn-sm" onclick="checkWhatsappNumbers(true)"
-              title="Re-check all numbers, including already checked ones">
-        ↺ Re-check All
-      </button>
-      {% endif %}
-
-      {% if no_whatsapp_count > 0 %}
-      <a href="{{ url_for('export_no_whatsapp_csv') }}" class="btn btn-outline-dark btn-sm">
-        📥 Export No-WhatsApp CSV
-      </a>
-      {% endif %}
-
-      {% if sms_enabled and no_whatsapp_count > 0 %}
+      {% if sms_enabled %}
       <div class="vr mx-1"></div>
       <button class="btn btn-outline-primary" id="btn-sms-bulk" onclick="bulkSms(false)">
-        💬 SMS No-WhatsApp Guests ({{ no_whatsapp_count }})
+        💬 Send SMS to All Guests
       </button>
-      {% endif %}
-
-      {% if not sms_enabled %}
+      {% else %}
       <span class="text-muted ms-auto small" title="Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER to enable">
         💬 SMS: not configured
       </span>
@@ -132,15 +95,6 @@
 
       <a href="{{ url_for('view_all') }}" class="btn btn-outline-secondary ms-auto">← Back</a>
     </div>
-  </div>
-
-  <!-- WhatsApp Check Progress -->
-  <div id="wa-check-wrap" class="mb-4" style="display:none;">
-    <div class="alert alert-info d-flex align-items-center gap-2">
-      <div class="spinner-border spinner-border-sm" role="status"></div>
-      <span id="wa-check-label">Checking numbers with Meta...</span>
-    </div>
-    <div id="wa-check-result"></div>
   </div>
 
   <!-- Send Progress Bar -->
@@ -172,7 +126,6 @@
   <!-- Filter tabs -->
   <div class="mb-3 d-flex gap-2 flex-wrap">
     <button class="btn btn-sm btn-outline-secondary active" onclick="filterTable('all', this)">All</button>
-    <button class="btn btn-sm btn-outline-warning" onclick="filterTable('no-wa', this)">No WhatsApp</button>
     <button class="btn btn-sm btn-outline-danger" onclick="filterTable('failed', this)">Failed</button>
     <button class="btn btn-sm btn-outline-secondary" onclick="filterTable('pending', this)">Pending</button>
     <button class="btn btn-sm btn-outline-primary" onclick="filterTable('attending', this)">Attending</button>
@@ -189,7 +142,6 @@
               <th>Name</th>
               <th>Phone</th>
               <th>Card</th>
-              <th>WhatsApp</th>
               <th>Sent</th>
               <th>RSVP</th>
               <th>Action</th>
@@ -198,25 +150,12 @@
           <tbody>
             {% for guest in guests %}
             <tr id="row-{{ guest.id }}"
-                data-wa="{{ 'yes' if guest.has_whatsapp == True else ('no' if guest.has_whatsapp == False else 'unknown') }}"
                 data-sent="{{ 'sent' if guest.whatsapp_sent else ('failed' if guest.whatsapp_error else 'pending') }}"
-                data-rsvp="{{ guest.rsvp_status or 'none' }}"
-                class="{% if guest.has_whatsapp == False %}table-warning{% endif %}">
+                data-rsvp="{{ guest.rsvp_status or 'none' }}">
               <td>{{ "%04d"|format(guest.visual_id or 0) }}</td>
               <td>{{ guest.name }}</td>
               <td>{{ guest.phone }}</td>
               <td>{{ (guest.card_type or 'single') | title }}</td>
-
-              <!-- WhatsApp status cell -->
-              <td id="wa-{{ guest.id }}">
-                {% if guest.has_whatsapp == True %}
-                  <span class="badge bg-success">WhatsApp ✓</span>
-                {% elif guest.has_whatsapp == False %}
-                  <span class="badge bg-warning text-dark">No WhatsApp</span>
-                {% else %}
-                  <span class="badge bg-light text-muted border">Unchecked</span>
-                {% endif %}
-              </td>
 
               <!-- WhatsApp send status cell -->
               <td id="status-{{ guest.id }}">
@@ -247,23 +186,17 @@
               <!-- Action column -->
               <td>
                 <div class="d-flex gap-1 flex-wrap">
-                  {% if guest.has_whatsapp != False %}
                   <button class="btn btn-sm btn-primary" id="btn-{{ guest.id }}"
                           onclick="sendSingle({{ guest.id }})">
                     {% if guest.whatsapp_sent %}Resend{% else %}Send{% endif %}
                   </button>
-                  {% endif %}
 
-                  {% if guest.has_whatsapp == False %}
-                    {% if sms_enabled %}
-                    <button class="btn btn-sm btn-outline-primary" id="sms-btn-{{ guest.id }}"
-                            onclick="sendSmsSingle({{ guest.id }})"
-                            title="Send SMS instead">
-                      {% if guest.sms_sent %}Resend SMS{% else %}Send SMS{% endif %}
-                    </button>
-                    {% else %}
-                    <span class="badge bg-warning text-dark">SMS not set up</span>
-                    {% endif %}
+                  {% if sms_enabled %}
+                  <button class="btn btn-sm btn-outline-primary" id="sms-btn-{{ guest.id }}"
+                          onclick="sendSmsSingle({{ guest.id }})"
+                          title="Send SMS">
+                    {% if guest.sms_sent %}Resend SMS{% else %}Send SMS{% endif %}
+                  </button>
                   {% endif %}
                 </div>
               </td>
@@ -294,14 +227,9 @@
       if (data.success) {
         statusEl.innerHTML = '<span class="badge bg-success">Sent ✓</span>';
         btn.textContent = 'Resend';
-        // If Meta confirmed not on WhatsApp via error code, update badge
       } else {
         statusEl.innerHTML = `<span class="badge bg-danger" title="${data.message}">Failed</span>`;
         btn.textContent = 'Retry';
-        // If the failure was "not on WhatsApp", refresh to show updated badge
-        if (data.message && (data.message.includes('131026') || data.message.toLowerCase().includes('not a valid whatsapp'))) {
-          setTimeout(() => location.reload(), 1500);
-        }
       }
     } catch (err) {
       statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
@@ -365,50 +293,6 @@
 
     btnPending.disabled = false;
     btnAll.disabled = false;
-  }
-
-  // ── Check WhatsApp numbers ───────────────────────────────────────────────
-  async function checkWhatsappNumbers(force = false) {
-    const wrap = document.getElementById('wa-check-wrap');
-    const label = document.getElementById('wa-check-label');
-    const result = document.getElementById('wa-check-result');
-    const btn = document.getElementById('btn-check-wa');
-
-    wrap.style.display = 'block';
-    result.innerHTML = '';
-    label.textContent = 'Checking numbers with Meta — please wait...';
-    btn.disabled = true;
-
-    try {
-      const url = force ? '/check_whatsapp_numbers?force=1' : '/check_whatsapp_numbers';
-      const res = await fetch(url, { method: 'POST' });
-      const data = await res.json();
-
-      if (data.success) {
-        result.innerHTML = `
-          <div class="alert alert-success">
-            Checked <strong>${data.checked}</strong> numbers —
-            ✅ Has WhatsApp: <strong>${data.has_whatsapp}</strong> &nbsp;
-            ⚠️ No WhatsApp: <strong>${data.no_whatsapp}</strong>
-          </div>`;
-        setTimeout(() => location.reload(), 2000);
-      } else {
-        result.innerHTML = `<div class="alert alert-danger">Error: ${data.message}</div>`;
-        // If contacts API isn't available on this tier, show a helpful note
-        if (data.message && (data.message.includes('403') || data.message.includes('unsupported'))) {
-          result.innerHTML += `
-            <div class="alert alert-warning">
-              <strong>Note:</strong> The Meta contacts API may not be available on your WhatsApp Business tier.
-              Numbers will be automatically flagged as "No WhatsApp" if a send attempt fails with error 131026.
-            </div>`;
-        }
-      }
-    } catch (err) {
-      result.innerHTML = `<div class="alert alert-danger">Request failed: ${err}</div>`;
-    }
-
-    label.textContent = 'Done.';
-    btn.disabled = false;
   }
 
   // ── Single SMS send ──────────────────────────────────────────────────────
@@ -490,14 +374,12 @@
 
   // ── Table filter ─────────────────────────────────────────────────────────
   function filterTable(filter, btn) {
-    // Update active button state
     document.querySelectorAll('.btn[onclick^="filterTable"]').forEach(b => b.classList.remove('active'));
     btn.classList.add('active');
 
     document.querySelectorAll('#guest-table tbody tr').forEach(row => {
       let show = true;
-      if (filter === 'no-wa')      show = row.dataset.wa === 'no';
-      else if (filter === 'failed')    show = row.dataset.sent === 'failed';
+      if (filter === 'failed')         show = row.dataset.sent === 'failed';
       else if (filter === 'pending')   show = row.dataset.sent === 'pending';
       else if (filter === 'attending') show = row.dataset.rsvp === 'attending';
       row.style.display = show ? '' : 'none';
