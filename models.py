@@ -77,6 +77,10 @@ class Guest(Base):
     sms_sent_at = Column(DateTime, nullable=True)
     sms_error = Column(String, nullable=True)
 
+    webline_sms_sent = Column(Boolean, default=False)
+    webline_sms_error = Column(String, nullable=True)
+    webline_sms_sent_at = Column(DateTime, nullable=True)
+
     def __repr__(self):
         return (
             f"<Guest(id={self.id}, visual_id={self.visual_id}, name='{self.name}', "
