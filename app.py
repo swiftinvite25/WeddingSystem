@@ -1380,6 +1380,10 @@ def data_deletion():
     </html>
     """
 
+@app.route("/test_sms")
+def test_sms():
+    result = at_send_sms("+254708374149", "🎉 Test SMS from SwiftInvite system!")
+    return jsonify(result)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
