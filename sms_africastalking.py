@@ -4,7 +4,7 @@ sms_africastalking.py — Africa's Talking SMS provider
 Required environment variables:
     AT_API_KEY      — Africa's Talking API key (LIVE or SANDBOX)
     AT_USERNAME     — 'sandbox' or live username
-    AT_SENDER_ID    — registered sender ID (ONLY works in LIVE)
+    AT_SENDER_ID    — registered & approved sender ID (optional, LIVE only)
 """
 
 import os
@@ -27,6 +27,16 @@ if not logger.handlers:
 # ---------------------------------------------------------------------------
 
 _initialized = False
+
+# Known AT error messages returned in the Message field
+_AT_KNOWN_ERRORS = {
+    "InvalidSenderId",
+    "InvalidPhoneNumber",
+    "InsufficientBalance",
+    "UserInBlacklist",
+    "AbsentSubscriber",
+    "DeliveryFailure",
+}
 
 
 def _init():
@@ -54,7 +64,10 @@ def send_sms(phone: str, message: str) -> dict:
     Send SMS via Africa's Talking (sandbox + live).
 
     Sandbox  — no sender ID
-    Live     — sender ID optional (must be approved if used)
+    Live     — sender ID optional (must be approved by AT if used)
+
+    If AT_SENDER_ID is not set or not yet approved, leave it unset in
+    your environment and messages will go out via AT's shared shortcode.
     """
     if not is_configured():
         logger.error("Africa's Talking not configured — missing env vars.")
@@ -63,10 +76,13 @@ def send_sms(phone: str, message: str) -> dict:
     try:
         _init()
 
-        sender_id = os.getenv("AT_SENDER_ID")
+        sender_id = os.getenv("AT_SENDER_ID", "").strip() or None
         is_live   = os.getenv("AT_USERNAME") != "sandbox"
 
-        logger.info(f"AT mode — username: {os.getenv('AT_USERNAME')} | live: {is_live} | sender_id: {sender_id}")
+        logger.info(
+            f"AT mode — username: {os.getenv('AT_USERNAME')} | "
+            f"live: {is_live} | sender_id: {sender_id or 'none (shared shortcode)'}"
+        )
 
         # Ensure E.164 format
         recipients = [f"+{phone}" if not phone.startswith("+") else phone]
@@ -75,12 +91,16 @@ def send_sms(phone: str, message: str) -> dict:
 
         sms = africastalking.SMS
 
+        # Only attach sender_id if live AND it is set
         kwargs = {}
         if is_live and sender_id:
             kwargs["sender_id"] = sender_id
             logger.info(f"Using sender ID: {sender_id}")
         else:
-            logger.info("No sender ID used (sandbox or AT_SENDER_ID not set).")
+            logger.info(
+                "No sender ID attached — "
+                + ("sandbox mode." if not is_live else "AT_SENDER_ID not set, using shared shortcode.")
+            )
 
         response = sms.send(message, recipients, **kwargs)
         logger.info(f"AT raw response: {response}")
@@ -91,6 +111,7 @@ def send_sms(phone: str, message: str) -> dict:
 
         logger.info(f"AT message summary: {message_summary}")
 
+        # ── Recipients list returned (normal path) ────────────────────────
         if recipients_data:
             recipient = recipients_data[0]
             status    = recipient.get("status", "")
@@ -98,7 +119,10 @@ def send_sms(phone: str, message: str) -> dict:
             cost      = recipient.get("cost", "")
             msg_id    = recipient.get("messageId", "")
 
-            logger.info(f"AT recipient — number: {number} | status: {status} | cost: {cost} | messageId: {msg_id}")
+            logger.info(
+                f"AT recipient — number: {number} | status: {status} | "
+                f"cost: {cost} | messageId: {msg_id}"
+            )
 
             if status.lower() == "success":
                 return {
@@ -111,13 +135,17 @@ def send_sms(phone: str, message: str) -> dict:
             logger.warning(f"AT delivery status not success: '{status}' for {number}")
             return {"success": False, "error": status}
 
-        # Fallback: older AT response format
+        # ── No recipients list — check message summary ────────────────────
         if "Sent" in message_summary:
             logger.info("AT fallback success via message summary.")
             return {"success": True}
 
-        logger.warning(f"AT unexpected response structure: {response}")
-        return {"success": False, "error": f"Unexpected response: {response}"}
+        if message_summary in _AT_KNOWN_ERRORS:
+            logger.error(f"AT rejected message with known error: {message_summary}")
+            return {"success": False, "error": message_summary}
+
+        logger.warning(f"AT unexpected response: {response}")
+        return {"success": False, "error": f"Unexpected AT response: {message_summary or response}"}
 
     except Exception as e:
         logger.error(f"Africa's Talking SMS exception: {e}", exc_info=True)
