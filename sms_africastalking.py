@@ -46,7 +46,7 @@ def send_sms(phone: str, message: str) -> dict:
         sender_id  = os.getenv("AT_SENDER_ID") or None
         recipients = [f"+{phone}" if not phone.startswith("+") else phone]
 
-        response = sms.send(message, recipients, sender_id=sender_id)
+        response = sms.send(message, recipients)
         logging.info(f"AT SMS response: {response}")
 
         # Africa's Talking wraps results in SMSMessageData → Recipients list
