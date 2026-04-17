@@ -57,13 +57,13 @@
     </div>
   </div>
 
-  <!-- SMS Stats Row -->
-  {% if webline_configured %}
+  <!-- Africa's Talking SMS Stats Row -->
+  {% if at_configured %}
   <div class="row mb-4">
     <div class="col-6 col-md-3 mb-3">
       <div class="card text-center shadow-sm border-success">
         <div class="card-body py-3">
-          <h3 class="mb-0 text-success">{{ webline_sms_sent_count }}</h3>
+          <h3 class="mb-0 text-success">{{ at_sms_sent_count }}</h3>
           <small class="text-muted">📱 SMS Sent</small>
         </div>
       </div>
@@ -71,7 +71,7 @@
     <div class="col-6 col-md-3 mb-3">
       <div class="card text-center shadow-sm border-danger">
         <div class="card-body py-3">
-          <h3 class="mb-0 text-danger">{{ webline_sms_failed_count }}</h3>
+          <h3 class="mb-0 text-danger">{{ at_sms_failed_count }}</h3>
           <small class="text-muted">📱 SMS Failed</small>
         </div>
       </div>
@@ -79,7 +79,7 @@
     <div class="col-6 col-md-3 mb-3">
       <div class="card text-center shadow-sm border-warning">
         <div class="card-body py-3">
-          <h3 class="mb-0 text-warning">{{ total - webline_sms_sent_count }}</h3>
+          <h3 class="mb-0 text-warning">{{ total - at_sms_sent_count }}</h3>
           <small class="text-muted">📱 SMS Pending</small>
         </div>
       </div>
@@ -111,17 +111,18 @@
 
       <div class="vr mx-1"></div>
 
-      <!-- SMS only -->
-      {% if webline_configured %}
-      <button class="btn btn-info text-white" id="btn-sms-pending" onclick="bulkWeblineSms(false)">
-        📱 SMS Pending ({{ total - webline_sms_sent_count }})
+      <!-- Africa's Talking SMS only -->
+      {% if at_configured %}
+      <button class="btn btn-info text-white" id="btn-sms-pending" onclick="bulkAtSms(false)">
+        📱 SMS Pending ({{ total - at_sms_sent_count }})
       </button>
-      <button class="btn btn-outline-info" id="btn-sms-all" onclick="bulkWeblineSms(true)">
+      <button class="btn btn-outline-info" id="btn-sms-all" onclick="bulkAtSms(true)">
         🔄 SMS Resend All
       </button>
       {% else %}
-      <span class="text-muted small" title="Set WEBLINE_API_TOKEN and WEBLINE_SENDER_ID in your .env to enable">
-        📱 WeblineAfrica SMS: not configured
+      <span class="text-muted small"
+            title="Set AT_API_KEY, AT_USERNAME, and AT_SENDER_ID in your .env to enable">
+        📱 Africa's Talking SMS: not configured
       </span>
       {% endif %}
 
@@ -158,7 +159,7 @@
   <!-- SMS progress bar -->
   <div id="sms-progress-wrap" class="mb-4" style="display:none;">
     <div class="d-flex justify-content-between mb-1">
-      <small id="sms-progress-label">Sending SMS via WeblineAfrica…</small>
+      <small id="sms-progress-label">Sending SMS via Africa's Talking…</small>
       <small id="sms-progress-count"></small>
     </div>
     <div class="progress" style="height:20px;">
@@ -199,7 +200,7 @@
             {% for guest in guests %}
             <tr id="row-{{ guest.id }}"
                 data-wa-sent="{{ 'sent' if guest.whatsapp_sent else ('failed' if guest.whatsapp_error else 'pending') }}"
-                data-sms-sent="{{ 'sent' if guest.webline_sms_sent else ('failed' if guest.webline_sms_error else 'pending') }}"
+                data-sms-sent="{{ 'sent' if guest.at_sms_sent else ('failed' if guest.at_sms_error else 'pending') }}"
                 data-rsvp="{{ guest.rsvp_status or 'none' }}">
               <td>{{ "%04d"|format(guest.visual_id or 0) }}</td>
               <td>{{ guest.name }}</td>
@@ -221,16 +222,16 @@
                 {% endif %}
               </td>
 
-              <!-- SMS status -->
+              <!-- Africa's Talking SMS status -->
               <td id="sms-status-{{ guest.id }}">
-                {% if guest.webline_sms_sent %}
+                {% if guest.at_sms_sent %}
                   <span class="badge bg-info text-white">Sent
-                    {% if guest.webline_sms_sent_at %}
-                      <small>({{ guest.webline_sms_sent_at.strftime('%d %b %H:%M') }})</small>
+                    {% if guest.at_sms_sent_at %}
+                      <small>({{ guest.at_sms_sent_at.strftime('%d %b %H:%M') }})</small>
                     {% endif %}
                   </span>
-                {% elif guest.webline_sms_error %}
-                  <span class="badge bg-danger" title="{{ guest.webline_sms_error }}">Failed</span>
+                {% elif guest.at_sms_error %}
+                  <span class="badge bg-danger" title="{{ guest.at_sms_error }}">Failed</span>
                 {% else %}
                   <span class="badge bg-secondary">Pending</span>
                 {% endif %}
@@ -260,11 +261,11 @@
                           onclick="sendSingle({{ guest.id }})">
                     {% if guest.whatsapp_sent %}↺ WA{% else %}▶ WA{% endif %}
                   </button>
-                  <!-- SMS only -->
-                  {% if webline_configured %}
+                  <!-- Africa's Talking SMS only -->
+                  {% if at_configured %}
                   <button class="btn btn-sm btn-info text-white" id="sms-btn-{{ guest.id }}"
-                          onclick="sendWeblineSms({{ guest.id }})">
-                    {% if guest.webline_sms_sent %}↺ SMS{% else %}▶ SMS{% endif %}
+                          onclick="sendAtSms({{ guest.id }})">
+                    {% if guest.at_sms_sent %}↺ SMS{% else %}▶ SMS{% endif %}
                   </button>
                   {% endif %}
                 </div>
@@ -287,10 +288,10 @@ function waBadge(wa) {
   return                       '<span class="badge bg-danger">Failed</span>';
 }
 function smsBadge(sms) {
-  if (sms === 'sent')          return '<span class="badge bg-info text-white">Sent ✓</span>';
+  if (sms === 'sent')           return '<span class="badge bg-info text-white">Sent ✓</span>';
   if (sms === 'not_configured') return '<span class="badge bg-secondary">N/A</span>';
-  if (sms === 'skipped')       return '<span class="badge bg-light text-muted">Skipped</span>';
-  return                              '<span class="badge bg-danger">Failed</span>';
+  if (sms === 'skipped')        return '<span class="badge bg-light text-muted">Skipped</span>';
+  return                               '<span class="badge bg-danger">Failed</span>';
 }
 
 // ── ★ Single unified (WA + SMS) ───────────────────────────────────────────
@@ -311,7 +312,6 @@ async function sendUnified(guestId) {
     smsEl.innerHTML = smsBadge(data.sms);
     uBtn.textContent = data.overall !== 'failed' ? '✓' : '✗';
 
-    // update row data-attributes for filter
     const row = document.getElementById(`row-${guestId}`);
     if (row) {
       row.dataset.waSent  = data.wa  === 'sent' ? 'sent' : (data.wa === 'skipped' ? 'pending' : 'failed');
@@ -456,8 +456,8 @@ async function bulkSend(resend) {
   btnPending.disabled = btnAll.disabled = false;
 }
 
-// ── Single Webline SMS (legacy) ───────────────────────────────────────────
-async function sendWeblineSms(guestId) {
+// ── Single Africa's Talking SMS ───────────────────────────────────────────
+async function sendAtSms(guestId) {
   const btn      = document.getElementById(`sms-btn-${guestId}`);
   const statusEl = document.getElementById(`sms-status-${guestId}`);
 
@@ -465,7 +465,7 @@ async function sendWeblineSms(guestId) {
   statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
 
   try {
-    const res  = await fetch(`/send_webline_sms_single/${guestId}`, { method: 'POST' });
+    const res  = await fetch(`/send_at_sms_single/${guestId}`, { method: 'POST' });
     const data = await res.json();
     if (data.success) {
       statusEl.innerHTML = '<span class="badge bg-info text-white">Sent ✓</span>';
@@ -481,8 +481,8 @@ async function sendWeblineSms(guestId) {
   btn.disabled = false;
 }
 
-// ── Bulk Webline SMS (legacy) ─────────────────────────────────────────────
-async function bulkWeblineSms(resend) {
+// ── Bulk Africa's Talking SMS ─────────────────────────────────────────────
+async function bulkAtSms(resend) {
   const wrap   = document.getElementById('sms-progress-wrap');
   const bar    = document.getElementById('sms-progress-bar');
   const label  = document.getElementById('sms-progress-label');
@@ -493,13 +493,13 @@ async function bulkWeblineSms(resend) {
 
   wrap.style.display = 'block';
   bar.style.width    = '5%';
-  label.textContent  = 'Sending SMS via WeblineAfrica — please wait…';
+  label.textContent  = "Sending SMS via Africa's Talking — please wait…";
   result.innerHTML   = '';
   if (btnP) btnP.disabled = true;
   if (btnA) btnA.disabled = true;
 
   try {
-    const res  = await fetch('/send_webline_sms_bulk', {
+    const res  = await fetch('/send_at_sms_bulk', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ resend }),

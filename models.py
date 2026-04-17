@@ -72,14 +72,15 @@ class Guest(Base):
     rsvp_status = Column(String, nullable=True)         # 'attending' | 'not_attending' | None
     rsvp_at = Column(DateTime, nullable=True)
 
-    # SMS fallback tracking
+    # Legacy SMS tracking (kept for backward compatibility — not actively used)
     sms_sent = Column(Boolean, default=False)
     sms_sent_at = Column(DateTime, nullable=True)
     sms_error = Column(String, nullable=True)
 
-    webline_sms_sent = Column(Boolean, default=False)
-    webline_sms_error = Column(String, nullable=True)
-    webline_sms_sent_at = Column(DateTime, nullable=True)
+    # Africa's Talking SMS tracking
+    at_sms_sent = Column(Boolean, default=False)
+    at_sms_error = Column(String, nullable=True)
+    at_sms_sent_at = Column(DateTime, nullable=True)
 
     def __repr__(self):
         return (

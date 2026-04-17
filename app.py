@@ -12,7 +12,7 @@ from datetime import datetime
 from functools import wraps
 from urllib.parse import quote as url_encode
 from whatsapp import send_guest_card
-from sms_webline import send_sms as webline_send_sms, is_configured as webline_configured
+from sms_africastalking import send_sms as at_send_sms, is_configured as at_configured
 import time
 
 
@@ -172,19 +172,14 @@ def generate_qr_bytes(data: str) -> bytes:
 def to_whatsapp_number(phone):
     """Normalise any TZ phone number to 255XXXXXXXXX format."""
     phone = str(phone).strip()
-    # Strip leading +
     if phone.startswith('+'):
         phone = phone[1:]
-    # Already in 255 format — return as-is
     if phone.startswith('255') and len(phone) == 12:
         return phone
-    # Strip leading 0
     if phone.startswith('0'):
         phone = phone[1:]
-    # Local 9-digit starting with 7 or 6
     if len(phone) == 9 and phone[0] in ('7', '6'):
         return f"255{phone}"
-    # Already 255 prefix but maybe length off — return anyway
     if phone.startswith('255'):
         return phone
     return phone
@@ -292,7 +287,6 @@ def logout():
 def add_guest():
     if request.method == 'POST':
         name = (request.form.get('name') or '').strip()
-        # Normalize phone at save time so DB is always consistent
         phone = to_whatsapp_number((request.form.get('phone') or '').strip())
         card_type_input = request.form.get('card_type', 'single')
         group_size_input = request.form.get('group_size', '').strip()
@@ -365,9 +359,7 @@ def upload_csv():
                     skipped += 1
                     continue
 
-                # Normalize phone at save time
                 phone = to_whatsapp_number(raw_phone)
-
                 card_type = normalize(get_row(row, "Card Type", "card_type", "type"))
 
                 if card_type == "single":
@@ -511,7 +503,7 @@ def download_excel():
 
         table_start = row + 1
         headers = ["ID", "Name", "Phone", "QR Code ID", "Has Entered", "Entry Time",
-                   "Visual ID", "Card Type", "Group Size", "WhatsApp", "RSVP", "SMS Sent"]
+                   "Visual ID", "Card Type", "Group Size", "WhatsApp", "RSVP", "AT SMS Sent"]
         for col, header in enumerate(headers, start=1):
             ws.cell(row=table_start, column=col, value=header).font = Font(bold=True)
 
@@ -523,7 +515,7 @@ def download_excel():
             ws.cell(i, 7, g.visual_id); ws.cell(i, 8, g.card_type); ws.cell(i, 9, g.group_size)
             ws.cell(i, 10, "Yes" if g.has_whatsapp else ("No" if g.has_whatsapp is False else "Unknown"))
             ws.cell(i, 11, g.rsvp_status or "—")
-            ws.cell(i, 12, "Yes" if g.sms_sent else "No")
+            ws.cell(i, 12, "Yes" if g.at_sms_sent else "No")
 
         first_data_row = table_start + 1
         last_data_row = table_start + len(guests)
@@ -892,7 +884,6 @@ def clear_all_data():
     return redirect(url_for('view_all'))
 
 
-
 # -------------------- WEBHOOK (RSVP receiver) --------------------
 
 @app.route('/webhook/whatsapp', methods=['GET', 'POST'])
@@ -976,22 +967,21 @@ def _handle_rsvp(from_number: str, button_text: str):
         )
 
 
-
 # ════════════════════════════════════════════════════════════════════════════
 #  UNIFIED SEND ENGINE
 # ════════════════════════════════════════════════════════════════════════════
- 
+
 def _send_to_guest(guest, db):
     """
     Core delivery logic for one guest.
- 
+
     Flow:
         1. Attempt WhatsApp.
         2. If Meta returns invalid_number  →  mark WA failed, auto-send SMS.
         3. If WA succeeds                  →  mark WA sent, skip SMS
            (SMS can still be sent manually / via separate bulk action).
         4. If WA fails for any OTHER reason →  mark WA failed, attempt SMS.
- 
+
     Returns a dict:
         {
             wa:      "sent" | "skipped" | "failed" | "invalid",
@@ -1004,7 +994,7 @@ def _send_to_guest(guest, db):
     wa_status  = "skipped"
     sms_status = "skipped"
     messages   = []
- 
+
     phone = to_whatsapp_number(guest.phone)
     if not phone:
         return {
@@ -1012,7 +1002,7 @@ def _send_to_guest(guest, db):
             "overall": "failed",
             "message": "No valid phone number."
         }
- 
+
     # ── Step 1: try WhatsApp ──────────────────────────────────────────────
     try:
         card_fname = card_filename_from_guest(guest)
@@ -1022,10 +1012,10 @@ def _send_to_guest(guest, db):
             card_bytes = _generate_card_bytes(guest)
             if card_bytes:
                 upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes)
- 
+
         if not card_bytes:
             raise ValueError("Could not retrieve or generate card image.")
- 
+
         wa_result = send_guest_card(
             to=phone,
             guest_name=guest.name or "Guest",
@@ -1034,13 +1024,12 @@ def _send_to_guest(guest, db):
             image_bytes=card_bytes,
             filename=card_fname,
         )
- 
+
         if wa_result.get("status") == "invalid_number":
-            # Meta confirmed: number is not on WhatsApp
-            guest.has_whatsapp       = False
+            guest.has_whatsapp        = False
             guest.whatsapp_checked_at = now
-            guest.whatsapp_sent      = False
-            guest.whatsapp_error     = "Not on WhatsApp"
+            guest.whatsapp_sent       = False
+            guest.whatsapp_error      = "Not on WhatsApp"
             wa_status = "invalid"
             messages.append("WhatsApp: not on platform.")
         else:
@@ -1049,7 +1038,7 @@ def _send_to_guest(guest, db):
             guest.whatsapp_error   = None
             wa_status = "sent"
             messages.append("WhatsApp: sent.")
- 
+
     except Exception as e:
         err_str = str(e)[:500]
         guest.whatsapp_sent  = False
@@ -1057,44 +1046,43 @@ def _send_to_guest(guest, db):
         wa_status = "failed"
         messages.append(f"WhatsApp failed: {err_str}")
         logging.error(f"WA send failed for {guest.name}: {e}", exc_info=True)
- 
-    # ── Step 2: SMS — send if WA was invalid or failed ────────────────────
-    #   (Also sends if WA succeeded — policy: send both to everyone.
-    #    Change the condition below to `if wa_status != "sent":` if you
-    #    only want SMS as a pure fallback.)
-    should_send_sms = True   # ← set to:  wa_status != "sent"   for fallback-only
- 
+
+    # ── Step 2: SMS via Africa's Talking ─────────────────────────────────
+    # Set should_send_sms = True  to always send both WA and SMS.
+    # Set should_send_sms = (wa_status != "sent")  for SMS-as-fallback only.
+    should_send_sms = True
+
     if should_send_sms:
-        if not webline_configured():
+        if not at_configured():
             sms_status = "not_configured"
-            messages.append("SMS: provider not configured.")
+            messages.append("SMS: Africa's Talking not configured.")
         else:
             try:
-                sms_result = webline_send_sms(phone, build_sms_message(guest))
+                sms_result = at_send_sms(phone, build_sms_message(guest))
                 if sms_result.get("success"):
-                    guest.webline_sms_sent    = True
-                    guest.webline_sms_error   = None
-                    guest.webline_sms_sent_at = now
+                    guest.at_sms_sent    = True
+                    guest.at_sms_error   = None
+                    guest.at_sms_sent_at = now
                     sms_status = "sent"
                     messages.append("SMS: sent.")
                 else:
                     err_str = sms_result.get("error", "Unknown SMS error")[:500]
-                    guest.webline_sms_sent  = False
-                    guest.webline_sms_error = err_str
+                    guest.at_sms_sent  = False
+                    guest.at_sms_error = err_str
                     sms_status = "failed"
                     messages.append(f"SMS failed: {err_str}")
             except Exception as e:
                 err_str = str(e)[:500]
-                guest.webline_sms_sent  = False
-                guest.webline_sms_error = err_str
+                guest.at_sms_sent  = False
+                guest.at_sms_error = err_str
                 sms_status = "failed"
                 messages.append(f"SMS error: {err_str}")
                 logging.error(f"SMS send failed for {guest.name}: {e}", exc_info=True)
     else:
         sms_status = "skipped"
- 
+
     db.commit()
- 
+
     # ── Determine overall outcome ─────────────────────────────────────────
     if wa_status == "sent" or sms_status == "sent":
         overall = "success"
@@ -1102,15 +1090,15 @@ def _send_to_guest(guest, db):
         overall = "failed"
     else:
         overall = "partial"
- 
+
     return {
         "wa":      wa_status,
         "sms":     sms_status,
         "overall": overall,
         "message": " | ".join(messages),
     }
- 
- 
+
+
 # ── Unified single ────────────────────────────────────────────────────────────
 @app.route('/send_unified_single/<int:guest_id>', methods=['POST'])
 @login_required
@@ -1128,44 +1116,43 @@ def send_unified_single(guest_id):
             message=result["message"],
             guest_id=guest_id,
         )
- 
- 
+
+
 # ── Unified bulk ──────────────────────────────────────────────────────────────
 @app.route('/send_unified_bulk', methods=['POST'])
 @login_required
 def send_unified_bulk():
     data   = request.get_json() or {}
     resend = data.get('resend', False)
- 
+
     with get_db_session() as db:
         if resend:
             guests = db.query(Guest).order_by(Guest.visual_id).all()
         else:
-            # Pending = WA not sent AND SMS not sent
+            # Pending = WA not sent AND AT SMS not sent
             guests = db.query(Guest).filter(
                 ((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)) &
-                ((Guest.webline_sms_sent == False) | (Guest.webline_sms_sent == None))
+                ((Guest.at_sms_sent == False) | (Guest.at_sms_sent == None))
             ).order_by(Guest.visual_id).all()
- 
+
         totals = {
             "total":      len(guests),
             "wa_sent":    0, "wa_failed":  0,
             "sms_sent":   0, "sms_failed": 0,
             "errors":     [],
         }
- 
+
         for guest in guests:
             result = _send_to_guest(guest, db)
-            if result["wa"]  == "sent":    totals["wa_sent"]   += 1
-            elif result["wa"] in ("failed","invalid"): totals["wa_failed"] += 1
-            if result["sms"] == "sent":    totals["sms_sent"]  += 1
-            elif result["sms"] == "failed": totals["sms_failed"] += 1
+            if result["wa"]  == "sent":                        totals["wa_sent"]   += 1
+            elif result["wa"] in ("failed", "invalid"):        totals["wa_failed"] += 1
+            if result["sms"] == "sent":                        totals["sms_sent"]  += 1
+            elif result["sms"] == "failed":                    totals["sms_failed"] += 1
             if result["overall"] == "failed":
                 totals["errors"].append({"name": guest.name, "error": result["message"]})
             time.sleep(0.1)   # avoid provider rate limits
- 
-        return jsonify(totals)
 
+        return jsonify(totals)
 
 
 # -------------------- send_cards --------------------
@@ -1174,23 +1161,22 @@ def send_unified_bulk():
 def send_cards():
     with get_db_session() as db:
         guests = db.query(Guest).order_by(Guest.visual_id).all()
- 
-        total          = len(guests)
-        sent           = sum(1 for g in guests if g.whatsapp_sent)
-        failed         = sum(1 for g in guests if g.whatsapp_error and not g.whatsapp_sent)
-        pending        = total - sent
-        attending      = sum(1 for g in guests if g.rsvp_status == 'attending')
-        not_attending  = sum(1 for g in guests if g.rsvp_status == 'not_attending')
-        no_rsvp        = total - attending - not_attending
- 
-        # SMS stats
-        webline_sms_sent_count   = sum(1 for g in guests if g.webline_sms_sent)
-        webline_sms_failed_count = sum(1 for g in guests if g.webline_sms_error and not g.webline_sms_sent)
- 
-        # Legacy / unused Twilio fields (kept to avoid template KeyErrors)
-        wa_checked         = sum(1 for g in guests if g.has_whatsapp is not None)
-        no_whatsapp_count  = sum(1 for g in guests if g.has_whatsapp is False)
- 
+
+        total         = len(guests)
+        sent          = sum(1 for g in guests if g.whatsapp_sent)
+        failed        = sum(1 for g in guests if g.whatsapp_error and not g.whatsapp_sent)
+        pending       = total - sent
+        attending     = sum(1 for g in guests if g.rsvp_status == 'attending')
+        not_attending = sum(1 for g in guests if g.rsvp_status == 'not_attending')
+        no_rsvp       = total - attending - not_attending
+
+        # Africa's Talking SMS stats
+        at_sms_sent_count   = sum(1 for g in guests if g.at_sms_sent)
+        at_sms_failed_count = sum(1 for g in guests if g.at_sms_error and not g.at_sms_sent)
+
+        wa_checked        = sum(1 for g in guests if g.has_whatsapp is not None)
+        no_whatsapp_count = sum(1 for g in guests if g.has_whatsapp is False)
+
         return render_template(
             'send_cards.html',
             guests=guests,
@@ -1203,43 +1189,39 @@ def send_cards():
             no_rsvp=no_rsvp,
             wa_checked=wa_checked,
             no_whatsapp_count=no_whatsapp_count,
-            # SMS provider
-            webline_configured=webline_configured(),
-            webline_sms_sent_count=webline_sms_sent_count,
-            webline_sms_failed_count=webline_sms_failed_count,
-            # Legacy key kept for templates that might still reference it
-            sms_enabled=webline_configured(),
-            sms_sent_count=webline_sms_sent_count,
+            # Africa's Talking SMS
+            at_configured=at_configured(),
+            at_sms_sent_count=at_sms_sent_count,
+            at_sms_failed_count=at_sms_failed_count,
+            # Legacy aliases so old template refs don't break
+            sms_enabled=at_configured(),
+            sms_sent_count=at_sms_sent_count,
         )
 
 
-# -------------------- send_card_single --------------------
-
+# -------------------- send_card_single (legacy WA-only alias) --------------------
 @app.route('/send_card_single/<int:guest_id>', methods=['POST'])
 @login_required
 def send_card_single(guest_id):
-    """Legacy alias — now delegates to unified engine (WA+SMS)."""
     with get_db_session() as db:
         guest = db.get(Guest, guest_id)
         if not guest:
             return jsonify(success=False, message="Guest not found.")
         result = _send_to_guest(guest, db)
-        # Return WA-centric keys so old JS still reads correctly
         return jsonify(
             success=(result["wa"] == "sent"),
             message=result["message"],
             guest_id=guest_id,
         )
 
-# -------------------- send_cards_bulk --------------------
 
+# -------------------- send_cards_bulk (legacy WA-only alias) --------------------
 @app.route('/send_cards_bulk', methods=['POST'])
 @login_required
 def send_cards_bulk():
-    """Legacy alias — delegates to unified bulk (returns old-style keys)."""
     data   = request.get_json() or {}
     resend = data.get('resend', False)
- 
+
     with get_db_session() as db:
         if resend:
             guests = db.query(Guest).order_by(Guest.visual_id).all()
@@ -1247,19 +1229,86 @@ def send_cards_bulk():
             guests = db.query(Guest).filter(
                 (Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)
             ).order_by(Guest.visual_id).all()
- 
+
         sent = failed = 0
         errors = []
         for guest in guests:
             result = _send_to_guest(guest, db)
-            if result["wa"] == "sent":  sent += 1
+            if result["wa"] == "sent":
+                sent += 1
             else:
                 failed += 1
                 if result["overall"] == "failed":
                     errors.append({"name": guest.name, "error": result["message"]})
             time.sleep(0.1)
- 
+
         return jsonify(total=len(guests), sent=sent, failed=failed, errors=errors)
+
+
+# ── Africa's Talking SMS — single ────────────────────────────────────────────
+@app.route('/send_at_sms_single/<int:guest_id>', methods=['POST'])
+@login_required
+def send_at_sms_single(guest_id):
+    """SMS-only send via Africa's Talking (skips WhatsApp)."""
+    with get_db_session() as db:
+        guest = db.get(Guest, guest_id)
+        if not guest:
+            return jsonify(success=False, message="Guest not found."), 404
+
+        if not at_configured():
+            return jsonify(success=False, message="Africa's Talking SMS not configured.")
+
+        phone  = to_whatsapp_number(guest.phone)
+        result = at_send_sms(phone, build_sms_message(guest))
+
+        if result["success"]:
+            guest.at_sms_sent    = True
+            guest.at_sms_error   = None
+            guest.at_sms_sent_at = datetime.now()
+            db.commit()
+            return jsonify(success=True)
+        else:
+            guest.at_sms_sent  = False
+            guest.at_sms_error = result.get("error")
+            db.commit()
+            return jsonify(success=False, message=result.get("error"))
+
+
+# ── Africa's Talking SMS — bulk ───────────────────────────────────────────────
+@app.route('/send_at_sms_bulk', methods=['POST'])
+@login_required
+def send_at_sms_bulk():
+    """SMS-only bulk send via Africa's Talking."""
+    data   = request.get_json() or {}
+    resend = data.get("resend", False)
+
+    with get_db_session() as db:
+        if resend:
+            guests = db.query(Guest).all()
+        else:
+            guests = db.query(Guest).filter(
+                (Guest.at_sms_sent == None) | (Guest.at_sms_sent == False)
+            ).all()
+
+        sent_count = failed_count = 0
+        errors = []
+        for guest in guests:
+            phone  = to_whatsapp_number(guest.phone)
+            result = at_send_sms(phone, build_sms_message(guest))
+            if result["success"]:
+                guest.at_sms_sent    = True
+                guest.at_sms_error   = None
+                guest.at_sms_sent_at = datetime.now()
+                sent_count += 1
+            else:
+                guest.at_sms_sent  = False
+                guest.at_sms_error = result.get("error")
+                failed_count += 1
+                errors.append({"name": guest.name, "error": result.get("error")})
+            db.commit()
+            time.sleep(0.1)
+
+        return jsonify(total=len(guests), sent=sent_count, failed=failed_count, errors=errors)
 
 
 # ----------------------------------------------------------------
@@ -1300,6 +1349,14 @@ def _generate_card_bytes(guest) -> bytes | None:
         return None
 
 
+def build_sms_message(guest) -> str:
+    return (
+        f"Habari {guest.name}, Karibu tusherekee siku hii ya furaha pamoja. "
+        f"Namba yako ya kadi:  {guest.visual_id:04d}. "
+        f"Karibu sana."
+    )
+
+
 @app.route("/privacy")
 def privacy():
     return render_template("privacy.html")
@@ -1323,79 +1380,6 @@ def data_deletion():
     </html>
     """
 
-def build_sms_message(guest) -> str:
-    return (
-        f"Habari {guest.name}, Karibu tusherekee siku hii ya furaha pamoja. "
-        f"Namba yako ya kadi:  {guest.visual_id:04d}. "
-        f"Karibu sana."
-    )
-
-# Single SMS send
-# ─────────────────────────────────────────────────────────────────────────────
-@app.route('/send_webline_sms_single/<int:guest_id>', methods=['POST'])
-@login_required
-def send_webline_sms_single(guest_id):
-    """Legacy alias — SMS-only send (skips WA, goes direct to SMS)."""
-    with get_db_session() as db:
-        guest = db.get(Guest, guest_id)
-        if not guest:
-            return jsonify(success=False, message="Guest not found."), 404
- 
-        if not webline_configured():
-            return jsonify(success=False, message="Webline SMS not configured.")
- 
-        phone  = to_whatsapp_number(guest.phone)
-        result = webline_send_sms(phone, build_sms_message(guest))
- 
-        if result["success"]:
-            guest.webline_sms_sent    = True
-            guest.webline_sms_error   = None
-            guest.webline_sms_sent_at = datetime.now()
-            db.commit()
-            return jsonify(success=True)
-        else:
-            guest.webline_sms_sent  = False
-            guest.webline_sms_error = result.get("error")
-            db.commit()
-            return jsonify(success=False, message=result.get("error"))
-        
-
-# Bulk SMS send
-# ─────────────────────────────────────────────────────────────────────────────
-@app.route('/send_webline_sms_bulk', methods=['POST'])
-@login_required
-def send_webline_sms_bulk():
-    """Legacy alias — SMS-only bulk send."""
-    data   = request.get_json() or {}
-    resend = data.get("resend", False)
- 
-    with get_db_session() as db:
-        if resend:
-            guests = db.query(Guest).all()
-        else:
-            guests = db.query(Guest).filter(
-                (Guest.webline_sms_sent == None) | (Guest.webline_sms_sent == False)
-            ).all()
- 
-        sent_count = failed_count = 0
-        errors = []
-        for guest in guests:
-            phone  = to_whatsapp_number(guest.phone)
-            result = webline_send_sms(phone, build_sms_message(guest))
-            if result["success"]:
-                guest.webline_sms_sent    = True
-                guest.webline_sms_error   = None
-                guest.webline_sms_sent_at = datetime.now()
-                sent_count += 1
-            else:
-                guest.webline_sms_sent  = False
-                guest.webline_sms_error = result.get("error")
-                failed_count += 1
-                errors.append({"name": guest.name, "error": result.get("error")})
-            db.commit()
-            time.sleep(0.1)
- 
-        return jsonify(total=len(guests), sent=sent_count, failed=failed_count, errors=errors)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
