@@ -2,9 +2,8 @@
 {% block content %}
 
 <div class="container py-4">
-
   <h2 class="mb-1">Send Invitation Cards</h2>
-  <p class="text-muted mb-4">Send each guest their personalised card via WhatsApp.</p>
+  <p class="text-muted mb-4">Send each guest their personalised card via WhatsApp and SMS.</p>
 
   <!-- Summary Cards -->
   <div class="row mb-4">
@@ -20,7 +19,7 @@
       <div class="card text-center shadow-sm border-success">
         <div class="card-body py-3">
           <h3 class="mb-0 text-success">{{ sent }}</h3>
-          <small class="text-muted">Sent</small>
+          <small class="text-muted">WhatsApp Sent</small>
         </div>
       </div>
     </div>
@@ -28,7 +27,7 @@
       <div class="card text-center shadow-sm border-danger">
         <div class="card-body py-3">
           <h3 class="mb-0 text-danger">{{ failed }}</h3>
-          <small class="text-muted">Failed</small>
+          <small class="text-muted">WA Failed</small>
         </div>
       </div>
     </div>
@@ -36,7 +35,7 @@
       <div class="card text-center shadow-sm border-warning">
         <div class="card-body py-3">
           <h3 class="mb-0 text-warning">{{ pending }}</h3>
-          <small class="text-muted">Pending</small>
+          <small class="text-muted">WA Pending</small>
         </div>
       </div>
     </div>
@@ -58,14 +57,30 @@
     </div>
   </div>
 
-  {% if sms_enabled %}
   <!-- SMS Stats Row -->
+  {% if webline_configured %}
   <div class="row mb-4">
     <div class="col-6 col-md-3 mb-3">
       <div class="card text-center shadow-sm border-success">
         <div class="card-body py-3">
-          <h3 class="mb-0 text-success">{{ sms_sent_count }}</h3>
-          <small class="text-muted">SMS Sent</small>
+          <h3 class="mb-0 text-success">{{ webline_sms_sent_count }}</h3>
+          <small class="text-muted">📱 SMS Sent</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 mb-3">
+      <div class="card text-center shadow-sm border-danger">
+        <div class="card-body py-3">
+          <h3 class="mb-0 text-danger">{{ webline_sms_failed_count }}</h3>
+          <small class="text-muted">📱 SMS Failed</small>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3 mb-3">
+      <div class="card text-center shadow-sm border-warning">
+        <div class="card-body py-3">
+          <h3 class="mb-0 text-warning">{{ total - webline_sms_sent_count }}</h3>
+          <small class="text-muted">📱 SMS Pending</small>
         </div>
       </div>
     </div>
@@ -75,21 +90,38 @@
   <!-- Bulk Actions -->
   <div class="card shadow-sm mb-4">
     <div class="card-body d-flex flex-wrap gap-2 align-items-center">
-      <button class="btn btn-success" id="btn-send-pending" onclick="bulkSend(false)">
-        📤 Send to Pending ({{ pending }})
+
+      <!-- ★ UNIFIED: WhatsApp + SMS together -->
+      <button class="btn btn-dark fw-semibold" id="btn-unified-pending" onclick="bulkUnified(false)">
+        🚀 Send All (WA + SMS) Pending
       </button>
-      <button class="btn btn-outline-warning" id="btn-send-all" onclick="bulkSend(true)">
-        🔄 Resend to All
+      <button class="btn btn-outline-dark" id="btn-unified-all" onclick="bulkUnified(true)">
+        🔄 Resend All (WA + SMS)
       </button>
 
-      {% if sms_enabled %}
       <div class="vr mx-1"></div>
-      <button class="btn btn-outline-primary" id="btn-sms-bulk" onclick="bulkSms(false)">
-        💬 Send SMS to All Guests
+
+      <!-- WhatsApp only -->
+      <button class="btn btn-success" id="btn-send-pending" onclick="bulkSend(false)">
+        📤 WhatsApp Pending ({{ pending }})
+      </button>
+      <button class="btn btn-outline-warning" id="btn-send-all" onclick="bulkSend(true)">
+        🔄 WhatsApp Resend All
+      </button>
+
+      <div class="vr mx-1"></div>
+
+      <!-- SMS only -->
+      {% if webline_configured %}
+      <button class="btn btn-info text-white" id="btn-sms-pending" onclick="bulkWeblineSms(false)">
+        📱 SMS Pending ({{ total - webline_sms_sent_count }})
+      </button>
+      <button class="btn btn-outline-info" id="btn-sms-all" onclick="bulkWeblineSms(true)">
+        🔄 SMS Resend All
       </button>
       {% else %}
-      <span class="text-muted ms-auto small" title="Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER to enable">
-        💬 SMS: not configured
+      <span class="text-muted small" title="Set WEBLINE_API_TOKEN and WEBLINE_SENDER_ID in your .env to enable">
+        📱 WeblineAfrica SMS: not configured
       </span>
       {% endif %}
 
@@ -97,10 +129,23 @@
     </div>
   </div>
 
-  <!-- Send Progress Bar -->
+  <!-- Unified progress bar -->
+  <div id="unified-progress-wrap" class="mb-4" style="display:none;">
+    <div class="d-flex justify-content-between mb-1">
+      <small id="unified-progress-label">Sending WhatsApp + SMS — please wait…</small>
+      <small id="unified-progress-count"></small>
+    </div>
+    <div class="progress mb-2" style="height:20px;">
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-dark"
+           id="unified-progress-bar" role="progressbar" style="width:0%"></div>
+    </div>
+    <div id="unified-bulk-result"></div>
+  </div>
+
+  <!-- WhatsApp progress bar -->
   <div id="progress-wrap" class="mb-4" style="display:none;">
     <div class="d-flex justify-content-between mb-1">
-      <small id="progress-label">Sending...</small>
+      <small id="progress-label">Sending WhatsApp…</small>
       <small id="progress-count"></small>
     </div>
     <div class="progress" style="height:20px;">
@@ -110,14 +155,14 @@
     <div id="bulk-result" class="mt-2"></div>
   </div>
 
-  <!-- SMS Progress Bar -->
+  <!-- SMS progress bar -->
   <div id="sms-progress-wrap" class="mb-4" style="display:none;">
     <div class="d-flex justify-content-between mb-1">
-      <small id="sms-progress-label">Sending SMS...</small>
+      <small id="sms-progress-label">Sending SMS via WeblineAfrica…</small>
       <small id="sms-progress-count"></small>
     </div>
     <div class="progress" style="height:20px;">
-      <div class="progress-bar progress-bar-striped progress-bar-animated bg-primary"
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-info"
            id="sms-progress-bar" role="progressbar" style="width:0%"></div>
     </div>
     <div id="sms-bulk-result" class="mt-2"></div>
@@ -126,9 +171,11 @@
   <!-- Filter tabs -->
   <div class="mb-3 d-flex gap-2 flex-wrap">
     <button class="btn btn-sm btn-outline-secondary active" onclick="filterTable('all', this)">All</button>
-    <button class="btn btn-sm btn-outline-danger" onclick="filterTable('failed', this)">Failed</button>
-    <button class="btn btn-sm btn-outline-secondary" onclick="filterTable('pending', this)">Pending</button>
-    <button class="btn btn-sm btn-outline-primary" onclick="filterTable('attending', this)">Attending</button>
+    <button class="btn btn-sm btn-outline-danger"   onclick="filterTable('wa-failed',   this)">WA Failed</button>
+    <button class="btn btn-sm btn-outline-warning"  onclick="filterTable('wa-pending',  this)">WA Pending</button>
+    <button class="btn btn-sm btn-outline-danger"   onclick="filterTable('sms-failed',  this)">SMS Failed</button>
+    <button class="btn btn-sm btn-outline-info"     onclick="filterTable('sms-pending', this)">SMS Pending</button>
+    <button class="btn btn-sm btn-outline-primary"  onclick="filterTable('attending',   this)">Attending</button>
   </div>
 
   <!-- Guest Table -->
@@ -142,23 +189,25 @@
               <th>Name</th>
               <th>Phone</th>
               <th>Card</th>
-              <th>Sent</th>
+              <th>WhatsApp</th>
+              <th>SMS</th>
               <th>RSVP</th>
-              <th>Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody>
             {% for guest in guests %}
             <tr id="row-{{ guest.id }}"
-                data-sent="{{ 'sent' if guest.whatsapp_sent else ('failed' if guest.whatsapp_error else 'pending') }}"
+                data-wa-sent="{{ 'sent' if guest.whatsapp_sent else ('failed' if guest.whatsapp_error else 'pending') }}"
+                data-sms-sent="{{ 'sent' if guest.webline_sms_sent else ('failed' if guest.webline_sms_error else 'pending') }}"
                 data-rsvp="{{ guest.rsvp_status or 'none' }}">
               <td>{{ "%04d"|format(guest.visual_id or 0) }}</td>
               <td>{{ guest.name }}</td>
               <td>{{ guest.phone }}</td>
               <td>{{ (guest.card_type or 'single') | title }}</td>
 
-              <!-- WhatsApp send status cell -->
-              <td id="status-{{ guest.id }}">
+              <!-- WhatsApp status -->
+              <td id="wa-status-{{ guest.id }}">
                 {% if guest.whatsapp_sent %}
                   <span class="badge bg-success">Sent
                     {% if guest.whatsapp_sent_at %}
@@ -172,7 +221,22 @@
                 {% endif %}
               </td>
 
-              <!-- RSVP cell -->
+              <!-- SMS status -->
+              <td id="sms-status-{{ guest.id }}">
+                {% if guest.webline_sms_sent %}
+                  <span class="badge bg-info text-white">Sent
+                    {% if guest.webline_sms_sent_at %}
+                      <small>({{ guest.webline_sms_sent_at.strftime('%d %b %H:%M') }})</small>
+                    {% endif %}
+                  </span>
+                {% elif guest.webline_sms_error %}
+                  <span class="badge bg-danger" title="{{ guest.webline_sms_error }}">Failed</span>
+                {% else %}
+                  <span class="badge bg-secondary">Pending</span>
+                {% endif %}
+              </td>
+
+              <!-- RSVP -->
               <td id="rsvp-{{ guest.id }}">
                 {% if guest.rsvp_status == 'attending' %}
                   <span class="badge bg-primary">✅ Attending</span>
@@ -183,19 +247,24 @@
                 {% endif %}
               </td>
 
-              <!-- Action column -->
+              <!-- Actions -->
               <td>
                 <div class="d-flex gap-1 flex-wrap">
-                  <button class="btn btn-sm btn-primary" id="btn-{{ guest.id }}"
-                          onclick="sendSingle({{ guest.id }})">
-                    {% if guest.whatsapp_sent %}Resend{% else %}Send{% endif %}
+                  <!-- ★ Unified single -->
+                  <button class="btn btn-sm btn-dark" id="unified-btn-{{ guest.id }}"
+                          onclick="sendUnified({{ guest.id }})">
+                    🚀
                   </button>
-
-                  {% if sms_enabled %}
-                  <button class="btn btn-sm btn-outline-primary" id="sms-btn-{{ guest.id }}"
-                          onclick="sendSmsSingle({{ guest.id }})"
-                          title="Send SMS">
-                    {% if guest.sms_sent %}Resend SMS{% else %}Send SMS{% endif %}
+                  <!-- WhatsApp only -->
+                  <button class="btn btn-sm btn-success" id="wa-btn-{{ guest.id }}"
+                          onclick="sendSingle({{ guest.id }})">
+                    {% if guest.whatsapp_sent %}↺ WA{% else %}▶ WA{% endif %}
+                  </button>
+                  <!-- SMS only -->
+                  {% if webline_configured %}
+                  <button class="btn btn-sm btn-info text-white" id="sms-btn-{{ guest.id }}"
+                          onclick="sendWeblineSms({{ guest.id }})">
+                    {% if guest.webline_sms_sent %}↺ SMS{% else %}▶ SMS{% endif %}
                   </button>
                   {% endif %}
                 </div>
@@ -211,180 +280,273 @@
 </div>
 
 <script>
-  // ── Single WhatsApp send ─────────────────────────────────────────────────
-  async function sendSingle(guestId) {
-    const btn = document.getElementById(`btn-${guestId}`);
-    const statusEl = document.getElementById(`status-${guestId}`);
+// ── helpers ──────────────────────────────────────────────────────────────────
+function waBadge(wa) {
+  if (wa === 'sent')    return '<span class="badge bg-success">Sent ✓</span>';
+  if (wa === 'invalid') return '<span class="badge bg-warning text-dark">Not on WA</span>';
+  return                       '<span class="badge bg-danger">Failed</span>';
+}
+function smsBadge(sms) {
+  if (sms === 'sent')          return '<span class="badge bg-info text-white">Sent ✓</span>';
+  if (sms === 'not_configured') return '<span class="badge bg-secondary">N/A</span>';
+  if (sms === 'skipped')       return '<span class="badge bg-light text-muted">Skipped</span>';
+  return                              '<span class="badge bg-danger">Failed</span>';
+}
 
-    btn.disabled = true;
-    btn.textContent = '⏳';
-    statusEl.innerHTML = '<span class="badge bg-info">Sending...</span>';
+// ── ★ Single unified (WA + SMS) ───────────────────────────────────────────
+async function sendUnified(guestId) {
+  const uBtn  = document.getElementById(`unified-btn-${guestId}`);
+  const waEl  = document.getElementById(`wa-status-${guestId}`);
+  const smsEl = document.getElementById(`sms-status-${guestId}`);
 
-    try {
-      const res = await fetch(`/send_card_single/${guestId}`, { method: 'POST' });
-      const data = await res.json();
+  uBtn.disabled = true; uBtn.textContent = '⏳';
+  waEl.innerHTML  = '<span class="badge bg-info">Sending…</span>';
+  smsEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
 
-      if (data.success) {
-        statusEl.innerHTML = '<span class="badge bg-success">Sent ✓</span>';
-        btn.textContent = 'Resend';
-      } else {
-        statusEl.innerHTML = `<span class="badge bg-danger" title="${data.message}">Failed</span>`;
-        btn.textContent = 'Retry';
-      }
-    } catch (err) {
-      statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
-      btn.textContent = 'Retry';
+  try {
+    const res  = await fetch(`/send_unified_single/${guestId}`, { method: 'POST' });
+    const data = await res.json();
+
+    waEl.innerHTML  = waBadge(data.wa);
+    smsEl.innerHTML = smsBadge(data.sms);
+    uBtn.textContent = data.overall !== 'failed' ? '✓' : '✗';
+
+    // update row data-attributes for filter
+    const row = document.getElementById(`row-${guestId}`);
+    if (row) {
+      row.dataset.waSent  = data.wa  === 'sent' ? 'sent' : (data.wa === 'skipped' ? 'pending' : 'failed');
+      row.dataset.smsSent = data.sms === 'sent' ? 'sent' : (data.sms === 'skipped' ? 'pending' : 'failed');
     }
-    btn.disabled = false;
+  } catch (err) {
+    waEl.innerHTML  = '<span class="badge bg-danger">Error</span>';
+    smsEl.innerHTML = '<span class="badge bg-danger">Error</span>';
+    uBtn.textContent = '✗';
   }
+  uBtn.disabled = false;
+}
 
-  // ── Bulk WhatsApp send ───────────────────────────────────────────────────
-  async function bulkSend(resend) {
-    const progressWrap = document.getElementById('progress-wrap');
-    const progressBar = document.getElementById('progress-bar');
-    const progressLabel = document.getElementById('progress-label');
-    const progressCount = document.getElementById('progress-count');
-    const bulkResult = document.getElementById('bulk-result');
-    const btnPending = document.getElementById('btn-send-pending');
-    const btnAll = document.getElementById('btn-send-all');
+// ── ★ Bulk unified ────────────────────────────────────────────────────────
+async function bulkUnified(resend) {
+  const wrap  = document.getElementById('unified-progress-wrap');
+  const bar   = document.getElementById('unified-progress-bar');
+  const label = document.getElementById('unified-progress-label');
+  const count = document.getElementById('unified-progress-count');
+  const result= document.getElementById('unified-bulk-result');
 
-    progressWrap.style.display = 'block';
-    progressBar.style.width = '5%';
-    progressLabel.textContent = 'Sending — please wait, do not close this page...';
-    bulkResult.innerHTML = '';
-    btnPending.disabled = true;
-    btnAll.disabled = true;
+  ['btn-unified-pending','btn-unified-all',
+   'btn-send-pending','btn-send-all',
+   'btn-sms-pending','btn-sms-all'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.disabled = true;
+  });
 
-    try {
-      const res = await fetch('/send_cards_bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resend }),
-      });
+  wrap.style.display = 'block';
+  bar.style.width    = '5%';
+  label.textContent  = 'Sending WhatsApp + SMS — please wait, do not close this page…';
+  result.innerHTML   = '';
 
-      const data = await res.json();
-      const pct = data.total > 0 ? Math.round((data.sent / data.total) * 100) : 100;
-
-      progressBar.style.width = `${pct}%`;
-      progressCount.textContent = `${data.sent} / ${data.total}`;
-      progressLabel.textContent = 'Done!';
-
-      let html = `<div class="alert alert-${data.failed > 0 ? 'warning' : 'success'} mt-2">
-        ✅ Sent: <strong>${data.sent}</strong> &nbsp;&nbsp;
-        ❌ Failed: <strong>${data.failed}</strong>
-      </div>`;
-
-      if (data.errors && data.errors.length > 0) {
-        html += `<ul class="list-group mt-2">`;
-        data.errors.forEach(e => {
-          html += `<li class="list-group-item list-group-item-danger">
-            <strong>${e.name}</strong>: ${e.error}
-          </li>`;
-        });
-        html += `</ul>`;
-      }
-
-      bulkResult.innerHTML = html;
-      setTimeout(() => location.reload(), 3000);
-
-    } catch (err) {
-      bulkResult.innerHTML = `<div class="alert alert-danger">Request failed: ${err}</div>`;
-    }
-
-    btnPending.disabled = false;
-    btnAll.disabled = false;
-  }
-
-  // ── Single SMS send ──────────────────────────────────────────────────────
-  async function sendSmsSingle(guestId) {
-    const btn = document.getElementById(`sms-btn-${guestId}`);
-    btn.disabled = true;
-    btn.textContent = '⏳';
-
-    try {
-      const res = await fetch(`/send_sms_single/${guestId}`, { method: 'POST' });
-      const data = await res.json();
-
-      if (data.success) {
-        btn.textContent = 'Resend SMS';
-        btn.classList.replace('btn-outline-primary', 'btn-success');
-      } else {
-        btn.textContent = 'SMS Failed';
-        btn.classList.replace('btn-outline-primary', 'btn-danger');
-        alert(`SMS failed: ${data.message}`);
-      }
-    } catch (err) {
-      btn.textContent = 'Error';
-    }
-    btn.disabled = false;
-  }
-
-  // ── Bulk SMS send ────────────────────────────────────────────────────────
-  async function bulkSms(resend) {
-    const wrap = document.getElementById('sms-progress-wrap');
-    const bar = document.getElementById('sms-progress-bar');
-    const label = document.getElementById('sms-progress-label');
-    const count = document.getElementById('sms-progress-count');
-    const result = document.getElementById('sms-bulk-result');
-    const btn = document.getElementById('btn-sms-bulk');
-
-    wrap.style.display = 'block';
-    bar.style.width = '5%';
-    label.textContent = 'Sending SMS — please wait...';
-    result.innerHTML = '';
-    if (btn) btn.disabled = true;
-
-    try {
-      const res = await fetch('/send_sms_bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ resend }),
-      });
-
-      const data = await res.json();
-      const pct = data.total > 0 ? Math.round((data.sent / data.total) * 100) : 100;
-
-      bar.style.width = `${pct}%`;
-      count.textContent = `${data.sent} / ${data.total}`;
-      label.textContent = 'Done!';
-
-      let html = `<div class="alert alert-${data.failed > 0 ? 'warning' : 'success'} mt-2">
-        ✅ SMS Sent: <strong>${data.sent}</strong> &nbsp;&nbsp;
-        ❌ Failed: <strong>${data.failed}</strong>
-      </div>`;
-
-      if (data.errors && data.errors.length > 0) {
-        html += `<ul class="list-group mt-2">`;
-        data.errors.forEach(e => {
-          html += `<li class="list-group-item list-group-item-danger">
-            <strong>${e.name}</strong>: ${e.error}
-          </li>`;
-        });
-        html += `</ul>`;
-      }
-
-      result.innerHTML = html;
-      setTimeout(() => location.reload(), 3000);
-
-    } catch (err) {
-      result.innerHTML = `<div class="alert alert-danger">Request failed: ${err}</div>`;
-    }
-    if (btn) btn.disabled = false;
-  }
-
-  // ── Table filter ─────────────────────────────────────────────────────────
-  function filterTable(filter, btn) {
-    document.querySelectorAll('.btn[onclick^="filterTable"]').forEach(b => b.classList.remove('active'));
-    btn.classList.add('active');
-
-    document.querySelectorAll('#guest-table tbody tr').forEach(row => {
-      let show = true;
-      if (filter === 'failed')         show = row.dataset.sent === 'failed';
-      else if (filter === 'pending')   show = row.dataset.sent === 'pending';
-      else if (filter === 'attending') show = row.dataset.rsvp === 'attending';
-      row.style.display = show ? '' : 'none';
+  try {
+    const res  = await fetch('/send_unified_bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resend }),
     });
+    const data = await res.json();
+    const pct  = data.total > 0 ? Math.round(((data.wa_sent + data.sms_sent) / (data.total * 2)) * 100) : 100;
+
+    bar.style.width   = `${pct}%`;
+    count.textContent = `WA ${data.wa_sent}/${data.total} · SMS ${data.sms_sent}/${data.total}`;
+    label.textContent = 'Done!';
+
+    const hasErrors = data.errors?.length > 0;
+    let html = `<div class="alert alert-${hasErrors ? 'warning' : 'success'} mt-2">
+      📤 WhatsApp sent: <strong>${data.wa_sent}</strong> &nbsp; failed: <strong>${data.wa_failed}</strong><br>
+      📱 SMS sent: <strong>${data.sms_sent}</strong> &nbsp; failed: <strong>${data.sms_failed}</strong>
+    </div>`;
+    if (hasErrors) {
+      html += `<ul class="list-group mt-2">`;
+      data.errors.forEach(e => {
+        html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`;
+      });
+      html += `</ul>`;
+    }
+    result.innerHTML = html;
+    setTimeout(() => location.reload(), 3500);
+  } catch (err) {
+    result.innerHTML = `<div class="alert alert-danger">Request failed: ${err}</div>`;
   }
+
+  ['btn-unified-pending','btn-unified-all',
+   'btn-send-pending','btn-send-all',
+   'btn-sms-pending','btn-sms-all'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.disabled = false;
+  });
+}
+
+// ── Single WhatsApp send (legacy) ─────────────────────────────────────────
+async function sendSingle(guestId) {
+  const btn      = document.getElementById(`wa-btn-${guestId}`);
+  const statusEl = document.getElementById(`wa-status-${guestId}`);
+
+  btn.disabled = true; btn.textContent = '⏳';
+  statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
+
+  try {
+    const res  = await fetch(`/send_card_single/${guestId}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      statusEl.innerHTML = '<span class="badge bg-success">Sent ✓</span>';
+      btn.textContent    = '↺ WA';
+    } else {
+      statusEl.innerHTML = `<span class="badge bg-danger" title="${data.message}">Failed</span>`;
+      btn.textContent    = '▶ WA';
+    }
+  } catch (err) {
+    statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
+    btn.textContent    = '▶ WA';
+  }
+  btn.disabled = false;
+}
+
+// ── Bulk WhatsApp send (legacy) ───────────────────────────────────────────
+async function bulkSend(resend) {
+  const progressWrap  = document.getElementById('progress-wrap');
+  const progressBar   = document.getElementById('progress-bar');
+  const progressLabel = document.getElementById('progress-label');
+  const progressCount = document.getElementById('progress-count');
+  const bulkResult    = document.getElementById('bulk-result');
+  const btnPending    = document.getElementById('btn-send-pending');
+  const btnAll        = document.getElementById('btn-send-all');
+
+  progressWrap.style.display = 'block';
+  progressBar.style.width    = '5%';
+  progressLabel.textContent  = 'Sending WhatsApp — please wait…';
+  bulkResult.innerHTML       = '';
+  btnPending.disabled = btnAll.disabled = true;
+
+  try {
+    const res  = await fetch('/send_cards_bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resend }),
+    });
+    const data = await res.json();
+    const pct  = data.total > 0 ? Math.round((data.sent / data.total) * 100) : 100;
+
+    progressBar.style.width   = `${pct}%`;
+    progressCount.textContent = `${data.sent} / ${data.total}`;
+    progressLabel.textContent = 'Done!';
+
+    let html = `<div class="alert alert-${data.failed > 0 ? 'warning' : 'success'} mt-2">
+      ✅ WhatsApp Sent: <strong>${data.sent}</strong> &nbsp;
+      ❌ Failed: <strong>${data.failed}</strong>
+    </div>`;
+    if (data.errors?.length) {
+      html += `<ul class="list-group mt-2">`;
+      data.errors.forEach(e => {
+        html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`;
+      });
+      html += `</ul>`;
+    }
+    bulkResult.innerHTML = html;
+    setTimeout(() => location.reload(), 3000);
+  } catch (err) {
+    document.getElementById('bulk-result').innerHTML =
+      `<div class="alert alert-danger">Request failed: ${err}</div>`;
+  }
+  btnPending.disabled = btnAll.disabled = false;
+}
+
+// ── Single Webline SMS (legacy) ───────────────────────────────────────────
+async function sendWeblineSms(guestId) {
+  const btn      = document.getElementById(`sms-btn-${guestId}`);
+  const statusEl = document.getElementById(`sms-status-${guestId}`);
+
+  btn.disabled = true; btn.textContent = '⏳';
+  statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
+
+  try {
+    const res  = await fetch(`/send_webline_sms_single/${guestId}`, { method: 'POST' });
+    const data = await res.json();
+    if (data.success) {
+      statusEl.innerHTML = '<span class="badge bg-info text-white">Sent ✓</span>';
+      btn.textContent    = '↺ SMS';
+    } else {
+      statusEl.innerHTML = `<span class="badge bg-danger" title="${data.message}">Failed</span>`;
+      btn.textContent    = '▶ SMS';
+    }
+  } catch (err) {
+    statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
+    btn.textContent    = '▶ SMS';
+  }
+  btn.disabled = false;
+}
+
+// ── Bulk Webline SMS (legacy) ─────────────────────────────────────────────
+async function bulkWeblineSms(resend) {
+  const wrap   = document.getElementById('sms-progress-wrap');
+  const bar    = document.getElementById('sms-progress-bar');
+  const label  = document.getElementById('sms-progress-label');
+  const count  = document.getElementById('sms-progress-count');
+  const result = document.getElementById('sms-bulk-result');
+  const btnP   = document.getElementById('btn-sms-pending');
+  const btnA   = document.getElementById('btn-sms-all');
+
+  wrap.style.display = 'block';
+  bar.style.width    = '5%';
+  label.textContent  = 'Sending SMS via WeblineAfrica — please wait…';
+  result.innerHTML   = '';
+  if (btnP) btnP.disabled = true;
+  if (btnA) btnA.disabled = true;
+
+  try {
+    const res  = await fetch('/send_webline_sms_bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resend }),
+    });
+    const data = await res.json();
+    const pct  = data.total > 0 ? Math.round((data.sent / data.total) * 100) : 100;
+
+    bar.style.width   = `${pct}%`;
+    count.textContent = `${data.sent} / ${data.total}`;
+    label.textContent = 'Done!';
+
+    let html = `<div class="alert alert-${data.failed > 0 ? 'warning' : 'success'} mt-2">
+      📱 SMS Sent: <strong>${data.sent}</strong> &nbsp;
+      ❌ Failed: <strong>${data.failed}</strong>
+    </div>`;
+    if (data.errors?.length) {
+      html += `<ul class="list-group mt-2">`;
+      data.errors.forEach(e => {
+        html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`;
+      });
+      html += `</ul>`;
+    }
+    result.innerHTML = html;
+    setTimeout(() => location.reload(), 3000);
+  } catch (err) {
+    document.getElementById('sms-bulk-result').innerHTML =
+      `<div class="alert alert-danger">Request failed: ${err}</div>`;
+  }
+  if (btnP) btnP.disabled = false;
+  if (btnA) btnA.disabled = false;
+}
+
+// ── Table filter ──────────────────────────────────────────────────────────
+function filterTable(filter, btn) {
+  document.querySelectorAll('.btn[onclick^="filterTable"]').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+
+  document.querySelectorAll('#guest-table tbody tr').forEach(row => {
+    let show = true;
+    if      (filter === 'wa-failed')  show = row.dataset.waSent  === 'failed';
+    else if (filter === 'wa-pending') show = row.dataset.waSent  === 'pending';
+    else if (filter === 'sms-failed') show = row.dataset.smsSent === 'failed';
+    else if (filter === 'sms-pending')show = row.dataset.smsSent === 'pending';
+    else if (filter === 'attending')  show = row.dataset.rsvp    === 'attending';
+    row.style.display = show ? '' : 'none';
+  });
+}
 </script>
 
 {% endblock %}

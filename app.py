@@ -12,6 +12,8 @@ from datetime import datetime
 from functools import wraps
 from urllib.parse import quote as url_encode
 from whatsapp import send_guest_card
+from sms_webline import send_sms as webline_send_sms, is_configured as webline_configured
+import time
 
 
 from flask import (
@@ -40,11 +42,6 @@ WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
 WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
 WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "wedding_webhook_secret")
 
-# Twilio SMS config (optional — set these env vars to enable SMS)
-TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
-TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
-TWILIO_FROM_NUMBER = os.getenv("TWILIO_FROM_NUMBER")   # e.g. "+12065551234"
-SMS_ENABLED = bool(TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN and TWILIO_FROM_NUMBER)
 
 if flask_env == 'development':
     current_env_file = '.env.development'
@@ -237,48 +234,6 @@ def normalize_card_type(card_type_input, allowed_input=None):
 def get_next_visual_id(db_session):
     max_id = db_session.query(func.max(Guest.visual_id)).scalar()
     return 1 if max_id is None else int(max_id) + 1
-
-
-# ---------------------------------------------------------------------------
-# SMS helper (Twilio) — no-op when not configured
-# ---------------------------------------------------------------------------
-
-def send_sms(to: str, body: str) -> dict:
-    """
-    Send an SMS via Twilio.
-    `to` should be in E.164 format: +255XXXXXXXXX
-    Raises RuntimeError if Twilio is not configured.
-    """
-    if not SMS_ENABLED:
-        raise RuntimeError(
-            "SMS is not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, "
-            "and TWILIO_FROM_NUMBER environment variables."
-        )
-    try:
-        from twilio.rest import Client as TwilioClient
-    except ImportError:
-        raise RuntimeError("Twilio package not installed. Run: pip install twilio")
-
-    client = TwilioClient(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    to_e164 = f"+{to}" if not to.startswith("+") else to
-    message = client.messages.create(
-        body=body,
-        from_=TWILIO_FROM_NUMBER,
-        to=to_e164,
-    )
-    return {"sid": message.sid, "status": message.status}
-
-
-def build_sms_body(guest) -> str:
-    """Compose the SMS text for a guest who has no WhatsApp."""
-    card_label = (guest.card_type or "single").title()
-    return (
-        f"Habari {guest.name or 'Mgeni'}! "
-        f"Umealikwa kwenye sherehe yetu. "
-        f"Kadi yako: {card_label} (Nambari {guest.visual_id:04d}). "
-        f"Tafadhali onyesha nambari hii unapofika."
-    )
-
 
 # ---------------------------------------------------------------------------
 # Auth
@@ -937,149 +892,6 @@ def clear_all_data():
     return redirect(url_for('view_all'))
 
 
-# -------------------- WhatsApp number validation --------------------
-# NOTE: Pre-flight WhatsApp checking has been removed.
-# Invalid numbers are now detected automatically during card sending
-# via Meta API error code 131026, and marked as has_whatsapp=False.
-
-@app.route('/check_whatsapp_numbers', methods=['POST'])
-@login_required
-def check_whatsapp_numbers_route():
-    return jsonify({
-        "success": False,
-        "message": (
-            "Pre-flight WhatsApp checking is disabled. "
-            "Invalid numbers are detected automatically when cards are sent."
-        )
-    }), 410
-
-
-# -------------------- Export no-WhatsApp guests to CSV --------------------
-
-@app.route('/export_no_whatsapp_csv')
-@login_required
-def export_no_whatsapp_csv():
-    with get_db_session() as db:
-        guests = db.query(Guest).filter_by(has_whatsapp=False).order_by(Guest.visual_id).all()
-
-    if not guests:
-        flash("No guests marked as having no WhatsApp. Run the check first.", "warning")
-        return redirect(url_for('send_cards'))
-
-    output = StringIO()
-    writer = csv.writer(output)
-    writer.writerow(["Visual ID", "Name", "Phone", "Card Type", "Group Size", "SMS Sent"])
-    for g in guests:
-        writer.writerow([
-            f"{g.visual_id:04d}", g.name, g.phone,
-            g.card_type, g.group_size,
-            "Yes" if g.sms_sent else "No"
-        ])
-
-    output.seek(0)
-    return send_file(
-        BytesIO(output.read().encode()),
-        mimetype='text/csv',
-        as_attachment=True,
-        download_name='no_whatsapp_guests.csv'
-    )
-
-
-# -------------------- Send SMS to a single guest --------------------
-
-@app.route('/send_sms_single/<int:guest_id>', methods=['POST'])
-@login_required
-def send_sms_single(guest_id):
-    if not SMS_ENABLED:
-        return jsonify(success=False,
-                       message="SMS not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER.")
-
-    with get_db_session() as db:
-        guest = db.get(Guest, guest_id)
-        if not guest:
-            return jsonify(success=False, message="Guest not found.")
-
-        phone = to_whatsapp_number(guest.phone)
-        if not phone:
-            return jsonify(success=False, message="No valid phone number.")
-
-        try:
-            body = build_sms_body(guest)
-            result = send_sms(phone, body)
-
-            guest.sms_sent = True
-            guest.sms_sent_at = datetime.now()
-            guest.sms_error = None
-            db.commit()
-
-            return jsonify(success=True, message=f"SMS sent to {guest.name}",
-                           sid=result.get("sid"), guest_id=guest_id)
-
-        except Exception as e:
-            error_msg = str(e)
-            guest.sms_sent = False
-            guest.sms_error = error_msg[:500]
-            db.commit()
-            current_app.logger.error(f"SMS send failed for guest {guest_id}: {e}", exc_info=True)
-            return jsonify(success=False, message=error_msg, guest_id=guest_id)
-
-
-# -------------------- Bulk SMS to all no-WhatsApp guests --------------------
-
-@app.route('/send_sms_bulk', methods=['POST'])
-@login_required
-def send_sms_bulk():
-    if not SMS_ENABLED:
-        return jsonify(success=False,
-                       message="SMS not configured. Set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_FROM_NUMBER.")
-
-    resend = request.json.get('resend', False) if request.is_json else False
-
-    with get_db_session() as db:
-        query = db.query(Guest).filter_by(has_whatsapp=False)
-        if not resend:
-            query = query.filter(
-                (Guest.sms_sent == False) | (Guest.sms_sent == None)
-            )
-        guests = query.order_by(Guest.visual_id).all()
-
-    results = {"total": len(guests), "sent": 0, "failed": 0, "errors": []}
-
-    for guest in guests:
-        phone = to_whatsapp_number(guest.phone)
-        if not phone:
-            results["failed"] += 1
-            results["errors"].append({"name": guest.name, "error": "No phone number"})
-            continue
-
-        try:
-            body = build_sms_body(guest)
-            send_sms(phone, body)
-
-            with get_db_session() as db2:
-                g = db2.get(Guest, guest.id)
-                if g:
-                    g.sms_sent = True
-                    g.sms_sent_at = datetime.now()
-                    g.sms_error = None
-                    db2.commit()
-
-            results["sent"] += 1
-
-        except Exception as e:
-            error_msg = str(e)
-            with get_db_session() as db2:
-                g = db2.get(Guest, guest.id)
-                if g:
-                    g.sms_sent = False
-                    g.sms_error = error_msg[:500]
-                    db2.commit()
-            results["failed"] += 1
-            results["errors"].append({"name": guest.name, "error": error_msg})
-            current_app.logger.error(f"Bulk SMS failed for {guest.name}: {e}")
-
-    return jsonify(results)
-
 
 # -------------------- WEBHOOK (RSVP receiver) --------------------
 
@@ -1164,26 +976,221 @@ def _handle_rsvp(from_number: str, button_text: str):
         )
 
 
-# -------------------- send_cards --------------------
 
+# ════════════════════════════════════════════════════════════════════════════
+#  UNIFIED SEND ENGINE
+# ════════════════════════════════════════════════════════════════════════════
+ 
+def _send_to_guest(guest, db):
+    """
+    Core delivery logic for one guest.
+ 
+    Flow:
+        1. Attempt WhatsApp.
+        2. If Meta returns invalid_number  →  mark WA failed, auto-send SMS.
+        3. If WA succeeds                  →  mark WA sent, skip SMS
+           (SMS can still be sent manually / via separate bulk action).
+        4. If WA fails for any OTHER reason →  mark WA failed, attempt SMS.
+ 
+    Returns a dict:
+        {
+            wa:      "sent" | "skipped" | "failed" | "invalid",
+            sms:     "sent" | "skipped" | "failed" | "not_configured",
+            overall: "success" | "partial" | "failed",
+            message: str
+        }
+    """
+    now = datetime.now()
+    wa_status  = "skipped"
+    sms_status = "skipped"
+    messages   = []
+ 
+    phone = to_whatsapp_number(guest.phone)
+    if not phone:
+        return {
+            "wa": "failed", "sms": "failed",
+            "overall": "failed",
+            "message": "No valid phone number."
+        }
+ 
+    # ── Step 1: try WhatsApp ──────────────────────────────────────────────
+    try:
+        card_fname = card_filename_from_guest(guest)
+        try:
+            card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
+        except Exception:
+            card_bytes = _generate_card_bytes(guest)
+            if card_bytes:
+                upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes)
+ 
+        if not card_bytes:
+            raise ValueError("Could not retrieve or generate card image.")
+ 
+        wa_result = send_guest_card(
+            to=phone,
+            guest_name=guest.name or "Guest",
+            visual_id=guest.visual_id,
+            card_type=guest.card_type,
+            image_bytes=card_bytes,
+            filename=card_fname,
+        )
+ 
+        if wa_result.get("status") == "invalid_number":
+            # Meta confirmed: number is not on WhatsApp
+            guest.has_whatsapp       = False
+            guest.whatsapp_checked_at = now
+            guest.whatsapp_sent      = False
+            guest.whatsapp_error     = "Not on WhatsApp"
+            wa_status = "invalid"
+            messages.append("WhatsApp: not on platform.")
+        else:
+            guest.whatsapp_sent    = True
+            guest.whatsapp_sent_at = now
+            guest.whatsapp_error   = None
+            wa_status = "sent"
+            messages.append("WhatsApp: sent.")
+ 
+    except Exception as e:
+        err_str = str(e)[:500]
+        guest.whatsapp_sent  = False
+        guest.whatsapp_error = err_str
+        wa_status = "failed"
+        messages.append(f"WhatsApp failed: {err_str}")
+        logging.error(f"WA send failed for {guest.name}: {e}", exc_info=True)
+ 
+    # ── Step 2: SMS — send if WA was invalid or failed ────────────────────
+    #   (Also sends if WA succeeded — policy: send both to everyone.
+    #    Change the condition below to `if wa_status != "sent":` if you
+    #    only want SMS as a pure fallback.)
+    should_send_sms = True   # ← set to:  wa_status != "sent"   for fallback-only
+ 
+    if should_send_sms:
+        if not webline_configured():
+            sms_status = "not_configured"
+            messages.append("SMS: provider not configured.")
+        else:
+            try:
+                sms_result = webline_send_sms(phone, build_sms_message(guest))
+                if sms_result.get("success"):
+                    guest.webline_sms_sent    = True
+                    guest.webline_sms_error   = None
+                    guest.webline_sms_sent_at = now
+                    sms_status = "sent"
+                    messages.append("SMS: sent.")
+                else:
+                    err_str = sms_result.get("error", "Unknown SMS error")[:500]
+                    guest.webline_sms_sent  = False
+                    guest.webline_sms_error = err_str
+                    sms_status = "failed"
+                    messages.append(f"SMS failed: {err_str}")
+            except Exception as e:
+                err_str = str(e)[:500]
+                guest.webline_sms_sent  = False
+                guest.webline_sms_error = err_str
+                sms_status = "failed"
+                messages.append(f"SMS error: {err_str}")
+                logging.error(f"SMS send failed for {guest.name}: {e}", exc_info=True)
+    else:
+        sms_status = "skipped"
+ 
+    db.commit()
+ 
+    # ── Determine overall outcome ─────────────────────────────────────────
+    if wa_status == "sent" or sms_status == "sent":
+        overall = "success"
+    elif wa_status in ("failed", "invalid") and sms_status in ("failed", "not_configured"):
+        overall = "failed"
+    else:
+        overall = "partial"
+ 
+    return {
+        "wa":      wa_status,
+        "sms":     sms_status,
+        "overall": overall,
+        "message": " | ".join(messages),
+    }
+ 
+ 
+# ── Unified single ────────────────────────────────────────────────────────────
+@app.route('/send_unified_single/<int:guest_id>', methods=['POST'])
+@login_required
+def send_unified_single(guest_id):
+    with get_db_session() as db:
+        guest = db.get(Guest, guest_id)
+        if not guest:
+            return jsonify(success=False, message="Guest not found.")
+        result = _send_to_guest(guest, db)
+        return jsonify(
+            success=(result["overall"] != "failed"),
+            overall=result["overall"],
+            wa=result["wa"],
+            sms=result["sms"],
+            message=result["message"],
+            guest_id=guest_id,
+        )
+ 
+ 
+# ── Unified bulk ──────────────────────────────────────────────────────────────
+@app.route('/send_unified_bulk', methods=['POST'])
+@login_required
+def send_unified_bulk():
+    data   = request.get_json() or {}
+    resend = data.get('resend', False)
+ 
+    with get_db_session() as db:
+        if resend:
+            guests = db.query(Guest).order_by(Guest.visual_id).all()
+        else:
+            # Pending = WA not sent AND SMS not sent
+            guests = db.query(Guest).filter(
+                ((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)) &
+                ((Guest.webline_sms_sent == False) | (Guest.webline_sms_sent == None))
+            ).order_by(Guest.visual_id).all()
+ 
+        totals = {
+            "total":      len(guests),
+            "wa_sent":    0, "wa_failed":  0,
+            "sms_sent":   0, "sms_failed": 0,
+            "errors":     [],
+        }
+ 
+        for guest in guests:
+            result = _send_to_guest(guest, db)
+            if result["wa"]  == "sent":    totals["wa_sent"]   += 1
+            elif result["wa"] in ("failed","invalid"): totals["wa_failed"] += 1
+            if result["sms"] == "sent":    totals["sms_sent"]  += 1
+            elif result["sms"] == "failed": totals["sms_failed"] += 1
+            if result["overall"] == "failed":
+                totals["errors"].append({"name": guest.name, "error": result["message"]})
+            time.sleep(0.1)   # avoid provider rate limits
+ 
+        return jsonify(totals)
+
+
+
+# -------------------- send_cards --------------------
 @app.route('/send_cards', methods=['GET'])
 @login_required
 def send_cards():
     with get_db_session() as db:
         guests = db.query(Guest).order_by(Guest.visual_id).all()
-
-        total = len(guests)
-        sent = sum(1 for g in guests if g.whatsapp_sent)
-        failed = sum(1 for g in guests if g.whatsapp_error and not g.whatsapp_sent)
-        pending = total - sent
-        attending = sum(1 for g in guests if g.rsvp_status == 'attending')
-        not_attending = sum(1 for g in guests if g.rsvp_status == 'not_attending')
-        no_rsvp = total - attending - not_attending
-
-        wa_checked = sum(1 for g in guests if g.has_whatsapp is not None)
-        no_whatsapp_count = sum(1 for g in guests if g.has_whatsapp is False)
-        sms_sent_count = sum(1 for g in guests if g.sms_sent)
-
+ 
+        total          = len(guests)
+        sent           = sum(1 for g in guests if g.whatsapp_sent)
+        failed         = sum(1 for g in guests if g.whatsapp_error and not g.whatsapp_sent)
+        pending        = total - sent
+        attending      = sum(1 for g in guests if g.rsvp_status == 'attending')
+        not_attending  = sum(1 for g in guests if g.rsvp_status == 'not_attending')
+        no_rsvp        = total - attending - not_attending
+ 
+        # SMS stats
+        webline_sms_sent_count   = sum(1 for g in guests if g.webline_sms_sent)
+        webline_sms_failed_count = sum(1 for g in guests if g.webline_sms_error and not g.webline_sms_sent)
+ 
+        # Legacy / unused Twilio fields (kept to avoid template KeyErrors)
+        wa_checked         = sum(1 for g in guests if g.has_whatsapp is not None)
+        no_whatsapp_count  = sum(1 for g in guests if g.has_whatsapp is False)
+ 
         return render_template(
             'send_cards.html',
             guests=guests,
@@ -1196,8 +1203,13 @@ def send_cards():
             no_rsvp=no_rsvp,
             wa_checked=wa_checked,
             no_whatsapp_count=no_whatsapp_count,
-            sms_sent_count=sms_sent_count,
-            sms_enabled=SMS_ENABLED,
+            # SMS provider
+            webline_configured=webline_configured(),
+            webline_sms_sent_count=webline_sms_sent_count,
+            webline_sms_failed_count=webline_sms_failed_count,
+            # Legacy key kept for templates that might still reference it
+            sms_enabled=webline_configured(),
+            sms_sent_count=webline_sms_sent_count,
         )
 
 
@@ -1206,75 +1218,28 @@ def send_cards():
 @app.route('/send_card_single/<int:guest_id>', methods=['POST'])
 @login_required
 def send_card_single(guest_id):
+    """Legacy alias — now delegates to unified engine (WA+SMS)."""
     with get_db_session() as db:
         guest = db.get(Guest, guest_id)
         if not guest:
             return jsonify(success=False, message="Guest not found.")
-
-        if not guest.qr_code_url:
-            return jsonify(success=False, message="No QR code. Generate QR codes first.")
-
-        phone = to_whatsapp_number(guest.phone)
-        if not phone:
-            return jsonify(success=False, message="No valid phone number.")
-
-        try:
-            card_fname = card_filename_from_guest(guest)
-            try:
-                card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
-            except Exception:
-                card_bytes = _generate_card_bytes(guest)
-                if card_bytes:
-                    upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes)
-
-            if not card_bytes:
-                return jsonify(success=False, message="Could not retrieve or generate card.")
-
-            from whatsapp import send_guest_card as wa_send
-            result = wa_send(
-                to=phone,
-                guest_name=guest.name or "Guest",
-                visual_id=guest.visual_id,
-                card_type=guest.card_type,
-                image_bytes=card_bytes,
-                filename=card_fname,
-            )
-
-            # Detected as invalid WhatsApp number by Meta (error 131026)
-            if result.get("status") == "invalid_number":
-                guest.has_whatsapp = False
-                guest.whatsapp_checked_at = datetime.now()
-                guest.whatsapp_sent = False
-                guest.whatsapp_error = "Not on WhatsApp"
-                db.commit()
-                return jsonify(
-                    success=False,
-                    message="Number is not on WhatsApp.",
-                    guest_id=guest_id
-                )
-
-            guest.whatsapp_sent = True
-            guest.whatsapp_sent_at = datetime.now()
-            guest.whatsapp_error = None
-            db.commit()
-            return jsonify(success=True, message=f"Card sent to {guest.name}", guest_id=guest_id)
-
-        except Exception as e:
-            error_msg = str(e)
-            guest.whatsapp_sent = False
-            guest.whatsapp_error = error_msg[:500]
-            db.commit()
-            current_app.logger.error(f"WhatsApp send failed for guest {guest_id}: {e}", exc_info=True)
-            return jsonify(success=False, message=error_msg, guest_id=guest_id)
-
+        result = _send_to_guest(guest, db)
+        # Return WA-centric keys so old JS still reads correctly
+        return jsonify(
+            success=(result["wa"] == "sent"),
+            message=result["message"],
+            guest_id=guest_id,
+        )
 
 # -------------------- send_cards_bulk --------------------
 
 @app.route('/send_cards_bulk', methods=['POST'])
 @login_required
 def send_cards_bulk():
-    resend = request.json.get('resend', False) if request.is_json else False
-
+    """Legacy alias — delegates to unified bulk (returns old-style keys)."""
+    data   = request.get_json() or {}
+    resend = data.get('resend', False)
+ 
     with get_db_session() as db:
         if resend:
             guests = db.query(Guest).order_by(Guest.visual_id).all()
@@ -1282,71 +1247,19 @@ def send_cards_bulk():
             guests = db.query(Guest).filter(
                 (Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)
             ).order_by(Guest.visual_id).all()
-
-    results = {"total": len(guests), "sent": 0, "failed": 0, "errors": []}
-
-    from whatsapp import send_guest_card as wa_send
-
-    for guest in guests:
-        phone = to_whatsapp_number(guest.phone)
-        if not phone:
-            results["failed"] += 1
-            results["errors"].append({"name": guest.name, "error": "No phone number"})
-            continue
-
-        try:
-            card_fname = card_filename_from_guest(guest)
-            try:
-                card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
-            except Exception:
-                card_bytes = _generate_card_bytes(guest)
-                if card_bytes:
-                    upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes)
-
-            if not card_bytes:
-                raise ValueError("Could not retrieve or generate card image.")
-
-            result = wa_send(
-                to=phone,
-                guest_name=guest.name or "Guest",
-                visual_id=guest.visual_id,
-                card_type=guest.card_type,
-                image_bytes=card_bytes,
-                filename=card_fname,
-            )
-
-            with get_db_session() as db2:
-                g = db2.get(Guest, guest.id)
-                if g:
-                    if result.get("status") == "invalid_number":
-                        # Detected as not on WhatsApp — mark and count as failed
-                        g.has_whatsapp = False
-                        g.whatsapp_checked_at = datetime.now()
-                        g.whatsapp_sent = False
-                        g.whatsapp_error = "Not on WhatsApp"
-                        db2.commit()
-                        results["failed"] += 1
-                        results["errors"].append({"name": guest.name, "error": "Not on WhatsApp"})
-                    else:
-                        g.whatsapp_sent = True
-                        g.whatsapp_sent_at = datetime.now()
-                        g.whatsapp_error = None
-                        db2.commit()
-                        results["sent"] += 1
-
-        except Exception as e:
-            error_msg = str(e)
-            with get_db_session() as db2:
-                g = db2.get(Guest, guest.id)
-                if g:
-                    g.whatsapp_sent = False
-                    g.whatsapp_error = error_msg[:500]
-                    db2.commit()
-            results["failed"] += 1
-            results["errors"].append({"name": guest.name, "error": error_msg})
-            current_app.logger.error(f"Bulk send failed for {guest.name}: {e}")
-
-    return jsonify(results)
+ 
+        sent = failed = 0
+        errors = []
+        for guest in guests:
+            result = _send_to_guest(guest, db)
+            if result["wa"] == "sent":  sent += 1
+            else:
+                failed += 1
+                if result["overall"] == "failed":
+                    errors.append({"name": guest.name, "error": result["message"]})
+            time.sleep(0.1)
+ 
+        return jsonify(total=len(guests), sent=sent, failed=failed, errors=errors)
 
 
 # ----------------------------------------------------------------
@@ -1410,6 +1323,79 @@ def data_deletion():
     </html>
     """
 
+def build_sms_message(guest) -> str:
+    return (
+        f"Habari {guest.name}, Karibu tusherekee siku hii ya furaha pamoja. "
+        f"Namba yako ya kadi:  {guest.visual_id:04d}. "
+        f"Karibu sana."
+    )
+
+# Single SMS send
+# ─────────────────────────────────────────────────────────────────────────────
+@app.route('/send_webline_sms_single/<int:guest_id>', methods=['POST'])
+@login_required
+def send_webline_sms_single(guest_id):
+    """Legacy alias — SMS-only send (skips WA, goes direct to SMS)."""
+    with get_db_session() as db:
+        guest = db.get(Guest, guest_id)
+        if not guest:
+            return jsonify(success=False, message="Guest not found."), 404
+ 
+        if not webline_configured():
+            return jsonify(success=False, message="Webline SMS not configured.")
+ 
+        phone  = to_whatsapp_number(guest.phone)
+        result = webline_send_sms(phone, build_sms_message(guest))
+ 
+        if result["success"]:
+            guest.webline_sms_sent    = True
+            guest.webline_sms_error   = None
+            guest.webline_sms_sent_at = datetime.now()
+            db.commit()
+            return jsonify(success=True)
+        else:
+            guest.webline_sms_sent  = False
+            guest.webline_sms_error = result.get("error")
+            db.commit()
+            return jsonify(success=False, message=result.get("error"))
+        
+
+# Bulk SMS send
+# ─────────────────────────────────────────────────────────────────────────────
+@app.route('/send_webline_sms_bulk', methods=['POST'])
+@login_required
+def send_webline_sms_bulk():
+    """Legacy alias — SMS-only bulk send."""
+    data   = request.get_json() or {}
+    resend = data.get("resend", False)
+ 
+    with get_db_session() as db:
+        if resend:
+            guests = db.query(Guest).all()
+        else:
+            guests = db.query(Guest).filter(
+                (Guest.webline_sms_sent == None) | (Guest.webline_sms_sent == False)
+            ).all()
+ 
+        sent_count = failed_count = 0
+        errors = []
+        for guest in guests:
+            phone  = to_whatsapp_number(guest.phone)
+            result = webline_send_sms(phone, build_sms_message(guest))
+            if result["success"]:
+                guest.webline_sms_sent    = True
+                guest.webline_sms_error   = None
+                guest.webline_sms_sent_at = datetime.now()
+                sent_count += 1
+            else:
+                guest.webline_sms_sent  = False
+                guest.webline_sms_error = result.get("error")
+                failed_count += 1
+                errors.append({"name": guest.name, "error": result.get("error")})
+            db.commit()
+            time.sleep(0.1)
+ 
+        return jsonify(total=len(guests), sent=sent_count, failed=failed_count, errors=errors)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
