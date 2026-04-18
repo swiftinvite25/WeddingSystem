@@ -107,6 +107,42 @@ with app.app_context():
     init_db(app)
 
 # ---------------------------------------------------------------------------
+# Card rendering constants  (all pixel values for 1240 × 1748 px template)
+# ---------------------------------------------------------------------------
+
+# Font: prefer Montserrat Bold if placed in static/fonts/, else fall back to
+# Poppins Bold which ships on the server (same geometric sans-serif family).
+_MONTSERRAT_PATH = os.path.join("static", "fonts", "Montserrat-Bold.ttf")
+_POPPINS_PATH    = "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf"
+_ROBOTO_PATH     = os.path.join("static", "fonts", "Roboto-Bold.ttf")
+
+def _bold_font_path() -> str:
+    """Return the best available bold font path."""
+    for p in (_MONTSERRAT_PATH, _ROBOTO_PATH, _POPPINS_PATH):
+        if os.path.exists(p):
+            return p
+    raise FileNotFoundError("No bold font found. Place Montserrat-Bold.ttf in static/fonts/.")
+
+# ── Name placeholder (dotted line on left half of template) ─────────────────
+# Pixel-measured from the 1240×1748 template:
+#   Dotted-line band centre: x≈303, y≈423
+#   Available width along the dotted line: x=124 to x=482 → 358 px
+NAME_CENTER_X   = 303   # horizontal centre of dotted-line area
+NAME_DOTTED_Y   = 423   # vertical centre of dotted-line band
+NAME_MAX_WIDTH  = 358   # maximum text width in pixels before wrapping
+
+# ── QR code — bottom-left corner ────────────────────────────────────────────
+QR_SIZE         = 200
+QR_MARGIN       = 45
+QR_X            = QR_MARGIN
+QR_Y            = 1748 - QR_SIZE - QR_MARGIN   # = 1503
+
+# ── Card number — green, directly above QR code ─────────────────────────────
+CARD_NUM_COLOR  = "#185a3f"   # dark green matching the template palette
+CARD_NUM_SIZE   = 38          # font size for "NO. XXXX"
+CARD_NUM_GAP    = 10          # gap (px) between bottom of number text and top of QR
+
+# ---------------------------------------------------------------------------
 # Supabase Storage Helpers
 # ---------------------------------------------------------------------------
 
@@ -163,6 +199,104 @@ def generate_qr_bytes(data: str) -> bytes:
     buf = BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# ── UNIFIED CARD RENDERING HELPER ───────────────────────────────────────────
+# ---------------------------------------------------------------------------
+
+def _fit_name_font(draw, name: str, max_width: int) -> tuple[ImageFont.FreeTypeFont, list[str]]:
+    """
+    Return (font, lines) where lines fits within max_width.
+    Starts at 44px and steps down until the longest line fits,
+    or wraps to two lines if necessary.
+    """
+    font_path = _bold_font_path()
+    for size in range(44, 19, -2):          # 44 → 22 px in steps of 2
+        font = ImageFont.truetype(font_path, size)
+        # Try single line first
+        bbox = font.getbbox(name)
+        if bbox[2] - bbox[0] <= max_width:
+            return font, [name]
+        # Try two lines
+        wrapped = textwrap.fill(name, width=20)
+        lines   = wrapped.split("\n")
+        widths  = [(font.getbbox(l)[2] - font.getbbox(l)[0]) for l in lines]
+        if max(widths) <= max_width:
+            return font, lines
+    # Last resort: return 22px with wrapping
+    font = ImageFont.truetype(font_path, 22)
+    wrapped = textwrap.fill(name, width=22)
+    return font, wrapped.split("\n")
+
+
+def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
+    """
+    Render one guest invitation card.
+
+    Layout:
+      • Guest name  → bold font, black, centred on the dotted-line placeholder
+                      (left half of template, y ≈ 423).  Font auto-sizes so the
+                      name always fits within the 358 px dotted-line width.
+      • QR code     → bottom-left corner (x=45, y=1503), 200×200 px.
+      • Card number → green (#185a3f), directly above the QR code.
+    """
+    template_path = os.path.join("static", "Card Template.jpg")
+    if not os.path.exists(template_path):
+        raise FileNotFoundError(f"Card template not found: {template_path}")
+
+    img  = Image.open(template_path).convert("RGB")
+    draw = ImageDraw.Draw(img)
+
+    font_path = _bold_font_path()
+    num_font  = ImageFont.truetype(font_path, CARD_NUM_SIZE)
+
+    # ── 1. Guest name on dotted-line placeholder ─────────────────────────
+    raw_name      = (guest.name or "GUEST").upper()
+    name_font, lines = _fit_name_font(draw, raw_name, NAME_MAX_WIDTH)
+
+    # Measure total block height
+    sample_bbox = name_font.getbbox("Ag")
+    font_h      = sample_bbox[3] - sample_bbox[1]
+    line_gap    = 6
+    line_h      = font_h + line_gap
+    total_h     = line_h * len(lines) - line_gap
+
+    # Centre the block vertically on the dotted-line band
+    start_y = NAME_DOTTED_Y - total_h // 2
+
+    for i, line in enumerate(lines):
+        bbox   = draw.textbbox((0, 0), line, font=name_font)
+        text_w = bbox[2] - bbox[0]
+        x      = NAME_CENTER_X - text_w // 2
+        draw.text((x, start_y + i * line_h), line, font=name_font, fill="#000000")
+
+    # ── 2. QR code — bottom-left ─────────────────────────────────────────
+    qr_resized = qr_img.resize((QR_SIZE, QR_SIZE), Image.LANCZOS)
+    img.paste(qr_resized, (QR_X, QR_Y))
+
+    # ── 3. Card number — green, above QR ─────────────────────────────────
+    vis_text    = f"NO. {guest.visual_id:04d}"
+    num_bbox    = draw.textbbox((0, 0), vis_text, font=num_font)
+    num_h       = num_bbox[3] - num_bbox[1]
+    num_y       = QR_Y - num_h - CARD_NUM_GAP
+    draw.text((QR_X, num_y), vis_text, font=num_font, fill=CARD_NUM_COLOR)
+
+    return img
+
+
+def _generate_card_bytes(guest) -> bytes | None:
+    """Generate card image bytes for a guest (fetches QR from Supabase)."""
+    try:
+        qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
+        qr_img  = Image.open(BytesIO(qr_data))
+        img     = _draw_card(guest, qr_img)
+        buf     = BytesIO()
+        img.save(buf, format="PNG")
+        return buf.getvalue()
+    except Exception as e:
+        logging.error(f"_generate_card_bytes failed for {guest.name}: {e}")
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -678,31 +812,16 @@ def regenerate_qr_codes():
 @app.route('/generate_guest_cards')
 @login_required
 def generate_guest_cards():
-    CARD_W, CARD_H = 1240, 1748
-    NAME_CENTER_Y = 550
-    NAME_X = 550
-    QR_SIZE = 175
-    QR_Y = CARD_H - QR_SIZE - 180
-    QR_X = 750
-    CARD_TYPE_Y = CARD_H - 45 - 355
-    CARD_TYPE_X = 770
-    VISUAL_ID_FONT_SIZE = 35
-    VISUAL_ID_MARGIN_BOTTOM = 75
-    VISUAL_ID_MARGIN_RIGHT = 25
-
     template_path = os.path.join("static", "Card Template.jpg")
-    font_path = os.path.join("static", "fonts", "Roboto-Bold.ttf")
-
     if not os.path.exists(template_path):
         flash("Card template not found at static/Card Template.jpg", "danger")
         return redirect(url_for('view_all'))
-    if not os.path.exists(font_path):
-        flash("Font file not found at static/fonts/Roboto-Bold.ttf", "danger")
-        return redirect(url_for('view_all'))
 
-    name_font = ImageFont.truetype(font_path, 50)
-    card_type_font = ImageFont.truetype(font_path, 35)
-    visual_id_font = ImageFont.truetype(font_path, VISUAL_ID_FONT_SIZE)
+    try:
+        _bold_font_path()   # raises if no font found
+    except FileNotFoundError as e:
+        flash(str(e), "danger")
+        return redirect(url_for('view_all'))
 
     with get_db_session() as db:
         guests = db.query(Guest).all()
@@ -714,38 +833,20 @@ def generate_guest_cards():
                     continue
 
                 qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
-                qr_img = Image.open(BytesIO(qr_data)).resize((QR_SIZE, QR_SIZE))
+                qr_img  = Image.open(BytesIO(qr_data))
 
-                img = Image.open(template_path).convert("RGB")
-                draw = ImageDraw.Draw(img)
-
-                wrapped = textwrap.fill((guest.name or "").upper(), width=20)
-                lines = wrapped.split('\n')
-                line_h = name_font.getbbox("A")[3] + 10
-                start_y = NAME_CENTER_Y - (line_h * len(lines)) // 2
-                for i, line in enumerate(lines):
-                    draw.text((NAME_X, start_y + i * line_h), line, font=name_font, fill="#000000")
-
-                img.paste(qr_img, (QR_X, QR_Y))
-
-                draw.text((CARD_TYPE_X, CARD_TYPE_Y), (guest.card_type or "").upper(),
-                          font=card_type_font, fill="#CC3332")
-
-                vis_text = f"NO. {guest.visual_id:04d}"
-                box = draw.textbbox((0, 0), vis_text, font=visual_id_font)
-                vis_w = box[2] - box[0]
-                vis_h = box[3] - box[1]
-                draw.text((CARD_W - vis_w - VISUAL_ID_MARGIN_RIGHT, CARD_H - vis_h - VISUAL_ID_MARGIN_BOTTOM),
-                          vis_text, font=visual_id_font, fill="#CC3332")
-
-                buf = BytesIO()
+                img     = _draw_card(guest, qr_img)
+                buf     = BytesIO()
                 img.save(buf, format="PNG")
                 card_bytes = buf.getvalue()
+
                 upload_to_supabase(CARDS_BUCKET, card_filename_from_guest(guest), card_bytes)
 
             except Exception as e:
                 flash(f"Failed card for {guest.name}: {e}", "danger")
-                current_app.logger.error(f"Card gen error for guest {guest.visual_id}: {e}", exc_info=True)
+                current_app.logger.error(
+                    f"Card gen error for guest {guest.visual_id}: {e}", exc_info=True
+                )
 
     flash("Guest invitation cards generated successfully.", "success")
     return redirect(url_for('view_all'))
@@ -763,48 +864,23 @@ def download_card_by_id(visual_id):
                 return redirect(url_for('view_all'))
 
             template_path = os.path.join("static", "Card Template.jpg")
-            font_path = os.path.join("static", "fonts", "Roboto-Bold.ttf")
-
             if not os.path.exists(template_path):
                 flash("Card template missing.", "danger")
                 return redirect(url_for('view_all'))
-            if not os.path.exists(font_path):
-                flash("Font file missing.", "danger")
-                return redirect(url_for('view_all'))
 
             qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
-            qr_img = Image.open(BytesIO(qr_data)).resize((175, 175))
+            qr_img  = Image.open(BytesIO(qr_data))
 
-            img = Image.open(template_path).convert("RGB")
-            draw = ImageDraw.Draw(img)
-
-            CARD_W, CARD_H = 1240, 1748
-            name_font = ImageFont.truetype(font_path, 50)
-            card_type_font = ImageFont.truetype(font_path, 35)
-            visual_id_font = ImageFont.truetype(font_path, 35)
-
-            wrapped = textwrap.fill((guest.name or "").upper(), width=20)
-            lines = wrapped.split('\n')
-            line_h = name_font.getbbox("A")[3] + 10
-            start_y = 550 - (line_h * len(lines)) // 2
-            for i, line in enumerate(lines):
-                draw.text((550, start_y + i * line_h), line, font=name_font, fill="#000000")
-
-            img.paste(qr_img, (750, CARD_H - 175 - 180))
-            draw.text((770, CARD_H - 45 - 355), (guest.card_type or "").upper(),
-                      font=card_type_font, fill="#CC3332")
-
-            vis_text = f"NO. {guest.visual_id:04d}"
-            box = draw.textbbox((0, 0), vis_text, font=visual_id_font)
-            draw.text((CARD_W - (box[2]-box[0]) - 25, CARD_H - (box[3]-box[1]) - 75),
-                      vis_text, font=visual_id_font, fill="#CC3332")
-
+            img = _draw_card(guest, qr_img)
             buf = BytesIO()
             img.save(buf, format="PNG")
             buf.seek(0)
-            return send_file(buf, as_attachment=True,
-                             download_name=f"Guest-{guest.visual_id:04d}.png",
-                             mimetype="image/png")
+            return send_file(
+                buf,
+                as_attachment=True,
+                download_name=f"Guest-{guest.visual_id:04d}.png",
+                mimetype="image/png",
+            )
 
         except Exception as e:
             flash(f"Error generating card: {e}", "danger")
@@ -1311,43 +1387,9 @@ def send_at_sms_bulk():
         return jsonify(total=len(guests), sent=sent_count, failed=failed_count, errors=errors)
 
 
-# ----------------------------------------------------------------
-# Helper: generate card bytes in memory
-# ----------------------------------------------------------------
-def _generate_card_bytes(guest) -> bytes | None:
-    template_path = os.path.join("static", "Card Template.jpg")
-    font_path = os.path.join("static", "fonts", "Roboto-Bold.ttf")
-    if not os.path.exists(template_path) or not os.path.exists(font_path):
-        return None
-    try:
-        CARD_W, CARD_H = 1240, 1748
-        qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
-        qr_img = Image.open(BytesIO(qr_data)).resize((175, 175))
-        img = Image.open(template_path).convert("RGB")
-        draw = ImageDraw.Draw(img)
-        name_font = ImageFont.truetype(font_path, 50)
-        card_type_font = ImageFont.truetype(font_path, 35)
-        visual_id_font = ImageFont.truetype(font_path, 35)
-        wrapped = textwrap.fill((guest.name or "").upper(), width=20)
-        lines = wrapped.split('\n')
-        line_h = name_font.getbbox("A")[3] + 10
-        start_y = 550 - (line_h * len(lines)) // 2
-        for i, line in enumerate(lines):
-            draw.text((550, start_y + i * line_h), line, font=name_font, fill="#000000")
-        img.paste(qr_img, (750, CARD_H - 175 - 180))
-        draw.text((770, CARD_H - 45 - 355), (guest.card_type or "").upper(),
-                  font=card_type_font, fill="#CC3332")
-        vis_text = f"NO. {guest.visual_id:04d}"
-        box = draw.textbbox((0, 0), vis_text, font=visual_id_font)
-        draw.text((CARD_W - (box[2]-box[0]) - 25, CARD_H - (box[3]-box[1]) - 75),
-                  vis_text, font=visual_id_font, fill="#CC3332")
-        buf = BytesIO()
-        img.save(buf, format="PNG")
-        return buf.getvalue()
-    except Exception as e:
-        logging.error(f"_generate_card_bytes failed for {guest.name}: {e}")
-        return None
-
+# ---------------------------------------------------------------------------
+# SMS message builder
+# ---------------------------------------------------------------------------
 
 def build_sms_message(guest) -> str:
     return (
@@ -1356,6 +1398,10 @@ def build_sms_message(guest) -> str:
         f"Karibu sana."
     )
 
+
+# ---------------------------------------------------------------------------
+# Misc routes
+# ---------------------------------------------------------------------------
 
 @app.route("/privacy")
 def privacy():
