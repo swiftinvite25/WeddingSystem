@@ -128,7 +128,7 @@ def _bold_font_path() -> str:
 # Dotted-line band centre: x≈303, y≈423
 # Available width along the dotted line: x=124 to x=482 → 358 px
 NAME_CENTER_X   = 303   # horizontal centre of dotted-line area
-NAME_DOTTED_Y   = 500   # vertical centre of dotted-line band
+NAME_DOTTED_Y   = 550   # vertical centre of dotted-line band
 NAME_MAX_WIDTH  = 358   # maximum text width in pixels before wrapping
 
 # ── QR code — bottom-left corner ─────────────────────────────────────────────
@@ -142,13 +142,13 @@ QR_Y      = 1748 - QR_SIZE - QR_MARGIN   # = 1503
 CARD_NUM_COLOR    = "#185a3f"   # dark green matching the template palette
 CARD_NUM_SIZE     = 38          # font size for "NO. XXXX"
 CARD_NUM_TOP_X    = 45          # left margin for card number
-CARD_NUM_TOP_Y    = 45          # top margin for card number
+CARD_NUM_TOP_Y    = 50          # top margin for card number
 
 # ── Card type label — above the QR code (where card number used to be) ───────
 # FIX: card type now sits directly above the QR code
 CARD_TYPE_COLOR   = "#185a3f"   # same dark green
 CARD_TYPE_SIZE    = 36          # slightly smaller than card number
-CARD_TYPE_GAP     = 10          # gap (px) between bottom of label and top of QR
+CARD_TYPE_GAP     = 20          # gap (px) between bottom of label and top of QR
 
 # ---------------------------------------------------------------------------
 # Supabase Storage Helpers
@@ -239,7 +239,7 @@ def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
     Layout (UPDATED):
     • Card number  → top-left corner (x=45, y=45), dark green.
     • Guest name   → bold font, black, centred on the dotted-line placeholder
-                     (left half of template, y ≈ 423). Font auto-sizes so the
+                     (left half of template, y ≈ 550). Font auto-sizes so the
                      name always fits within the 358 px dotted-line width.
                      Text baseline is anchored to the dotted line so it sits
                      ON the line rather than floating above it.
