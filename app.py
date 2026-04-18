@@ -128,7 +128,7 @@ def _bold_font_path() -> str:
 # Dotted-line band centre: x≈303, y≈423
 # Available width along the dotted line: x=124 to x=482 → 358 px
 NAME_CENTER_X   = 303   # horizontal centre of dotted-line area
-NAME_DOTTED_Y   = 450   # vertical centre of dotted-line band
+NAME_DOTTED_Y   = 500   # vertical centre of dotted-line band
 NAME_MAX_WIDTH  = 358   # maximum text width in pixels before wrapping
 
 # ── QR code — bottom-left corner ─────────────────────────────────────────────
