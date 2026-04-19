@@ -40,8 +40,8 @@ from models import Guest, init_db, get_db_session
 flask_env = os.getenv('FLASK_ENV', 'production')
 
 WHATSAPP_PHONE_NUMBER_ID = os.getenv("WHATSAPP_PHONE_NUMBER_ID")
-WHATSAPP_ACCESS_TOKEN = os.getenv("WHATSAPP_ACCESS_TOKEN")
-WHATSAPP_VERIFY_TOKEN = os.getenv("WHATSAPP_VERIFY_TOKEN", "wedding_webhook_secret")
+WHATSAPP_ACCESS_TOKEN    = os.getenv("WHATSAPP_ACCESS_TOKEN")
+WHATSAPP_VERIFY_TOKEN    = os.getenv("WHATSAPP_VERIFY_TOKEN", "wedding_webhook_secret")
 
 if flask_env == 'development':
     current_env_file = '.env.development'
@@ -62,7 +62,7 @@ else:
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
-    DB_FILE = os.getenv("DB_FILE", "guests.db")
+    DB_FILE      = os.getenv("DB_FILE", "guests.db")
     DATABASE_URL = f"sqlite:///./{DB_FILE}"
 
 if DATABASE_URL.startswith("postgres://"):
@@ -72,10 +72,10 @@ if DATABASE_URL.startswith("postgres://"):
 # Supabase Storage Configuration
 # ---------------------------------------------------------------------------
 
-SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_KEY")
-QR_BUCKET = os.getenv("SUPABASE_QR_BUCKET", "qr-codes")
-CARDS_BUCKET = os.getenv("SUPABASE_CARDS_BUCKET", "guest-cards")
+SUPABASE_URL  = os.getenv("SUPABASE_URL")
+SUPABASE_KEY  = os.getenv("SUPABASE_SERVICE_KEY")
+QR_BUCKET     = os.getenv("SUPABASE_QR_BUCKET",    "qr-codes")
+CARDS_BUCKET  = os.getenv("SUPABASE_CARDS_BUCKET", "guest-cards")
 
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
@@ -113,23 +113,19 @@ with app.app_context():
 # ---------------------------------------------------------------------------
 
 _MONTSERRAT_PATH = os.path.join("static", "fonts", "Montserrat-Bold.ttf")
-_POPPINS_PATH = "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf"
-_ROBOTO_PATH = os.path.join("static", "fonts", "Roboto-Bold.ttf")
+_POPPINS_PATH    = "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf"
+_ROBOTO_PATH     = os.path.join("static", "fonts", "Roboto-Bold.ttf")
 
 def _bold_font_path() -> str:
-    """Return the best available bold font path."""
     for p in (_MONTSERRAT_PATH, _ROBOTO_PATH, _POPPINS_PATH):
         if os.path.exists(p):
             return p
     raise FileNotFoundError("No bold font found. Place Montserrat-Bold.ttf in static/fonts/.")
 
 # ── Name placeholder (dotted line on left half of template) ──────────────────
-# Pixel-measured from the 1240×1748 template:
-# Dotted-line band centre: x≈303, y≈423
-# Available width along the dotted line: x=124 to x=482 → 358 px
-NAME_CENTER_X   = 303   # horizontal centre of dotted-line area
-NAME_DOTTED_Y   = 550   # vertical centre of dotted-line band
-NAME_MAX_WIDTH  = 358   # maximum text width in pixels before wrapping
+NAME_CENTER_X  = 303   # horizontal centre of dotted-line area
+NAME_DOTTED_Y  = 423   # vertical centre of dotted-line band
+NAME_MAX_WIDTH = 358   # maximum text width in pixels before wrapping
 
 # ── QR code — bottom-left corner ─────────────────────────────────────────────
 QR_SIZE   = 200
@@ -138,23 +134,22 @@ QR_X      = QR_MARGIN
 QR_Y      = 1748 - QR_SIZE - QR_MARGIN   # = 1503
 
 # ── Card number — top-left corner of the card ────────────────────────────────
-# FIX: moved from above QR to top-left corner
-CARD_NUM_COLOR    = "#185a3f"   # dark green matching the template palette
-CARD_NUM_SIZE     = 38          # font size for "NO. XXXX"
-CARD_NUM_TOP_X    = 45          # left margin for card number
-CARD_NUM_TOP_Y    = 50          # top margin for card number
+CARD_NUM_COLOR  = "#185a3f"
+CARD_NUM_SIZE   = 38
+CARD_NUM_TOP_X  = 45
+CARD_NUM_TOP_Y  = 45
 
-# ── Card type label — above the QR code (where card number used to be) ───────
-# FIX: card type now sits directly above the QR code
-CARD_TYPE_COLOR   = "#185a3f"   # same dark green
-CARD_TYPE_SIZE    = 36          # slightly smaller than card number
-CARD_TYPE_GAP     = 20          # gap (px) between bottom of label and top of QR
+# ── Card type label — above the QR code ──────────────────────────────────────
+CARD_TYPE_COLOR = "#185a3f"
+CARD_TYPE_SIZE  = 36
+CARD_TYPE_GAP   = 10
 
 # ---------------------------------------------------------------------------
 # Supabase Storage Helpers
 # ---------------------------------------------------------------------------
 
-def upload_to_supabase(bucket: str, filename: str, data: bytes, content_type: str = "image/png") -> str:
+def upload_to_supabase(bucket: str, filename: str, data: bytes,
+                       content_type: str = "image/jpeg") -> str:
     if not supabase:
         raise RuntimeError("Supabase client not initialized.")
     supabase.storage.from_(bucket).upload(
@@ -182,8 +177,9 @@ def qr_filename_from_guest(guest) -> str:
     return f"{guest.qr_code_id}-{sanitized}.png"
 
 def card_filename_from_guest(guest) -> str:
+    # NOTE: switched to .jpg — faster save, no fileno() PIL bug
     sanitized = get_safe_filename_name_part(guest.name or "GUEST")
-    return f"GUEST-{guest.visual_id:04d}-{sanitized}.png"
+    return f"GUEST-{guest.visual_id:04d}-{sanitized}.jpg"
 
 # ---------------------------------------------------------------------------
 # QR Code Generation
@@ -201,33 +197,26 @@ def generate_qr_bytes(data: str) -> bytes:
     img = qr.make_image(fill_color="black", back_color="white")
     buf = BytesIO()
     img.save(buf, format="PNG")
+    buf.seek(0)
     return buf.getvalue()
 
 # ---------------------------------------------------------------------------
-# ── UNIFIED CARD RENDERING HELPER ────────────────────────────────────────────
+# Card Rendering
 # ---------------------------------------------------------------------------
 
-def _fit_name_font(draw, name: str, max_width: int) -> tuple[ImageFont.FreeTypeFont, list[str]]:
-    """
-    Return (font, lines) where lines fits within max_width.
-    Starts at 44px and steps down until the longest line fits,
-    or wraps to two lines if necessary.
-    """
+def _fit_name_font(draw, name: str, max_width: int):
     font_path = _bold_font_path()
-    for size in range(44, 19, -2):   # 44 → 22 px in steps of 2
+    for size in range(44, 19, -2):
         font = ImageFont.truetype(font_path, size)
-        # Try single line first
         bbox = font.getbbox(name)
         if bbox[2] - bbox[0] <= max_width:
             return font, [name]
-        # Try two lines
         wrapped = textwrap.fill(name, width=20)
-        lines = wrapped.split("\n")
-        widths = [(font.getbbox(l)[2] - font.getbbox(l)[0]) for l in lines]
+        lines   = wrapped.split("\n")
+        widths  = [(font.getbbox(l)[2] - font.getbbox(l)[0]) for l in lines]
         if max(widths) <= max_width:
             return font, lines
-    # Last resort: return 22px with wrapping
-    font = ImageFont.truetype(font_path, 22)
+    font    = ImageFont.truetype(font_path, 22)
     wrapped = textwrap.fill(name, width=22)
     return font, wrapped.split("\n")
 
@@ -236,15 +225,11 @@ def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
     """
     Render one guest invitation card.
 
-    Layout (UPDATED):
+    Layout:
     • Card number  → top-left corner (x=45, y=45), dark green.
-    • Guest name   → bold font, black, centred on the dotted-line placeholder
-                     (left half of template, y ≈ 550). Font auto-sizes so the
-                     name always fits within the 358 px dotted-line width.
-                     Text baseline is anchored to the dotted line so it sits
-                     ON the line rather than floating above it.
-    • QR code      → bottom-left corner (x=45, y=1503), 200×200 px.
-    • Card type    → dark green, directly above the QR code (e.g. "SINGLE").
+    • Guest name   → bold, black, centred on dotted-line placeholder (y≈423).
+    • QR code      → bottom-left (x=45, y=1503), 200×200 px.
+    • Card type    → dark green, directly above the QR code.
     """
     template_path = os.path.join("static", "Card Template.jpg")
     if not os.path.exists(template_path):
@@ -257,8 +242,7 @@ def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
     num_font  = ImageFont.truetype(font_path, CARD_NUM_SIZE)
     type_font = ImageFont.truetype(font_path, CARD_TYPE_SIZE)
 
-    # ── 1. Card number — TOP-LEFT corner ─────────────────────────────────
-    #    FIX: was above QR, now at top-left
+    # ── 1. Card number — top-left ─────────────────────────────────────────
     vis_text = f"NO. {guest.visual_id:04d}"
     draw.text(
         (CARD_NUM_TOP_X, CARD_NUM_TOP_Y),
@@ -268,27 +252,20 @@ def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
     )
 
     # ── 2. Guest name — on dotted-line placeholder ────────────────────────
-    #    FIX: use Pillow's "ls" (left-baseline) anchor so the text baseline
-    #    sits exactly on the dotted line's vertical centre, not above it.
     raw_name  = (guest.name or "GUEST").upper()
     name_font, lines = _fit_name_font(draw, raw_name, NAME_MAX_WIDTH)
 
     sample_bbox = name_font.getbbox("Ag")
-    font_h      = sample_bbox[3] - sample_bbox[1]   # visible glyph height
-    ascent      = -sample_bbox[1]                   # distance from top of bbox to baseline
+    font_h      = sample_bbox[3] - sample_bbox[1]
     line_gap    = 6
     line_h      = font_h + line_gap
     total_h     = line_h * len(lines) - line_gap
-
-    # Centre the text block vertically around NAME_DOTTED_Y,
-    # then anchor each line so its baseline lands on the dotted line centre.
     block_top_y = NAME_DOTTED_Y - total_h // 2
 
     for i, line in enumerate(lines):
         bbox   = draw.textbbox((0, 0), line, font=name_font)
         text_w = bbox[2] - bbox[0]
         x      = NAME_CENTER_X - text_w // 2
-        # top-left y: offset so glyphs are vertically centred in the band
         y      = block_top_y + i * line_h
         draw.text((x, y), line, font=name_font, fill="#000000")
 
@@ -296,8 +273,7 @@ def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
     qr_resized = qr_img.resize((QR_SIZE, QR_SIZE), Image.LANCZOS)
     img.paste(qr_resized, (QR_X, QR_Y))
 
-    # ── 4. Card type label — ABOVE QR code ───────────────────────────────
-    #    FIX: was card number here; now shows card type (SINGLE / DOUBLE / FAMILY)
+    # ── 4. Card type label — above QR ────────────────────────────────────
     type_label = (guest.card_type or "SINGLE").upper()
     type_bbox  = draw.textbbox((0, 0), type_label, font=type_font)
     type_h     = type_bbox[3] - type_bbox[1]
@@ -307,25 +283,38 @@ def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
     return img
 
 
-def _generate_card_bytes(guest) -> bytes | None:
-    """Generate card image bytes for a guest (fetches QR from Supabase)."""
+def _render_and_upload_card(guest) -> bool:
+    """
+    Generate card for one guest and upload to Supabase.
+    Returns True on success, False on failure.
+    Uses JPEG to avoid Pillow PNG/BytesIO fileno() bug and save memory.
+    """
     try:
         qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
         qr_img  = Image.open(BytesIO(qr_data))
         img     = _draw_card(guest, qr_img)
-        buf     = BytesIO()
-        img.save(buf, format="PNG")
-        return buf.getvalue()
+
+        buf = BytesIO()
+        img.save(buf, format="JPEG", quality=92)
+        buf.seek(0)
+        card_bytes = buf.getvalue()
+
+        upload_to_supabase(
+            CARDS_BUCKET,
+            card_filename_from_guest(guest),
+            card_bytes,
+            content_type="image/jpeg",
+        )
+        return True
     except Exception as e:
-        logging.error(f"_generate_card_bytes failed for {guest.name}: {e}")
-        return None
+        logging.error(f"_render_and_upload_card failed for {guest.name}: {e}")
+        return False
 
 # ---------------------------------------------------------------------------
 # Utility helpers
 # ---------------------------------------------------------------------------
 
 def to_whatsapp_number(phone):
-    """Normalise any TZ phone number to 255XXXXXXXXX format."""
     phone = str(phone).strip()
     if phone.startswith('+'):
         phone = phone[1:]
@@ -365,10 +354,8 @@ def normalize_card_type(card_type_input, allowed_input=None):
     if allowed_input:
         try:
             allowed = int(allowed_input)
-            if allowed <= 1:
-                return "single", 1
-            if allowed == 2:
-                return "double", 2
+            if allowed <= 1: return "single", 1
+            if allowed == 2: return "double", 2
             return "family", allowed
         except ValueError:
             pass
@@ -399,7 +386,7 @@ def login_required(f):
 @login_required
 def view_all():
     with get_db_session() as db:
-        guests = db.query(Guest).order_by(Guest.visual_id).all()
+        guests  = db.query(Guest).order_by(Guest.visual_id).all()
         missing = [g for g in guests if g.visual_id is None]
         for g in missing:
             g.visual_id = get_next_visual_id(db)
@@ -411,7 +398,8 @@ def view_all():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        if request.form.get('username') == ADMIN_USERNAME and request.form.get('password') == ADMIN_PASSWORD:
+        if (request.form.get('username') == ADMIN_USERNAME and
+                request.form.get('password') == ADMIN_PASSWORD):
             session['logged_in'] = True
             flash('Login successful.', 'success')
             return redirect(url_for('view_all'))
@@ -436,7 +424,9 @@ def add_guest():
         card_type_input  = request.form.get('card_type', 'single')
         group_size_input = request.form.get('group_size', '').strip()
         card_type, default_size = normalize_card_type(card_type_input, group_size_input)
-        group_size = int(group_size_input) if (card_type == 'family' and group_size_input.isdigit()) else default_size
+        group_size = (int(group_size_input)
+                      if card_type == 'family' and group_size_input.isdigit()
+                      else default_size)
 
         with get_db_session() as db:
             if db.query(Guest).filter_by(phone=phone).first():
@@ -449,7 +439,8 @@ def add_guest():
             try:
                 qr_bytes = generate_qr_bytes(qr_id)
                 qr_fname = f"{qr_id}-{get_safe_filename_name_part(name or 'GUEST')}.png"
-                qr_url   = upload_to_supabase(QR_BUCKET, qr_fname, qr_bytes)
+                qr_url   = upload_to_supabase(QR_BUCKET, qr_fname, qr_bytes,
+                                              content_type="image/png")
             except Exception as e:
                 current_app.logger.warning(f"QR upload failed: {e}")
                 qr_url = ""
@@ -461,7 +452,8 @@ def add_guest():
             )
             db.add(guest)
             db.commit()
-            flash(f"Guest '{name or phone}' added. Card: {card_type.title()}, entries: {group_size}.", "success")
+            flash(f"Guest '{name or phone}' added. Card: {card_type.title()}, "
+                  f"entries: {group_size}.", "success")
             return redirect(url_for('view_all'))
 
     return render_template('add_guest.html')
@@ -490,8 +482,8 @@ def upload_csv():
 
         def normalize(raw):
             raw = (raw or "").strip().lower()
-            if raw in ["s", "single"]: return "single"
-            if raw in ["d", "double"]: return "double"
+            if raw in ["s", "single"]:          return "single"
+            if raw in ["d", "double"]:          return "double"
             if raw in ["f", "family", "group"]: return "family"
             return "single"
 
@@ -512,8 +504,10 @@ def upload_csv():
                     group_size = 2
                 else:
                     try:
-                        group_size = max(1, int(get_row(row, "Allowed", "allowed", "Size", "size", "Group Size", "group_size")))
-                    except:
+                        group_size = max(1, int(get_row(
+                            row, "Allowed", "allowed", "Size", "size",
+                            "Group Size", "group_size")))
+                    except Exception:
                         group_size = 1
 
                 if db.query(Guest).filter_by(phone=phone).first():
@@ -526,7 +520,8 @@ def upload_csv():
 
                 try:
                     qr_bytes = generate_qr_bytes(qr_id)
-                    qr_url   = upload_to_supabase(QR_BUCKET, qr_fname, qr_bytes)
+                    qr_url   = upload_to_supabase(QR_BUCKET, qr_fname, qr_bytes,
+                                                  content_type="image/png")
                 except Exception as e:
                     current_app.logger.warning(f"QR upload failed for {name}: {e}")
                     qr_url = ""
@@ -568,7 +563,8 @@ def update_status():
                     success=False, already_entered=True,
                     message="All allowed entries have already checked in.",
                     guest={"visual_id": guest.visual_id, "name": guest.name,
-                           "card_type": (guest.card_type or "").title(), "remaining_entries": 0}
+                           "card_type": (guest.card_type or "").title(),
+                           "remaining_entries": 0}
                 )
 
             guest.checked_in_count = (guest.checked_in_count or 0) + 1
@@ -588,6 +584,8 @@ def update_status():
             current_app.logger.exception(f"Error updating status for {qr_code_id}: {e}")
             return jsonify(success=False, message=f"An error occurred: {e}")
 
+# -------------------- search_guests --------------------
+
 @app.route('/search_guests')
 @login_required
 def search_guests():
@@ -601,10 +599,10 @@ def search_guests():
             guests = db.query(Guest).order_by(Guest.visual_id).all()
 
         return jsonify([{
-            "visual_id":  g.visual_id, "name": g.name, "phone": g.phone,
+            "visual_id":   g.visual_id, "name": g.name, "phone": g.phone,
             "qr_code_url": g.qr_code_url, "has_entered": g.has_entered,
-            "entry_time": g.entry_time.strftime('%Y-%m-%d %H:%M:%S') if g.entry_time else 'N/A',
-            "card_type":  g.card_type
+            "entry_time":  g.entry_time.strftime('%Y-%m-%d %H:%M:%S') if g.entry_time else 'N/A',
+            "card_type":   g.card_type
         } for g in guests])
 
 # -------------------- download_excel --------------------
@@ -617,25 +615,27 @@ def download_excel():
 
     def ct(g): return (g.card_type or "").strip().lower()
 
-    total_guests        = len(guests)
-    single_cards        = sum(1 for g in guests if ct(g) == "single")
-    double_cards        = sum(1 for g in guests if ct(g) == "double")
-    family_cards        = sum(1 for g in guests if ct(g) == "family")
+    total_guests         = len(guests)
+    single_cards         = sum(1 for g in guests if ct(g) == "single")
+    double_cards         = sum(1 for g in guests if ct(g) == "double")
+    family_cards         = sum(1 for g in guests if ct(g) == "family")
     total_family_allowed = sum(g.group_size for g in guests if ct(g) == "family")
-    entered_guests      = sum(1 for g in guests if bool(g.has_entered))
+    entered_guests       = sum(1 for g in guests if bool(g.has_entered))
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Guest Report"
-
     ws["A1"]      = "Guest Summary Report"
     ws["A1"].font = Font(size=14, bold=True)
 
     summary_data = [
-        ("Total Guests", total_guests), ("Single Cards", single_cards),
-        ("Double Cards", double_cards), ("Family Cards", family_cards),
+        ("Total Guests", total_guests),
+        ("Single Cards", single_cards),
+        ("Double Cards", double_cards),
+        ("Family Cards", family_cards),
         ("Total Allowed by Family Cards", total_family_allowed),
-        ("Guests Entered", entered_guests), ("Guests Not Entered", total_guests - entered_guests),
+        ("Guests Entered", entered_guests),
+        ("Guests Not Entered", total_guests - entered_guests),
     ]
 
     row = 3
@@ -652,11 +652,11 @@ def download_excel():
         ws.cell(row=table_start, column=col, value=header).font = Font(bold=True)
 
     for i, g in enumerate(guests, start=table_start + 1):
-        ws.cell(i, 1, g.id);     ws.cell(i, 2, g.name);  ws.cell(i, 3, g.phone)
+        ws.cell(i, 1, g.id);        ws.cell(i, 2, g.name);       ws.cell(i, 3, g.phone)
         ws.cell(i, 4, g.qr_code_id)
         ws.cell(i, 5, "Entered" if g.has_entered else "Not Entered")
         ws.cell(i, 6, g.entry_time.strftime('%Y-%m-%d %H:%M:%S') if g.entry_time else "")
-        ws.cell(i, 7, g.visual_id); ws.cell(i, 8, g.card_type); ws.cell(i, 9, g.group_size)
+        ws.cell(i, 7, g.visual_id); ws.cell(i, 8, g.card_type);  ws.cell(i, 9, g.group_size)
         ws.cell(i, 10, "Yes" if g.has_whatsapp else ("No" if g.has_whatsapp is False else "Unknown"))
         ws.cell(i, 11, g.rsvp_status or "—")
         ws.cell(i, 12, "Yes" if g.at_sms_sent else "No")
@@ -665,9 +665,11 @@ def download_excel():
     last_data_row  = table_start + len(guests)
     if last_data_row >= first_data_row:
         rng = f"E{first_data_row}:E{last_data_row}"
-        ws.conditional_formatting.add(rng, CellIsRule(operator="equal", formula=['"Entered"'],
+        ws.conditional_formatting.add(rng, CellIsRule(
+            operator="equal", formula=['"Entered"'],
             fill=PatternFill(start_color="C6EFCE", end_color="C6EFCE", fill_type="solid")))
-        ws.conditional_formatting.add(rng, CellIsRule(operator="equal", formula=['"Not Entered"'],
+        ws.conditional_formatting.add(rng, CellIsRule(
+            operator="equal", formula=['"Not Entered"'],
             fill=PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")))
 
     for column in ws.columns:
@@ -701,7 +703,8 @@ def zip_qr_codes_web():
                 current_app.logger.warning(f"Could not fetch QR for {guest.name}: {e}")
 
     memory_file.seek(0)
-    return send_file(memory_file, download_name='qr_codes.zip', as_attachment=True, mimetype='application/zip')
+    return send_file(memory_file, download_name='qr_codes.zip',
+                     as_attachment=True, mimetype='application/zip')
 
 # -------------------- edit_guest --------------------
 
@@ -727,11 +730,12 @@ def edit_guest(guest_id):
                 if new_card_type == "family":
                     try:
                         new_group_size = max(1, int(request.form.get('group_size', '').strip()))
-                    except:
+                    except Exception:
                         flash("Invalid group size for family card.", "danger")
                         return redirect(request.url)
                     if new_group_size < guest.checked_in_count:
-                        flash(f"Group size cannot be less than checked-in count ({guest.checked_in_count}).", "danger")
+                        flash(f"Group size cannot be less than checked-in count "
+                              f"({guest.checked_in_count}).", "danger")
                         return redirect(request.url)
                 elif new_card_type == "single":
                     new_group_size = 1
@@ -778,7 +782,7 @@ def delete_guest(guest_id):
                 flash("Guest not found.", "danger")
                 return redirect(url_for('view_all'))
 
-            delete_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
+            delete_from_supabase(QR_BUCKET,    qr_filename_from_guest(guest))
             delete_from_supabase(CARDS_BUCKET, card_filename_from_guest(guest))
             db.delete(guest)
             db.commit()
@@ -804,7 +808,8 @@ def regenerate_qr_codes():
                 qr_id    = f"GUEST-{guest.visual_id:04d}"
                 qr_fname = qr_filename_from_guest(guest)
                 qr_bytes = generate_qr_bytes(qr_id)
-                qr_url   = upload_to_supabase(QR_BUCKET, qr_fname, qr_bytes)
+                qr_url   = upload_to_supabase(QR_BUCKET, qr_fname, qr_bytes,
+                                              content_type="image/png")
                 guest.qr_code_id  = qr_id
                 guest.qr_code_url = qr_url
             db.commit()
@@ -816,18 +821,93 @@ def regenerate_qr_codes():
 
     return redirect(url_for('view_all'))
 
-# -------------------- generate_guest_cards --------------------
+# ---------------------------------------------------------------------------
+# ── CARD GENERATION  (per-card API — avoids Gunicorn timeout) ───────────────
+#
+#  OLD approach: /generate_guest_cards looped over all guests in one request
+#               → timed out after ~30 s on Render free tier.
+#
+#  NEW approach:
+#    1. GET  /generate_guest_cards          → returns list of visual_ids (JSON)
+#    2. POST /generate_card/<visual_id>     → generates & uploads ONE card (JSON)
+#    3. The browser calls step 2 one-by-one with a small progress bar.
+#
+#  The old HTML route still exists as /generate_guest_cards_legacy for safety.
+# ---------------------------------------------------------------------------
 
 @app.route('/generate_guest_cards')
 @login_required
 def generate_guest_cards():
+    """
+    Returns JSON list of all guest visual_ids so the frontend can call
+    /generate_card/<visual_id> for each one individually.
+    """
+    template_path = os.path.join("static", "Card Template.jpg")
+    if not os.path.exists(template_path):
+        return jsonify(success=False,
+                       error="Card template not found at static/Card Template.jpg"), 500
+
+    try:
+        _bold_font_path()
+    except FileNotFoundError as e:
+        return jsonify(success=False, error=str(e)), 500
+
+    with get_db_session() as db:
+        guests = db.query(Guest).order_by(Guest.visual_id).all()
+        ids    = [g.visual_id for g in guests if g.qr_code_url]
+
+    return jsonify(success=True, visual_ids=ids, total=len(ids))
+
+
+@app.route('/generate_card/<int:visual_id>', methods=['POST'])
+@login_required
+def generate_card(visual_id):
+    """
+    Generate and upload the invitation card for a single guest.
+    Called by the frontend one guest at a time to avoid timeouts.
+    Returns JSON {success, name, visual_id, error?}.
+    """
+    with get_db_session() as db:
+        guest = db.query(Guest).filter_by(visual_id=visual_id).first()
+        if not guest:
+            return jsonify(success=False, visual_id=visual_id,
+                           error="Guest not found"), 404
+
+        if not guest.qr_code_url:
+            return jsonify(success=False, visual_id=visual_id,
+                           error="No QR code URL — regenerate QR codes first"), 400
+
+        ok = _render_and_upload_card(guest)
+
+    if ok:
+        return jsonify(success=True, visual_id=visual_id, name=guest.name)
+    else:
+        return jsonify(success=False, visual_id=visual_id,
+                       error="Card rendering failed — check server logs"), 500
+
+
+@app.route('/generate_cards_page')
+@login_required
+def generate_cards_page():
+    """
+    Renders the progress-bar page that drives the per-card generation.
+    Add a link to this route in your guests.html template.
+    """
+    return render_template('generate_cards.html')
+
+
+# ── legacy single-request route (kept for reference, not recommended) ────────
+
+@app.route('/generate_guest_cards_legacy')
+@login_required
+def generate_guest_cards_legacy():
     template_path = os.path.join("static", "Card Template.jpg")
     if not os.path.exists(template_path):
         flash("Card template not found at static/Card Template.jpg", "danger")
         return redirect(url_for('view_all'))
 
     try:
-        _bold_font_path()   # raises if no font found
+        _bold_font_path()
     except FileNotFoundError as e:
         flash(str(e), "danger")
         return redirect(url_for('view_all'))
@@ -839,20 +919,11 @@ def generate_guest_cards():
                 if not guest.qr_code_url:
                     flash(f"No QR URL for {guest.name}. Skipping.", "warning")
                     continue
-
-                qr_data   = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
-                qr_img    = Image.open(BytesIO(qr_data))
-                img       = _draw_card(guest, qr_img)
-                buf       = BytesIO()
-                img.save(buf, format="PNG")
-                card_bytes = buf.getvalue()
-                upload_to_supabase(CARDS_BUCKET, card_filename_from_guest(guest), card_bytes)
-
+                _render_and_upload_card(guest)
             except Exception as e:
                 flash(f"Failed card for {guest.name}: {e}", "danger")
                 current_app.logger.error(
-                    f"Card gen error for guest {guest.visual_id}: {e}", exc_info=True
-                )
+                    f"Card gen error for guest {guest.visual_id}: {e}", exc_info=True)
 
     flash("Guest invitation cards generated successfully.", "success")
     return redirect(url_for('view_all'))
@@ -877,15 +948,16 @@ def download_card_by_id(visual_id):
             qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
             qr_img  = Image.open(BytesIO(qr_data))
             img     = _draw_card(guest, qr_img)
-            buf     = BytesIO()
-            img.save(buf, format="PNG")
+
+            buf = BytesIO()
+            img.save(buf, format="JPEG", quality=92)
             buf.seek(0)
 
             return send_file(
                 buf,
                 as_attachment=True,
-                download_name=f"Guest-{guest.visual_id:04d}.png",
-                mimetype="image/png",
+                download_name=f"Guest-{guest.visual_id:04d}.jpg",
+                mimetype="image/jpeg",
             )
         except Exception as e:
             flash(f"Error generating card: {e}", "danger")
@@ -927,11 +999,11 @@ def guest_report_data():
     with get_db_session() as db:
         total = db.query(Guest).count()
         return jsonify({
-            "total_guests":   total,
-            "single_cards":   db.query(Guest).filter_by(card_type='single').count(),
-            "double_cards":   db.query(Guest).filter_by(card_type='double').count(),
-            "family_cards":   db.query(Guest).filter_by(card_type='family').count(),
-            "entered_guests": db.query(Guest).filter_by(has_entered=True).count(),
+            "total_guests":       total,
+            "single_cards":       db.query(Guest).filter_by(card_type='single').count(),
+            "double_cards":       db.query(Guest).filter_by(card_type='double').count(),
+            "family_cards":       db.query(Guest).filter_by(card_type='family').count(),
+            "entered_guests":     db.query(Guest).filter_by(has_entered=True).count(),
             "not_entered_guests": total - db.query(Guest).filter_by(has_entered=True).count(),
         })
 
@@ -949,7 +1021,7 @@ def clear_all_data():
         try:
             guests = db.query(Guest).all()
             for guest in guests:
-                delete_from_supabase(QR_BUCKET,   qr_filename_from_guest(guest))
+                delete_from_supabase(QR_BUCKET,    qr_filename_from_guest(guest))
                 delete_from_supabase(CARDS_BUCKET, card_filename_from_guest(guest))
             num_deleted = db.query(Guest).delete()
             db.commit()
@@ -1000,427 +1072,182 @@ def whatsapp_webhook():
 
 
 def _handle_rsvp(from_number: str, button_text: str):
-    """Match incoming button tap to a guest and save RSVP status."""
-    button_lower = button_text.lower()
-    if any(x in button_lower for x in ['nitakuwepo', "i'll be there", 'attending']):
-        rsvp_status = 'attending'
-    elif any(x in button_lower for x in ['sitakuwepo', "can't make it", 'not attending']):
-        rsvp_status = 'not_attending'
+    """Update RSVP status when a guest taps a template button."""
+    positive = {"nitakuwepo", "i'll be there", "attending", "yes"}
+    negative = {"sitokuwepo", "can't make it", "not attending", "no"}
+    text     = button_text.lower()
+
+    if text in positive:
+        status = "attending"
+    elif text in negative:
+        status = "not_attending"
     else:
-        current_app.logger.warning(f"Unknown button text from {from_number}: {button_text}")
         return
 
-    raw = str(from_number).strip().lstrip('+')
-    variants = {raw, f"+{raw}"}
-    if raw.startswith("255") and len(raw) >= 11:
-        local9 = raw[3:]
-        variants.update({local9, f"0{local9}", f"+255{local9}"})
-    if raw.startswith("0") and len(raw) == 10:
-        local9 = raw[1:]
-        variants.update({f"255{local9}", f"+255{local9}", local9})
+    with get_db_session() as db:
+        guest = db.query(Guest).filter_by(phone=from_number).first()
+        if guest:
+            guest.rsvp_status = status
+            db.commit()
+            logging.info(f"RSVP updated: {from_number} → {status}")
+        else:
+            logging.warning(f"RSVP received from unknown number: {from_number}")
 
-    current_app.logger.info(f"RSVP lookup for {from_number}, trying variants: {variants}")
+# -------------------- Bulk WhatsApp send --------------------
+
+@app.route('/send_whatsapp_invites', methods=['POST'])
+@login_required
+def send_whatsapp_invites():
+    """
+    Send WhatsApp template invitations to all guests who haven't been sent one.
+    Each card image is uploaded to Meta (via whatsapp.send_guest_card) then the
+    template is dispatched with the guest's unique media_id, name, and card number.
+    """
+    results   = {"sent": 0, "failed": 0, "invalid": 0, "skipped": 0}
+    errors    = []
 
     with get_db_session() as db:
-        guest = db.query(Guest).filter(Guest.phone.in_(variants)).first()
+        guests = db.query(Guest).all()
 
-        if not guest:
-            current_app.logger.warning(
-                f"No guest found for number: {from_number} (tried variants: {variants})"
-            )
-            return
+        for guest in guests:
+            # Skip if already sent
+            if getattr(guest, 'has_whatsapp', None) is True:
+                results["skipped"] += 1
+                continue
 
-        guest.rsvp_status = rsvp_status
-        guest.rsvp_at = datetime.now()
-        db.commit()
-        current_app.logger.info(
-            f"RSVP saved: {guest.name} → {rsvp_status} (from {from_number}, matched '{guest.phone}')"
-        )
+            if not guest.phone:
+                results["failed"] += 1
+                continue
 
-
-# ════════════════════════════════════════════════════════════════════════════
-#  UNIFIED SEND ENGINE
-# ════════════════════════════════════════════════════════════════════════════
-
-def _send_to_guest(guest, db):
-    """
-    Core delivery logic for one guest.
-
-    Flow:
-        1. Attempt WhatsApp.
-        2. If Meta returns invalid_number  →  mark WA failed, auto-send SMS.
-        3. If WA succeeds                  →  mark WA sent, skip SMS
-           (SMS can still be sent manually / via separate bulk action).
-        4. If WA fails for any OTHER reason →  mark WA failed, attempt SMS.
-
-    Returns a dict:
-        {
-            wa:      "sent" | "skipped" | "failed" | "invalid",
-            sms:     "sent" | "skipped" | "failed" | "not_configured",
-            overall: "success" | "partial" | "failed",
-            message: str
-        }
-    """
-    now = datetime.now()
-    wa_status  = "skipped"
-    sms_status = "skipped"
-    messages   = []
-
-    phone = to_whatsapp_number(guest.phone)
-    if not phone:
-        return {
-            "wa": "failed", "sms": "failed",
-            "overall": "failed",
-            "message": "No valid phone number."
-        }
-
-    # ── Step 1: try WhatsApp ──────────────────────────────────────────────
-    try:
-        card_fname = card_filename_from_guest(guest)
-        try:
-            card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
-        except Exception:
-            card_bytes = _generate_card_bytes(guest)
-            if card_bytes:
-                upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes)
-
-        if not card_bytes:
-            raise ValueError("Could not retrieve or generate card image.")
-
-        wa_result = send_guest_card(
-            to=phone,
-            guest_name=guest.name or "Guest",
-            visual_id=guest.visual_id,
-            card_type=guest.card_type,
-            image_bytes=card_bytes,
-            filename=card_fname,
-        )
-
-        if wa_result.get("status") == "invalid_number":
-            guest.has_whatsapp        = False
-            guest.whatsapp_checked_at = now
-            guest.whatsapp_sent       = False
-            guest.whatsapp_error      = "Not on WhatsApp"
-            wa_status = "invalid"
-            messages.append("WhatsApp: not on platform.")
-        else:
-            guest.whatsapp_sent    = True
-            guest.whatsapp_sent_at = now
-            guest.whatsapp_error   = None
-            wa_status = "sent"
-            messages.append("WhatsApp: sent.")
-
-    except Exception as e:
-        err_str = str(e)[:500]
-        guest.whatsapp_sent  = False
-        guest.whatsapp_error = err_str
-        wa_status = "failed"
-        messages.append(f"WhatsApp failed: {err_str}")
-        logging.error(f"WA send failed for {guest.name}: {e}", exc_info=True)
-
-    # ── Step 2: SMS via Africa's Talking ─────────────────────────────────
-    # Set should_send_sms = True  to always send both WA and SMS.
-    # Set should_send_sms = (wa_status != "sent")  for SMS-as-fallback only.
-    should_send_sms = True
-
-    if should_send_sms:
-        if not at_configured():
-            sms_status = "not_configured"
-            messages.append("SMS: Africa's Talking not configured.")
-        else:
             try:
-                sms_result = at_send_sms(phone, build_sms_message(guest))
-                if sms_result.get("success"):
-                    guest.at_sms_sent    = True
-                    guest.at_sms_error   = None
-                    guest.at_sms_sent_at = now
-                    sms_status = "sent"
-                    messages.append("SMS: sent.")
-                else:
-                    err_str = sms_result.get("error", "Unknown SMS error")[:500]
-                    guest.at_sms_sent  = False
-                    guest.at_sms_error = err_str
-                    sms_status = "failed"
-                    messages.append(f"SMS failed: {err_str}")
+                # Fetch the card image from Supabase
+                card_fname = card_filename_from_guest(guest)
+                card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
             except Exception as e:
-                err_str = str(e)[:500]
-                guest.at_sms_sent  = False
-                guest.at_sms_error = err_str
-                sms_status = "failed"
-                messages.append(f"SMS error: {err_str}")
-                logging.error(f"SMS send failed for {guest.name}: {e}", exc_info=True)
-    else:
-        sms_status = "skipped"
+                current_app.logger.warning(
+                    f"Could not fetch card for {guest.name} — skipping: {e}")
+                results["failed"] += 1
+                errors.append(f"{guest.name}: card not found (generate cards first)")
+                continue
 
-    db.commit()
+            try:
+                result = send_guest_card(
+                    to=guest.phone,
+                    guest_name=guest.name or "Guest",
+                    visual_id=guest.visual_id,
+                    card_type=guest.card_type or "single",
+                    image_bytes=card_bytes,
+                    filename=card_fname,
+                )
 
-    # ── Determine overall outcome ─────────────────────────────────────────
-    if wa_status == "sent" or sms_status == "sent":
-        overall = "success"
-    elif wa_status in ("failed", "invalid") and sms_status in ("failed", "not_configured"):
-        overall = "failed"
-    else:
-        overall = "partial"
+                status = result.get("status")
+                if status == "sent":
+                    guest.has_whatsapp = True
+                    results["sent"] += 1
+                elif status == "invalid_number":
+                    guest.has_whatsapp = False
+                    results["invalid"] += 1
+                else:
+                    results["failed"] += 1
 
-    return {
-        "wa":      wa_status,
-        "sms":     sms_status,
-        "overall": overall,
-        "message": " | ".join(messages),
-    }
+            except Exception as e:
+                current_app.logger.error(
+                    f"WhatsApp send error for {guest.name}: {e}", exc_info=True)
+                results["failed"] += 1
+                errors.append(f"{guest.name}: {e}")
+
+            # Small delay to respect Meta rate limits
+            time.sleep(0.5)
+
+        db.commit()
+
+    summary = (f"Sent: {results['sent']}, Invalid numbers: {results['invalid']}, "
+               f"Failed: {results['failed']}, Skipped (already sent): {results['skipped']}")
+    flash(summary, "info")
+
+    if errors:
+        flash("Errors: " + " | ".join(errors[:10]), "warning")
+
+    return redirect(url_for('view_all'))
 
 
-# ── Unified single ────────────────────────────────────────────────────────────
-@app.route('/send_unified_single/<int:guest_id>', methods=['POST'])
+# -------------------- Single WhatsApp resend --------------------
+
+@app.route('/resend_whatsapp/<int:visual_id>', methods=['POST'])
 @login_required
-def send_unified_single(guest_id):
+def resend_whatsapp(visual_id):
+    """Re-send WhatsApp invitation to a single guest (even if already sent)."""
     with get_db_session() as db:
-        guest = db.get(Guest, guest_id)
+        guest = db.query(Guest).filter_by(visual_id=visual_id).first()
         if not guest:
-            return jsonify(success=False, message="Guest not found.")
-        result = _send_to_guest(guest, db)
-        return jsonify(
-            success=(result["overall"] != "failed"),
-            overall=result["overall"],
-            wa=result["wa"],
-            sms=result["sms"],
-            message=result["message"],
-            guest_id=guest_id,
-        )
+            flash("Guest not found.", "danger")
+            return redirect(url_for('view_all'))
 
+        try:
+            card_fname = card_filename_from_guest(guest)
+            card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
+        except Exception as e:
+            flash(f"Card not found for {guest.name}. Generate cards first.", "warning")
+            return redirect(url_for('view_all'))
 
-# ── Unified bulk ──────────────────────────────────────────────────────────────
-@app.route('/send_unified_bulk', methods=['POST'])
-@login_required
-def send_unified_bulk():
-    data   = request.get_json() or {}
-    resend = data.get('resend', False)
-
-    with get_db_session() as db:
-        if resend:
-            guests = db.query(Guest).order_by(Guest.visual_id).all()
-        else:
-            # Pending = WA not sent AND AT SMS not sent
-            guests = db.query(Guest).filter(
-                ((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)) &
-                ((Guest.at_sms_sent == False) | (Guest.at_sms_sent == None))
-            ).order_by(Guest.visual_id).all()
-
-        totals = {
-            "total":      len(guests),
-            "wa_sent":    0, "wa_failed":  0,
-            "sms_sent":   0, "sms_failed": 0,
-            "errors":     [],
-        }
-
-        for guest in guests:
-            result = _send_to_guest(guest, db)
-            if result["wa"]  == "sent":                        totals["wa_sent"]   += 1
-            elif result["wa"] in ("failed", "invalid"):        totals["wa_failed"] += 1
-            if result["sms"] == "sent":                        totals["sms_sent"]  += 1
-            elif result["sms"] == "failed":                    totals["sms_failed"] += 1
-            if result["overall"] == "failed":
-                totals["errors"].append({"name": guest.name, "error": result["message"]})
-            time.sleep(0.1)   # avoid provider rate limits
-
-        return jsonify(totals)
-
-
-# -------------------- send_cards --------------------
-@app.route('/send_cards', methods=['GET'])
-@login_required
-def send_cards():
-    with get_db_session() as db:
-        guests = db.query(Guest).order_by(Guest.visual_id).all()
-
-        total         = len(guests)
-        sent          = sum(1 for g in guests if g.whatsapp_sent)
-        failed        = sum(1 for g in guests if g.whatsapp_error and not g.whatsapp_sent)
-        pending       = total - sent
-        attending     = sum(1 for g in guests if g.rsvp_status == 'attending')
-        not_attending = sum(1 for g in guests if g.rsvp_status == 'not_attending')
-        no_rsvp       = total - attending - not_attending
-
-        # Africa's Talking SMS stats
-        at_sms_sent_count   = sum(1 for g in guests if g.at_sms_sent)
-        at_sms_failed_count = sum(1 for g in guests if g.at_sms_error and not g.at_sms_sent)
-
-        wa_checked        = sum(1 for g in guests if g.has_whatsapp is not None)
-        no_whatsapp_count = sum(1 for g in guests if g.has_whatsapp is False)
-
-        return render_template(
-            'send_cards.html',
-            guests=guests,
-            total=total,
-            sent=sent,
-            failed=failed,
-            pending=pending,
-            attending=attending,
-            not_attending=not_attending,
-            no_rsvp=no_rsvp,
-            wa_checked=wa_checked,
-            no_whatsapp_count=no_whatsapp_count,
-            # Africa's Talking SMS
-            at_configured=at_configured(),
-            at_sms_sent_count=at_sms_sent_count,
-            at_sms_failed_count=at_sms_failed_count,
-            # Legacy aliases so old template refs don't break
-            sms_enabled=at_configured(),
-            sms_sent_count=at_sms_sent_count,
-        )
-
-
-# -------------------- send_card_single (legacy WA-only alias) --------------------
-@app.route('/send_card_single/<int:guest_id>', methods=['POST'])
-@login_required
-def send_card_single(guest_id):
-    with get_db_session() as db:
-        guest = db.get(Guest, guest_id)
-        if not guest:
-            return jsonify(success=False, message="Guest not found.")
-        result = _send_to_guest(guest, db)
-        return jsonify(
-            success=(result["wa"] == "sent"),
-            message=result["message"],
-            guest_id=guest_id,
-        )
-
-
-# -------------------- send_cards_bulk (legacy WA-only alias) --------------------
-@app.route('/send_cards_bulk', methods=['POST'])
-@login_required
-def send_cards_bulk():
-    data   = request.get_json() or {}
-    resend = data.get('resend', False)
-
-    with get_db_session() as db:
-        if resend:
-            guests = db.query(Guest).order_by(Guest.visual_id).all()
-        else:
-            guests = db.query(Guest).filter(
-                (Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)
-            ).order_by(Guest.visual_id).all()
-
-        sent = failed = 0
-        errors = []
-        for guest in guests:
-            result = _send_to_guest(guest, db)
-            if result["wa"] == "sent":
-                sent += 1
+        try:
+            result = send_guest_card(
+                to=guest.phone,
+                guest_name=guest.name or "Guest",
+                visual_id=guest.visual_id,
+                card_type=guest.card_type or "single",
+                image_bytes=card_bytes,
+                filename=card_fname,
+            )
+            status = result.get("status")
+            if status == "sent":
+                guest.has_whatsapp = True
+                db.commit()
+                flash(f"Invitation resent to {guest.name}.", "success")
+            elif status == "invalid_number":
+                guest.has_whatsapp = False
+                db.commit()
+                flash(f"{guest.name} does not have a WhatsApp account.", "warning")
             else:
+                flash(f"Failed to resend to {guest.name}.", "danger")
+        except Exception as e:
+            flash(f"Error sending to {guest.name}: {e}", "danger")
+            current_app.logger.error(f"Resend error for {visual_id}: {e}", exc_info=True)
+
+    return redirect(url_for('view_all'))
+
+
+# -------------------- AT SMS send --------------------
+
+@app.route('/send_sms_invites', methods=['POST'])
+@login_required
+def send_sms_invites():
+    if not at_configured():
+        flash("Africa's Talking SMS is not configured.", "danger")
+        return redirect(url_for('view_all'))
+
+    sent = failed = skipped = 0
+    with get_db_session() as db:
+        guests = db.query(Guest).all()
+        for guest in guests:
+            if getattr(guest, 'at_sms_sent', False):
+                skipped += 1
+                continue
+            if not guest.phone:
                 failed += 1
-                if result["overall"] == "failed":
-                    errors.append({"name": guest.name, "error": result["message"]})
-            time.sleep(0.1)
+                continue
+            try:
+                message = (f"Habari {guest.name or 'Mgeni'}! "
+                           f"Umealikwa kwenye sherehe yetu. "
+                           f"Namba yako ya kadi: {guest.qr_code_id}.")
+                at_send_sms(guest.phone, message)
+                guest.at_sms_sent = True
+                sent += 1
+            except Exception as e:
+                current_app.logger.error(f"SMS error for {guest.name}: {e}")
+                failed += 1
+            time.sleep(0.2)
+        db.commit()
 
-        return jsonify(total=len(guests), sent=sent, failed=failed, errors=errors)
-
-
-# ── Africa's Talking SMS — single ────────────────────────────────────────────
-@app.route('/send_at_sms_single/<int:guest_id>', methods=['POST'])
-@login_required
-def send_at_sms_single(guest_id):
-    """SMS-only send via Africa's Talking (skips WhatsApp)."""
-    with get_db_session() as db:
-        guest = db.get(Guest, guest_id)
-        if not guest:
-            return jsonify(success=False, message="Guest not found."), 404
-
-        if not at_configured():
-            return jsonify(success=False, message="Africa's Talking SMS not configured.")
-
-        phone  = to_whatsapp_number(guest.phone)
-        result = at_send_sms(phone, build_sms_message(guest))
-
-        if result["success"]:
-            guest.at_sms_sent    = True
-            guest.at_sms_error   = None
-            guest.at_sms_sent_at = datetime.now()
-            db.commit()
-            return jsonify(success=True)
-        else:
-            guest.at_sms_sent  = False
-            guest.at_sms_error = result.get("error")
-            db.commit()
-            return jsonify(success=False, message=result.get("error"))
-
-
-# ── Africa's Talking SMS — bulk ───────────────────────────────────────────────
-@app.route('/send_at_sms_bulk', methods=['POST'])
-@login_required
-def send_at_sms_bulk():
-    """SMS-only bulk send via Africa's Talking."""
-    data   = request.get_json() or {}
-    resend = data.get("resend", False)
-
-    with get_db_session() as db:
-        if resend:
-            guests = db.query(Guest).all()
-        else:
-            guests = db.query(Guest).filter(
-                (Guest.at_sms_sent == None) | (Guest.at_sms_sent == False)
-            ).all()
-
-        sent_count = failed_count = 0
-        errors = []
-        for guest in guests:
-            phone  = to_whatsapp_number(guest.phone)
-            result = at_send_sms(phone, build_sms_message(guest))
-            if result["success"]:
-                guest.at_sms_sent    = True
-                guest.at_sms_error   = None
-                guest.at_sms_sent_at = datetime.now()
-                sent_count += 1
-            else:
-                guest.at_sms_sent  = False
-                guest.at_sms_error = result.get("error")
-                failed_count += 1
-                errors.append({"name": guest.name, "error": result.get("error")})
-            db.commit()
-            time.sleep(0.1)
-
-        return jsonify(total=len(guests), sent=sent_count, failed=failed_count, errors=errors)
-
-
-# ---------------------------------------------------------------------------
-# SMS message builder
-# ---------------------------------------------------------------------------
-
-def build_sms_message(guest) -> str:
-    return (
-        f"Habari {guest.name}, Karibu tusherekee siku hii ya furaha pamoja. "
-        f"Namba yako ya kadi:  {guest.visual_id:04d}. "
-        f"Karibu sana."
-    )
-
-
-# ---------------------------------------------------------------------------
-# Misc routes
-# ---------------------------------------------------------------------------
-
-@app.route("/privacy")
-def privacy():
-    return render_template("privacy.html")
-
-
-@app.route("/data-deletion")
-def data_deletion():
-    return """
-    <html>
-    <head><title>Data Deletion - SwiftInvite</title></head>
-    <body style="font-family: Arial; margin: 40px;">
-    <h1>User Data Deletion</h1>
-    <p>If you would like to delete your data from SwiftInvite, please follow the instructions below:</p>
-    <ol>
-        <li>Send an email to: <strong>swiftinvite25@gmail.com</strong></li>
-        <li>Include your phone number or identifier used in the app</li>
-        <li>We will process your request within 7 days</li>
-    </ol>
-    <p>Alternatively, you may contact us directly for assistance.</p>
-    </body>
-    </html>
-    """
-
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    flash(f"SMS — Sent: {sent}, Failed: {failed}, Skipped: {skipped}", "info")
+    return redirect(url_for('view_all'))

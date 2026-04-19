@@ -1,0 +1,128 @@
+{% extends "base.html" %}
+{% block title %}Generate Guest Cards{% endblock %}
+
+{% block content %}
+<div class="container py-5" style="max-width: 640px;">
+  <h2 class="mb-4">Generate Guest Cards</h2>
+
+  <!-- Status box -->
+  <div id="status-box" class="alert alert-info">
+    Click <strong>Start</strong> to begin generating cards one by one.
+  </div>
+
+  <!-- Progress bar -->
+  <div class="progress mb-3" style="height: 28px; display:none;" id="progress-wrap">
+    <div id="progress-bar"
+         class="progress-bar progress-bar-striped progress-bar-animated bg-success"
+         role="progressbar"
+         style="width: 0%">0%</div>
+  </div>
+
+  <!-- Counter -->
+  <p id="counter" class="text-muted mb-4" style="display:none;">
+    Processing <span id="done">0</span> of <span id="total">0</span>
+    &nbsp;|&nbsp; ✅ <span id="ok">0</span>
+    &nbsp;|&nbsp; ❌ <span id="fail">0</span>
+  </p>
+
+  <!-- Failed list -->
+  <ul id="fail-list" class="list-group mb-4" style="display:none;"></ul>
+
+  <!-- Buttons -->
+  <button id="btn-start" class="btn btn-success btn-lg me-2"
+          onclick="startGeneration()">▶ Start</button>
+  <a href="{{ url_for('view_all') }}" class="btn btn-secondary btn-lg">← Back</a>
+</div>
+
+<script>
+async function startGeneration() {
+  const btnStart   = document.getElementById('btn-start');
+  const statusBox  = document.getElementById('status-box');
+  const progressWrap = document.getElementById('progress-wrap');
+  const progressBar  = document.getElementById('progress-bar');
+  const counter    = document.getElementById('counter');
+  const failList   = document.getElementById('fail-list');
+
+  btnStart.disabled = true;
+  btnStart.textContent = '⏳ Running…';
+  statusBox.className  = 'alert alert-info';
+  statusBox.innerHTML  = 'Fetching guest list…';
+
+  // Step 1 — get the list of visual_ids
+  let ids = [];
+  try {
+    const res  = await fetch("{{ url_for('generate_guest_cards') }}");
+    const data = await res.json();
+    if (!data.success) {
+      statusBox.className = 'alert alert-danger';
+      statusBox.textContent = 'Error: ' + (data.error || 'Unknown error');
+      btnStart.disabled = false;
+      btnStart.textContent = '▶ Start';
+      return;
+    }
+    ids = data.visual_ids;
+  } catch (e) {
+    statusBox.className = 'alert alert-danger';
+    statusBox.textContent = 'Network error fetching guest list: ' + e;
+    btnStart.disabled = false;
+    btnStart.textContent = '▶ Start';
+    return;
+  }
+
+  const total = ids.length;
+  document.getElementById('total').textContent = total;
+
+  progressWrap.style.display = '';
+  counter.style.display      = '';
+  statusBox.innerHTML = `Generating <strong>${total}</strong> cards…`;
+
+  let done = 0, ok = 0, fail = 0;
+
+  // Step 2 — call /generate_card/<id> for each guest one at a time
+  for (const vid of ids) {
+    try {
+      const res  = await fetch(`/generate_card/${vid}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        ok++;
+      } else {
+        fail++;
+        const li = document.createElement('li');
+        li.className = 'list-group-item list-group-item-danger';
+        li.textContent = `#${vid}: ${data.error || 'Failed'}`;
+        failList.appendChild(li);
+        failList.style.display = '';
+      }
+    } catch (e) {
+      fail++;
+      const li = document.createElement('li');
+      li.className = 'list-group-item list-group-item-danger';
+      li.textContent = `#${vid}: Network error — ${e}`;
+      failList.appendChild(li);
+      failList.style.display = '';
+    }
+
+    done++;
+    const pct = Math.round((done / total) * 100);
+    progressBar.style.width    = pct + '%';
+    progressBar.textContent    = pct + '%';
+    document.getElementById('done').textContent = done;
+    document.getElementById('ok').textContent   = ok;
+    document.getElementById('fail').textContent = fail;
+  }
+
+  // Done
+  progressBar.classList.remove('progress-bar-animated');
+  if (fail === 0) {
+    statusBox.className = 'alert alert-success';
+    statusBox.innerHTML = `✅ All <strong>${ok}</strong> cards generated successfully!`;
+    btnStart.textContent = '✅ Done';
+  } else {
+    statusBox.className = 'alert alert-warning';
+    statusBox.innerHTML = `Done — ✅ ${ok} succeeded, ❌ ${fail} failed. See list below.`;
+    btnStart.textContent = '⚠️ Done with errors';
+  }
+  btnStart.disabled = false;
+}
+</script>
+{% endblock %}
