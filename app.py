@@ -274,8 +274,13 @@ def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
 def _render_and_upload_card(guest) -> bool:
     """Generate JPEG card for one guest and upload to Supabase. Returns True on success."""
     try:
-        qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
-        qr_img  = Image.open(BytesIO(qr_data))
+        try:
+            qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
+        except Exception:
+            qr_data = generate_qr_bytes(guest.qr_code_id)
+
+        qr_img = Image.open(BytesIO(qr_data))
+
         img     = _draw_card(guest, qr_img)
         buf     = BytesIO()
         img.save(buf, format="JPEG", quality=92)
@@ -724,6 +729,18 @@ def edit_guest(guest_id):
                 guest.card_type  = new_card_type
                 guest.group_size = new_group_size
                 db.commit()
+
+# Re-upload QR under new filename if name changed
+                try:
+                    old_qr_data = generate_qr_bytes(guest.qr_code_id)
+                    new_qr_fname = qr_filename_from_guest(guest)
+                    new_qr_url = upload_to_supabase(QR_BUCKET, new_qr_fname, old_qr_data,
+                                                    content_type="image/png")
+                    guest.qr_code_url = new_qr_url
+                    db.commit()
+                except Exception as e:
+                    current_app.logger.warning(f"Could not re-upload QR after name edit: {e}")
+
                 flash('Guest updated successfully.', 'success')
                 return redirect(url_for('view_all'))
 
@@ -850,8 +867,12 @@ def download_card_by_id(visual_id):
             if not os.path.exists(template_path):
                 flash("Card template missing.", "danger")
                 return redirect(url_for('view_all'))
-            qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
-            qr_img  = Image.open(BytesIO(qr_data))
+            try:
+                qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
+            except Exception:
+                qr_data = generate_qr_bytes(guest.qr_code_id)
+
+            qr_img = Image.open(BytesIO(qr_data))
             img     = _draw_card(guest, qr_img)
             buf     = BytesIO()
             img.save(buf, format="JPEG", quality=92)
