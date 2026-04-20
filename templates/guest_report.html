@@ -1,117 +1,338 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Guest Report</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+{% extends "base.html" %}
+{% block title %}Guest Report{% endblock %}
 
-    <style>
-        body {
-            background-color: #f8f9fa;
-            font-family: 'Inter', sans-serif;
-        }
-        .card-report {
-            min-height: 180px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            border-radius: 0.75rem;
-            color: white;
-            font-weight: 600;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        }
-        .report-number {
-            font-size: 2.5rem;
-        }
-        @media (max-width: 768px) {
-            .card-report { margin-bottom: 15px; }
-        }
-    </style>
-</head>
-<body>
-<div class="container my-5">
-    <div class="d-flex justify-content-between align-items-center mb-4 flex-wrap">
-        <h1>Guest Report</h1>
-        <a href="{{ url_for('view_all') }}" class="btn btn-primary mt-2 mt-md-0">Back to Dashboard</a>
-    </div>
+{% block content %}
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
 
-    <div class="row g-4 text-center">
-        <!-- Total Guests -->
-        <div class="col-md-2 col-6">
-            <div class="card bg-primary card-report">
-                <div class="card-body">
-                    <h5>Total Guests</h5>
-                    <p id="total-guests" class="report-number">0</p>
-                </div>
-            </div>
-        </div>
-        <!-- Single Cards -->
-        <div class="col-md-2 col-6">
-            <div class="card bg-success card-report">
-                <div class="card-body">
-                    <h5>Single Cards</h5>
-                    <p id="single-cards" class="report-number">0</p>
-                </div>
-            </div>
-        </div>
-        <!-- Double Cards -->
-        <div class="col-md-2 col-6">
-            <div class="card bg-warning card-report">
-                <div class="card-body">
-                    <h5>Double Cards</h5>
-                    <p id="double-cards" class="report-number">0</p>
-                </div>
-            </div>
-        </div>
-        <!-- Family Cards -->
-        <div class="col-md-2 col-6">
-            <div class="card bg-info card-report">
-                <div class="card-body">
-                    <h5>Family Cards</h5>
-                    <p id="family-cards" class="report-number">0</p>
-                </div>
-            </div>
-        </div>
-        <!-- Guests Entered -->
-        <div class="col-md-2 col-6">
-            <div class="card bg-success card-report">
-                <div class="card-body">
-                    <h5>Guests Entered</h5>
-                    <p id="entered-guests" class="report-number">0</p>
-                </div>
-            </div>
-        </div>
-        <!-- Guests Not Entered -->
-        <div class="col-md-2 col-6">
-            <div class="card bg-danger card-report">
-                <div class="card-body">
-                    <h5>Guests Not Entered</h5>
-                    <p id="not-entered-guests" class="report-number">0</p>
-                </div>
-            </div>
-        </div>
-    </div>
+  :root {
+    --green:      #185a3f;
+    --green-light:#e8f4ef;
+    --gold:       #c9a84c;
+    --gold-light: #fdf6e3;
+    --red:        #b03a2e;
+    --red-light:  #fdecea;
+    --grey:       #6b7280;
+    --grey-light: #f3f4f6;
+    --white:      #ffffff;
+    --ink:        #1a1a2e;
+    --card-shadow: 0 2px 16px rgba(0,0,0,.07);
+  }
+
+  body { font-family: 'DM Sans', sans-serif; background: #f8f9fb; color: var(--ink); }
+
+  .report-header {
+    background: var(--green);
+    color: #fff;
+    padding: 2.5rem 2rem 2rem;
+    border-radius: 0 0 2rem 2rem;
+    margin-bottom: 2rem;
+  }
+  .report-header h1 {
+    font-family: 'Playfair Display', serif;
+    font-size: 2rem;
+    margin: 0 0 .25rem;
+  }
+  .report-header p { opacity: .75; margin: 0; font-size: .9rem; }
+
+  /* ── stat cards ── */
+  .stat-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+    gap: 1rem;
+    margin-bottom: 2rem;
+  }
+  .stat-card {
+    background: var(--white);
+    border-radius: 1rem;
+    padding: 1.25rem 1rem;
+    text-align: center;
+    box-shadow: var(--card-shadow);
+    border-top: 4px solid var(--green);
+    transition: transform .15s;
+  }
+  .stat-card:hover { transform: translateY(-3px); }
+  .stat-card.gold  { border-color: var(--gold); }
+  .stat-card.red   { border-color: var(--red); }
+  .stat-card.grey  { border-color: var(--grey); }
+  .stat-card h2 {
+    font-size: 2rem; font-weight: 700;
+    font-family: 'Playfair Display', serif;
+    margin: 0 0 .2rem;
+    color: var(--green);
+  }
+  .stat-card.gold h2 { color: var(--gold); }
+  .stat-card.red  h2 { color: var(--red); }
+  .stat-card.grey h2 { color: var(--grey); }
+  .stat-card small { font-size: .78rem; color: var(--grey); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+
+  /* ── section panels ── */
+  .panel {
+    background: var(--white);
+    border-radius: 1.25rem;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 1.5rem;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 1rem 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid #eee;
+  }
+  .panel-header h3 {
+    margin: 0;
+    font-family: 'Playfair Display', serif;
+    font-size: 1.15rem;
+  }
+  .panel-header .badge-count {
+    background: var(--green-light);
+    color: var(--green);
+    font-weight: 600;
+    padding: .25rem .75rem;
+    border-radius: 2rem;
+    font-size: .82rem;
+  }
+  .panel-header .badge-count.red {
+    background: var(--red-light); color: var(--red);
+  }
+  .panel-header .badge-count.grey {
+    background: var(--grey-light); color: var(--grey);
+  }
+  .panel-header .badge-count.gold {
+    background: var(--gold-light); color: #8a6a1e;
+  }
+
+  /* ── guest name list ── */
+  .name-list {
+    padding: .75rem 1.5rem 1.25rem;
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+  .name-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    background: var(--green-light);
+    color: var(--green);
+    border-radius: 2rem;
+    padding: .3rem .85rem;
+    font-size: .85rem;
+    font-weight: 500;
+  }
+  .name-chip.red  { background: var(--red-light);  color: var(--red); }
+  .name-chip.grey { background: var(--grey-light); color: var(--grey); }
+  .name-chip.gold { background: var(--gold-light); color: #8a6a1e; }
+  .name-chip .num {
+    font-size: .72rem;
+    opacity: .65;
+    font-weight: 400;
+  }
+
+  /* ── no data ── */
+  .empty-msg {
+    padding: 2rem 1.5rem;
+    text-align: center;
+    color: var(--grey);
+    font-style: italic;
+  }
+
+  /* ── action bar ── */
+  .action-bar {
+    display: flex;
+    gap: .75rem;
+    flex-wrap: wrap;
+    margin-bottom: 1.5rem;
+    align-items: center;
+  }
+  .btn-report {
+    padding: .6rem 1.4rem;
+    border-radius: 2rem;
+    border: none;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 600;
+    font-size: .88rem;
+    cursor: pointer;
+    transition: all .15s;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+  }
+  .btn-report:hover { filter: brightness(.92); transform: translateY(-1px); }
+  .btn-green  { background: var(--green);  color: #fff; }
+  .btn-gold   { background: var(--gold);   color: #fff; }
+  .btn-outline{ background: transparent; border: 2px solid var(--green); color: var(--green); }
+
+  /* ── print / PDF styles ── */
+  @media print {
+    .action-bar, .report-header .btn-report, nav, .navbar { display: none !important; }
+    body { background: #fff; }
+    .panel { box-shadow: none; border: 1px solid #ddd; }
+    .report-header { border-radius: 0; color: #000; background: #f0f0f0; }
+    .name-chip { border: 1px solid #ccc; }
+  }
+</style>
+
+<div class="report-header">
+  <h1>📊 Guest Report</h1>
+  <p id="report-subtitle">Loading guest data…</p>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.6.4.min.js"></script>
+<div class="container pb-5" style="max-width:900px;">
+
+  <!-- Action bar -->
+  <div class="action-bar">
+    <button class="btn-report btn-green" onclick="window.print()">🖨️ Print / Save PDF</button>
+    <button class="btn-report btn-gold"  onclick="downloadExcelReport()">📥 Download Excel</button>
+    <a href="{{ url_for('view_all') }}" class="btn-report btn-outline">← Back</a>
+  </div>
+
+  <!-- Stat grid -->
+  <div class="stat-grid" id="stat-grid">
+    <div class="stat-card"><h2 id="s-total">—</h2><small>Total Guests</small></div>
+    <div class="stat-card gold"><h2 id="s-single">—</h2><small>Single Cards</small></div>
+    <div class="stat-card gold"><h2 id="s-double">—</h2><small>Double Cards</small></div>
+    <div class="stat-card gold"><h2 id="s-family">—</h2><small>Family Cards</small></div>
+    <div class="stat-card"><h2 id="s-entered">—</h2><small>Checked In</small></div>
+    <div class="stat-card red"><h2 id="s-not-entered">—</h2><small>Not Yet In</small></div>
+    <div class="stat-card"><h2 id="s-attending">—</h2><small>RSVP ✅</small></div>
+    <div class="stat-card red"><h2 id="s-declined">—</h2><small>RSVP ❌</small></div>
+    <div class="stat-card grey"><h2 id="s-no-rsvp">—</h2><small>No RSVP</small></div>
+    <div class="stat-card"><h2 id="s-wa-sent">—</h2><small>WA Sent</small></div>
+    <div class="stat-card red"><h2 id="s-wa-pending">—</h2><small>WA Pending</small></div>
+    <div class="stat-card"><h2 id="s-sms-sent">—</h2><small>SMS Sent</small></div>
+  </div>
+
+  <!-- Checked In -->
+  <div class="panel" id="panel-entered">
+    <div class="panel-header">
+      <h3>✅ Checked In</h3>
+      <span class="badge-count" id="badge-entered">0</span>
+    </div>
+    <div class="name-list" id="list-entered">
+      <span class="empty-msg">Loading…</span>
+    </div>
+  </div>
+
+  <!-- Not Yet In -->
+  <div class="panel" id="panel-not-entered">
+    <div class="panel-header">
+      <h3>⏳ Not Yet Checked In</h3>
+      <span class="badge-count red" id="badge-not-entered">0</span>
+    </div>
+    <div class="name-list" id="list-not-entered">
+      <span class="empty-msg">Loading…</span>
+    </div>
+  </div>
+
+  <!-- Attending (RSVP) -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3>💌 RSVP — Attending</h3>
+      <span class="badge-count" id="badge-attending">0</span>
+    </div>
+    <div class="name-list" id="list-attending">
+      <span class="empty-msg">Loading…</span>
+    </div>
+  </div>
+
+  <!-- Declined (RSVP) -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3>❌ RSVP — Declined</h3>
+      <span class="badge-count red" id="badge-declined">0</span>
+    </div>
+    <div class="name-list" id="list-declined">
+      <span class="empty-msg">Loading…</span>
+    </div>
+  </div>
+
+  <!-- No RSVP -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3>🔕 No RSVP Yet</h3>
+      <span class="badge-count grey" id="badge-no-rsvp">0</span>
+    </div>
+    <div class="name-list" id="list-no-rsvp">
+      <span class="empty-msg">Loading…</span>
+    </div>
+  </div>
+
+  <!-- WhatsApp pending -->
+  <div class="panel">
+    <div class="panel-header">
+      <h3>📱 WhatsApp Not Yet Sent</h3>
+      <span class="badge-count gold" id="badge-wa-pending">0</span>
+    </div>
+    <div class="name-list" id="list-wa-pending">
+      <span class="empty-msg">Loading…</span>
+    </div>
+  </div>
+
+</div>
+
 <script>
-function fetchReport() {
-    $.getJSON("{{ url_for('guest_report_data') }}", function(data) {
-        $('#total-guests').text(data.total_guests);
-        $('#single-cards').text(data.single_cards);
-        $('#double-cards').text(data.double_cards);
-        $('#family-cards').text(data.family_cards);  // Added family card
-        $('#entered-guests').text(data.entered_guests);
-        $('#not-entered-guests').text(data.not_entered_guests);
-    });
+function chip(name, cardNum, color='') {
+  return `<span class="name-chip ${color}">
+    ${name || '—'} <span class="num">#${String(cardNum || 0).padStart(4,'0')}</span>
+  </span>`;
 }
 
-// Initial load
-fetchReport();
-// Update every 10 seconds
-setInterval(fetchReport, 10000);
+function renderList(elId, guests, color='') {
+  const el = document.getElementById(elId);
+  if (!guests.length) {
+    el.innerHTML = '<span class="empty-msg">None</span>';
+    return;
+  }
+  el.innerHTML = guests.map(g => chip(g.name, g.visual_id, color)).join('');
+}
+
+async function loadReport() {
+  const res  = await fetch('/guest_report_data');
+  const data = await res.json();
+
+  // Update subtitle
+  document.getElementById('report-subtitle').textContent =
+    `Generated ${new Date().toLocaleString()} · ${data.total_guests} guests total`;
+
+  // Stats
+  document.getElementById('s-total').textContent       = data.total_guests;
+  document.getElementById('s-single').textContent      = data.single_cards;
+  document.getElementById('s-double').textContent      = data.double_cards;
+  document.getElementById('s-family').textContent      = data.family_cards;
+  document.getElementById('s-entered').textContent     = data.entered_guests;
+  document.getElementById('s-not-entered').textContent = data.not_entered_guests;
+  document.getElementById('s-attending').textContent   = data.attending;
+  document.getElementById('s-declined').textContent    = data.not_attending;
+  document.getElementById('s-no-rsvp').textContent     = data.no_rsvp;
+  document.getElementById('s-wa-sent').textContent     = data.wa_sent;
+  document.getElementById('s-wa-pending').textContent  = data.wa_pending;
+  document.getElementById('s-sms-sent').textContent    = data.sms_sent;
+
+  // Badges
+  document.getElementById('badge-entered').textContent     = data.entered_guests;
+  document.getElementById('badge-not-entered').textContent = data.not_entered_guests;
+  document.getElementById('badge-attending').textContent   = data.attending;
+  document.getElementById('badge-declined').textContent    = data.not_attending;
+  document.getElementById('badge-no-rsvp').textContent     = data.no_rsvp;
+  document.getElementById('badge-wa-pending').textContent  = data.wa_pending;
+
+  // Guest name lists
+  renderList('list-entered',     data.entered_list,     '');
+  renderList('list-not-entered', data.not_entered_list, 'red');
+  renderList('list-attending',   data.attending_list,   '');
+  renderList('list-declined',    data.declined_list,    'red');
+  renderList('list-no-rsvp',     data.no_rsvp_list,     'grey');
+  renderList('list-wa-pending',  data.wa_pending_list,  'gold');
+}
+
+function downloadExcelReport() {
+  window.location.href = "{{ url_for('download_excel') }}";
+}
+
+loadReport();
 </script>
-</body>
-</html>
+{% endblock %}

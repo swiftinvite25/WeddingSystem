@@ -895,15 +895,47 @@ def download_all_cards():
 @login_required
 def guest_report_data():
     with get_db_session() as db:
-        total = db.query(Guest).count()
-        return jsonify({
-            "total_guests":       total,
-            "single_cards":       db.query(Guest).filter_by(card_type='single').count(),
-            "double_cards":       db.query(Guest).filter_by(card_type='double').count(),
-            "family_cards":       db.query(Guest).filter_by(card_type='family').count(),
-            "entered_guests":     db.query(Guest).filter_by(has_entered=True).count(),
-            "not_entered_guests": total - db.query(Guest).filter_by(has_entered=True).count(),
-        })
+        guests = db.query(Guest).order_by(Guest.visual_id).all()
+ 
+    def g_dict(g):
+        """Minimal guest dict for the frontend name chips."""
+        return {"name": g.name, "visual_id": g.visual_id,
+                "card_type": g.card_type, "phone": g.phone}
+ 
+    total          = len(guests)
+    entered        = [g for g in guests if g.has_entered]
+    not_entered    = [g for g in guests if not g.has_entered]
+    attending      = [g for g in guests if g.rsvp_status == 'attending']
+    declined       = [g for g in guests if g.rsvp_status == 'not_attending']
+    no_rsvp        = [g for g in guests if not g.rsvp_status]
+    wa_sent        = [g for g in guests if g.whatsapp_sent]
+    wa_pending     = [g for g in guests if not g.whatsapp_sent]
+    sms_sent       = [g for g in guests if g.at_sms_sent]
+ 
+    return jsonify({
+        # ── summary counts ──
+        "total_guests":      total,
+        "single_cards":      sum(1 for g in guests if (g.card_type or '') == 'single'),
+        "double_cards":      sum(1 for g in guests if (g.card_type or '') == 'double'),
+        "family_cards":      sum(1 for g in guests if (g.card_type or '') == 'family'),
+        "entered_guests":    len(entered),
+        "not_entered_guests":len(not_entered),
+        "attending":         len(attending),
+        "not_attending":     len(declined),
+        "no_rsvp":           len(no_rsvp),
+        "wa_sent":           len(wa_sent),
+        "wa_pending":        len(wa_pending),
+        "sms_sent":          len(sms_sent),
+ 
+        # ── named lists ──
+        "entered_list":      [g_dict(g) for g in entered],
+        "not_entered_list":  [g_dict(g) for g in not_entered],
+        "attending_list":    [g_dict(g) for g in attending],
+        "declined_list":     [g_dict(g) for g in declined],
+        "no_rsvp_list":      [g_dict(g) for g in no_rsvp],
+        "wa_pending_list":   [g_dict(g) for g in wa_pending],
+    })
+ 
 
 @app.route('/guest_report')
 @login_required
