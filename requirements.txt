@@ -21,3 +21,4 @@ supabase>=2.4.0
 openpyxl
 requests
 africastalking
+reportlab

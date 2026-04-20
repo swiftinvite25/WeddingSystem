@@ -3,336 +3,179 @@
 
 {% block content %}
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap');
 
-  :root {
-    --green:      #185a3f;
-    --green-light:#e8f4ef;
-    --gold:       #c9a84c;
-    --gold-light: #fdf6e3;
-    --red:        #b03a2e;
-    --red-light:  #fdecea;
-    --grey:       #6b7280;
-    --grey-light: #f3f4f6;
-    --white:      #ffffff;
-    --ink:        #1a1a2e;
-    --card-shadow: 0 2px 16px rgba(0,0,0,.07);
-  }
+:root {
+  --bg:        #0f1117;
+  --surface:   #181c27;
+  --surface2:  #1e2435;
+  --border:    #2a3045;
+  --green:     #2dba7e;
+  --green-dim: #1a3d2c;
+  --gold:      #e6b84a;
+  --gold-dim:  #3d2e0a;
+  --red:       #e05c5c;
+  --red-dim:   #3d1010;
+  --blue:      #5b9cf6;
+  --blue-dim:  #0f2340;
+  --text:      #e8eaf2;
+  --muted:     #7a8099;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
+.rp-wrap{max-width:960px;margin:0 auto;padding:2rem 1.25rem 5rem}
 
-  body { font-family: 'DM Sans', sans-serif; background: #f8f9fb; color: var(--ink); }
+/* header */
+.rp-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:2.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
+.rp-head h1{font-family:'Cormorant Garamond',serif;font-size:2.4rem;font-weight:700;line-height:1.1}
+.rp-head p{color:var(--muted);font-size:.85rem;margin-top:.35rem}
+.rp-btns{display:flex;gap:.65rem;flex-wrap:wrap;align-items:center}
+.btn-rp{display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1.25rem;border-radius:.5rem;font-family:'Outfit',sans-serif;font-size:.85rem;font-weight:600;border:none;cursor:pointer;text-decoration:none;transition:opacity .15s,transform .1s}
+.btn-rp:hover{opacity:.85;transform:translateY(-1px)}
+.btn-green{background:var(--green);color:#fff}
+.btn-gold{background:var(--gold);color:#111}
+.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
 
-  .report-header {
-    background: var(--green);
-    color: #fff;
-    padding: 2.5rem 2rem 2rem;
-    border-radius: 0 0 2rem 2rem;
-    margin-bottom: 2rem;
-  }
-  .report-header h1 {
-    font-family: 'Playfair Display', serif;
-    font-size: 2rem;
-    margin: 0 0 .25rem;
-  }
-  .report-header p { opacity: .75; margin: 0; font-size: .9rem; }
+/* stat grid */
+.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.75rem;margin-bottom:2.5rem}
+.sc{background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1.1rem 1rem .9rem;position:relative;overflow:hidden;transition:border-color .2s}
+.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ac,var(--green))}
+.sc:hover{border-color:var(--ac,var(--green))}
+.sc.gold{--ac:var(--gold)}.sc.red{--ac:var(--red)}.sc.blue{--ac:var(--blue)}
+.sc-num{font-family:'Cormorant Garamond',serif;font-size:2.1rem;font-weight:700;color:var(--ac,var(--green));line-height:1}
+.sc-lbl{font-size:.72rem;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-top:.3rem}
 
-  /* ── stat cards ── */
-  .stat-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
-    gap: 1rem;
-    margin-bottom: 2rem;
-  }
-  .stat-card {
-    background: var(--white);
-    border-radius: 1rem;
-    padding: 1.25rem 1rem;
-    text-align: center;
-    box-shadow: var(--card-shadow);
-    border-top: 4px solid var(--green);
-    transition: transform .15s;
-  }
-  .stat-card:hover { transform: translateY(-3px); }
-  .stat-card.gold  { border-color: var(--gold); }
-  .stat-card.red   { border-color: var(--red); }
-  .stat-card.grey  { border-color: var(--grey); }
-  .stat-card h2 {
-    font-size: 2rem; font-weight: 700;
-    font-family: 'Playfair Display', serif;
-    margin: 0 0 .2rem;
-    color: var(--green);
-  }
-  .stat-card.gold h2 { color: var(--gold); }
-  .stat-card.red  h2 { color: var(--red); }
-  .stat-card.grey h2 { color: var(--grey); }
-  .stat-card small { font-size: .78rem; color: var(--grey); font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
+/* skeleton */
+.sk{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);background-size:200% 100%;animation:shim 1.4s infinite;border-radius:.35rem;height:2rem;width:65%}
+@keyframes shim{to{background-position:-200% 0}}
 
-  /* ── section panels ── */
-  .panel {
-    background: var(--white);
-    border-radius: 1.25rem;
-    box-shadow: var(--card-shadow);
-    margin-bottom: 1.5rem;
-    overflow: hidden;
-  }
-  .panel-header {
-    padding: 1rem 1.5rem;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-bottom: 1px solid #eee;
-  }
-  .panel-header h3 {
-    margin: 0;
-    font-family: 'Playfair Display', serif;
-    font-size: 1.15rem;
-  }
-  .panel-header .badge-count {
-    background: var(--green-light);
-    color: var(--green);
-    font-weight: 600;
-    padding: .25rem .75rem;
-    border-radius: 2rem;
-    font-size: .82rem;
-  }
-  .panel-header .badge-count.red {
-    background: var(--red-light); color: var(--red);
-  }
-  .panel-header .badge-count.grey {
-    background: var(--grey-light); color: var(--grey);
-  }
-  .panel-header .badge-count.gold {
-    background: var(--gold-light); color: #8a6a1e;
-  }
+/* section title */
+.sec-title{font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--muted);margin:2rem 0 .75rem;display:flex;align-items:center;gap:.75rem}
+.sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
 
-  /* ── guest name list ── */
-  .name-list {
-    padding: .75rem 1.5rem 1.25rem;
-    display: flex;
-    flex-wrap: wrap;
-    gap: .5rem;
-  }
-  .name-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: .4rem;
-    background: var(--green-light);
-    color: var(--green);
-    border-radius: 2rem;
-    padding: .3rem .85rem;
-    font-size: .85rem;
-    font-weight: 500;
-  }
-  .name-chip.red  { background: var(--red-light);  color: var(--red); }
-  .name-chip.grey { background: var(--grey-light); color: var(--grey); }
-  .name-chip.gold { background: var(--gold-light); color: #8a6a1e; }
-  .name-chip .num {
-    font-size: .72rem;
-    opacity: .65;
-    font-weight: 400;
-  }
+/* panels */
+.pg{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
+@media(max-width:600px){.pg{grid-template-columns:1fr}}
+.panel{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;overflow:hidden}
+.panel-full{grid-column:1/-1}
+.panel-top{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.1rem;border-bottom:1px solid var(--border);background:var(--surface2)}
+.panel-top h3{font-size:.92rem;font-weight:600}
+.pill{font-size:.75rem;font-weight:600;padding:.2rem .65rem;border-radius:2rem;background:var(--green-dim);color:var(--green)}
+.pill.red{background:var(--red-dim);color:var(--red)}
+.pill.gold{background:var(--gold-dim);color:var(--gold)}
+.pill.grey{background:var(--border);color:var(--muted)}
 
-  /* ── no data ── */
-  .empty-msg {
-    padding: 2rem 1.5rem;
-    text-align: center;
-    color: var(--grey);
-    font-style: italic;
-  }
-
-  /* ── action bar ── */
-  .action-bar {
-    display: flex;
-    gap: .75rem;
-    flex-wrap: wrap;
-    margin-bottom: 1.5rem;
-    align-items: center;
-  }
-  .btn-report {
-    padding: .6rem 1.4rem;
-    border-radius: 2rem;
-    border: none;
-    font-family: 'DM Sans', sans-serif;
-    font-weight: 600;
-    font-size: .88rem;
-    cursor: pointer;
-    transition: all .15s;
-    text-decoration: none;
-    display: inline-flex;
-    align-items: center;
-    gap: .4rem;
-  }
-  .btn-report:hover { filter: brightness(.92); transform: translateY(-1px); }
-  .btn-green  { background: var(--green);  color: #fff; }
-  .btn-gold   { background: var(--gold);   color: #fff; }
-  .btn-outline{ background: transparent; border: 2px solid var(--green); color: var(--green); }
-
-  /* ── print / PDF styles ── */
-  @media print {
-    .action-bar, .report-header .btn-report, nav, .navbar { display: none !important; }
-    body { background: #fff; }
-    .panel { box-shadow: none; border: 1px solid #ddd; }
-    .report-header { border-radius: 0; color: #000; background: #f0f0f0; }
-    .name-chip { border: 1px solid #ccc; }
-  }
+/* chip list */
+.chip-list{padding:.85rem 1.1rem 1rem;display:flex;flex-wrap:wrap;gap:.45rem;min-height:56px;max-height:220px;overflow-y:auto}
+.chip-list::-webkit-scrollbar{width:4px}
+.chip-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.chip{display:inline-flex;align-items:center;gap:.35rem;padding:.28rem .7rem;border-radius:2rem;font-size:.8rem;font-weight:500;border:1px solid var(--border);background:var(--surface2);white-space:nowrap}
+.chip-num{font-size:.68rem;color:var(--muted)}
+.chip.g{border-color:var(--green-dim);color:var(--green);background:transparent}
+.chip.r{border-color:var(--red-dim);color:var(--red);background:transparent}
+.chip.d{border-color:var(--gold-dim);color:var(--gold);background:transparent}
+.chip.m{border-color:var(--border);color:var(--muted);background:transparent}
+.empty-st{width:100%;text-align:center;color:var(--muted);font-size:.82rem;padding:.5rem 0;font-style:italic}
 </style>
 
-<div class="report-header">
-  <h1>📊 Guest Report</h1>
-  <p id="report-subtitle">Loading guest data…</p>
-</div>
+<div class="rp-wrap">
 
-<div class="container pb-5" style="max-width:900px;">
-
-  <!-- Action bar -->
-  <div class="action-bar">
-    <button class="btn-report btn-green" onclick="window.print()">🖨️ Print / Save PDF</button>
-    <button class="btn-report btn-gold"  onclick="downloadExcelReport()">📥 Download Excel</button>
-    <a href="{{ url_for('view_all') }}" class="btn-report btn-outline">← Back</a>
+  <div class="rp-head">
+    <div>
+      <h1>Guest Report</h1>
+      <p id="rp-sub">Loading data…</p>
+    </div>
+    <div class="rp-btns">
+      <a href="/download_client_report" class="btn-rp btn-gold" target="_blank">⬇ Client PDF</a>
+      <button class="btn-rp btn-green" onclick="location.href='{{ url_for('download_excel') }}'">📊 Excel</button>
+      <a href="{{ url_for('view_all') }}" class="btn-rp btn-ghost">← Back</a>
+    </div>
   </div>
 
-  <!-- Stat grid -->
+  <!-- Stat grid skeleton -->
   <div class="stat-grid" id="stat-grid">
-    <div class="stat-card"><h2 id="s-total">—</h2><small>Total Guests</small></div>
-    <div class="stat-card gold"><h2 id="s-single">—</h2><small>Single Cards</small></div>
-    <div class="stat-card gold"><h2 id="s-double">—</h2><small>Double Cards</small></div>
-    <div class="stat-card gold"><h2 id="s-family">—</h2><small>Family Cards</small></div>
-    <div class="stat-card"><h2 id="s-entered">—</h2><small>Checked In</small></div>
-    <div class="stat-card red"><h2 id="s-not-entered">—</h2><small>Not Yet In</small></div>
-    <div class="stat-card"><h2 id="s-attending">—</h2><small>RSVP ✅</small></div>
-    <div class="stat-card red"><h2 id="s-declined">—</h2><small>RSVP ❌</small></div>
-    <div class="stat-card grey"><h2 id="s-no-rsvp">—</h2><small>No RSVP</small></div>
-    <div class="stat-card"><h2 id="s-wa-sent">—</h2><small>WA Sent</small></div>
-    <div class="stat-card red"><h2 id="s-wa-pending">—</h2><small>WA Pending</small></div>
-    <div class="stat-card"><h2 id="s-sms-sent">—</h2><small>SMS Sent</small></div>
+    {% for i in range(12) %}
+    <div class="sc {% if i in [1,2,3] %}gold{% elif i in [5,7,10] %}red{% elif i == 6 %}blue{% endif %}">
+      <div class="sk"></div>
+      <div class="sc-lbl">Loading</div>
+    </div>
+    {% endfor %}
   </div>
 
-  <!-- Checked In -->
-  <div class="panel" id="panel-entered">
-    <div class="panel-header">
-      <h3>✅ Checked In</h3>
-      <span class="badge-count" id="badge-entered">0</span>
-    </div>
-    <div class="name-list" id="list-entered">
-      <span class="empty-msg">Loading…</span>
-    </div>
+  <!-- Check-in -->
+  <p class="sec-title">Check-in</p>
+  <div class="pg">
+    <div class="panel"><div class="panel-top"><h3>✅ Checked In</h3><span class="pill" id="p-in">—</span></div><div class="chip-list" id="l-in"><span class="empty-st">Loading…</span></div></div>
+    <div class="panel"><div class="panel-top"><h3>⏳ Not Yet In</h3><span class="pill red" id="p-nin">—</span></div><div class="chip-list" id="l-nin"><span class="empty-st">Loading…</span></div></div>
   </div>
 
-  <!-- Not Yet In -->
-  <div class="panel" id="panel-not-entered">
-    <div class="panel-header">
-      <h3>⏳ Not Yet Checked In</h3>
-      <span class="badge-count red" id="badge-not-entered">0</span>
-    </div>
-    <div class="name-list" id="list-not-entered">
-      <span class="empty-msg">Loading…</span>
-    </div>
+  <!-- RSVP -->
+  <p class="sec-title">RSVP</p>
+  <div class="pg">
+    <div class="panel"><div class="panel-top"><h3>💌 Attending</h3><span class="pill" id="p-att">—</span></div><div class="chip-list" id="l-att"><span class="empty-st">Loading…</span></div></div>
+    <div class="panel"><div class="panel-top"><h3>❌ Declined</h3><span class="pill red" id="p-dec">—</span></div><div class="chip-list" id="l-dec"><span class="empty-st">Loading…</span></div></div>
+    <div class="panel panel-full"><div class="panel-top"><h3>🔕 No Response</h3><span class="pill grey" id="p-nr">—</span></div><div class="chip-list" id="l-nr"><span class="empty-st">Loading…</span></div></div>
   </div>
 
-  <!-- Attending (RSVP) -->
-  <div class="panel">
-    <div class="panel-header">
-      <h3>💌 RSVP — Attending</h3>
-      <span class="badge-count" id="badge-attending">0</span>
-    </div>
-    <div class="name-list" id="list-attending">
-      <span class="empty-msg">Loading…</span>
-    </div>
-  </div>
-
-  <!-- Declined (RSVP) -->
-  <div class="panel">
-    <div class="panel-header">
-      <h3>❌ RSVP — Declined</h3>
-      <span class="badge-count red" id="badge-declined">0</span>
-    </div>
-    <div class="name-list" id="list-declined">
-      <span class="empty-msg">Loading…</span>
-    </div>
-  </div>
-
-  <!-- No RSVP -->
-  <div class="panel">
-    <div class="panel-header">
-      <h3>🔕 No RSVP Yet</h3>
-      <span class="badge-count grey" id="badge-no-rsvp">0</span>
-    </div>
-    <div class="name-list" id="list-no-rsvp">
-      <span class="empty-msg">Loading…</span>
-    </div>
-  </div>
-
-  <!-- WhatsApp pending -->
-  <div class="panel">
-    <div class="panel-header">
-      <h3>📱 WhatsApp Not Yet Sent</h3>
-      <span class="badge-count gold" id="badge-wa-pending">0</span>
-    </div>
-    <div class="name-list" id="list-wa-pending">
-      <span class="empty-msg">Loading…</span>
-    </div>
+  <!-- Delivery -->
+  <p class="sec-title">Invitation Delivery</p>
+  <div class="pg">
+    <div class="panel"><div class="panel-top"><h3>📲 WhatsApp Sent</h3><span class="pill" id="p-ws">—</span></div><div class="chip-list" id="l-ws"><span class="empty-st">Loading…</span></div></div>
+    <div class="panel"><div class="panel-top"><h3>📭 WA Pending</h3><span class="pill gold" id="p-wp">—</span></div><div class="chip-list" id="l-wp"><span class="empty-st">Loading…</span></div></div>
   </div>
 
 </div>
 
 <script>
-function chip(name, cardNum, color='') {
-  return `<span class="name-chip ${color}">
-    ${name || '—'} <span class="num">#${String(cardNum || 0).padStart(4,'0')}</span>
-  </span>`;
+function mk(guests, cls='') {
+  if (!guests?.length) return '<span class="empty-st">None</span>';
+  return guests.map(g =>
+    `<span class="chip ${cls}">${g.name||'—'} <span class="chip-num">#${String(g.visual_id||0).padStart(4,'0')}</span></span>`
+  ).join('');
 }
-
-function renderList(elId, guests, color='') {
-  const el = document.getElementById(elId);
-  if (!guests.length) {
-    el.innerHTML = '<span class="empty-msg">None</span>';
-    return;
-  }
-  el.innerHTML = guests.map(g => chip(g.name, g.visual_id, color)).join('');
+function sc(n, lbl, cls='') {
+  return `<div class="sc ${cls}"><div class="sc-num">${n}</div><div class="sc-lbl">${lbl}</div></div>`;
 }
+async function load() {
+  const d = await fetch('/guest_report_data').then(r => r.json());
+  const now = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  document.getElementById('rp-sub').textContent = `As of ${now} · ${d.total_guests} guests`;
 
-async function loadReport() {
-  const res  = await fetch('/guest_report_data');
-  const data = await res.json();
+  document.getElementById('stat-grid').innerHTML = [
+    sc(d.total_guests,       'Total Guests'),
+    sc(d.single_cards,       'Single Cards',  'gold'),
+    sc(d.double_cards,       'Double Cards',  'gold'),
+    sc(d.family_cards,       'Family Cards',  'gold'),
+    sc(d.entered_guests,     'Checked In'),
+    sc(d.not_entered_guests, 'Not In Yet',    'red'),
+    sc(d.attending,          'RSVP Yes',      'blue'),
+    sc(d.not_attending,      'RSVP No',       'red'),
+    sc(d.no_rsvp,            'No RSVP'),
+    sc(d.wa_sent,            'WA Sent'),
+    sc(d.wa_pending,         'WA Pending',    'red'),
+    sc(d.sms_sent,           'SMS Sent'),
+  ].join('');
 
-  // Update subtitle
-  document.getElementById('report-subtitle').textContent =
-    `Generated ${new Date().toLocaleString()} · ${data.total_guests} guests total`;
+  const setP = (id, val, cls='') => {
+    const e = document.getElementById(id);
+    if (e) { e.textContent = val; e.className = `pill ${cls}`; }
+  };
+  setP('p-in',  d.entered_guests,     '');
+  setP('p-nin', d.not_entered_guests, 'red');
+  setP('p-att', d.attending,          '');
+  setP('p-dec', d.not_attending,      'red');
+  setP('p-nr',  d.no_rsvp,            'grey');
+  setP('p-ws',  d.wa_sent,            '');
+  setP('p-wp',  d.wa_pending,         'gold');
 
-  // Stats
-  document.getElementById('s-total').textContent       = data.total_guests;
-  document.getElementById('s-single').textContent      = data.single_cards;
-  document.getElementById('s-double').textContent      = data.double_cards;
-  document.getElementById('s-family').textContent      = data.family_cards;
-  document.getElementById('s-entered').textContent     = data.entered_guests;
-  document.getElementById('s-not-entered').textContent = data.not_entered_guests;
-  document.getElementById('s-attending').textContent   = data.attending;
-  document.getElementById('s-declined').textContent    = data.not_attending;
-  document.getElementById('s-no-rsvp').textContent     = data.no_rsvp;
-  document.getElementById('s-wa-sent').textContent     = data.wa_sent;
-  document.getElementById('s-wa-pending').textContent  = data.wa_pending;
-  document.getElementById('s-sms-sent').textContent    = data.sms_sent;
-
-  // Badges
-  document.getElementById('badge-entered').textContent     = data.entered_guests;
-  document.getElementById('badge-not-entered').textContent = data.not_entered_guests;
-  document.getElementById('badge-attending').textContent   = data.attending;
-  document.getElementById('badge-declined').textContent    = data.not_attending;
-  document.getElementById('badge-no-rsvp').textContent     = data.no_rsvp;
-  document.getElementById('badge-wa-pending').textContent  = data.wa_pending;
-
-  // Guest name lists
-  renderList('list-entered',     data.entered_list,     '');
-  renderList('list-not-entered', data.not_entered_list, 'red');
-  renderList('list-attending',   data.attending_list,   '');
-  renderList('list-declined',    data.declined_list,    'red');
-  renderList('list-no-rsvp',     data.no_rsvp_list,     'grey');
-  renderList('list-wa-pending',  data.wa_pending_list,  'gold');
+  document.getElementById('l-in').innerHTML  = mk(d.entered_list,    'g');
+  document.getElementById('l-nin').innerHTML = mk(d.not_entered_list, 'r');
+  document.getElementById('l-att').innerHTML = mk(d.attending_list,   'g');
+  document.getElementById('l-dec').innerHTML = mk(d.declined_list,    'r');
+  document.getElementById('l-nr').innerHTML  = mk(d.no_rsvp_list,     'm');
+  document.getElementById('l-ws').innerHTML  = mk(d.wa_sent_list,     'g');
+  document.getElementById('l-wp').innerHTML  = mk(d.wa_pending_list,  'd');
 }
-
-function downloadExcelReport() {
-  window.location.href = "{{ url_for('download_excel') }}";
-}
-
-loadReport();
+load();
 </script>
 {% endblock %}
