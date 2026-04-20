@@ -1605,10 +1605,5 @@ def download_client_report():
                      download_name=filename,
                      mimetype='application/pdf')
 
-@app.route('/download_client_report')
-@login_required
-def download_client_report():
-    return redirect(url_for('download_excel'))
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
