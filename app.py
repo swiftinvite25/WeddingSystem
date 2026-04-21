@@ -1476,7 +1476,7 @@ def download_client_report():
         buf, pagesize=A4,
         leftMargin=20*mm, rightMargin=20*mm,
         topMargin=20*mm, bottomMargin=16*mm,
-        title="Wedding Guest Report", author="SwiftInvite",
+        title="Guest Report", author="SwiftInvite",
     )
  
     def on_page(canvas, doc):
@@ -1486,7 +1486,7 @@ def download_client_report():
         canvas.rect(0, h - 11*mm, w, 11*mm, fill=1, stroke=0)
         canvas.setFillColor(C_WHITE)
         canvas.setFont("Helvetica-Bold", 8.5)
-        canvas.drawCentredString(w/2, h - 7.5*mm, "WEDDING GUEST REPORT — CONFIDENTIAL")
+        canvas.drawCentredString(w/2, h - 7.5*mm, "GUEST REPORT — CONFIDENTIAL")
         canvas.setFillColor(colors.HexColor("#f3f4f6"))
         canvas.rect(0, 0, w, 8*mm, fill=1, stroke=0)
         canvas.setFillColor(C_GREY)
@@ -1497,7 +1497,7 @@ def download_client_report():
  
     story = []
     story.append(Spacer(1, 6*mm))
-    story.append(Paragraph("Wedding Guest Report", S_TITLE))
+    story.append(Paragraph("Guest Report", S_TITLE))
     story.append(Paragraph("Event Summary &amp; Attendance Overview", S_SUB))
     story.append(Paragraph(f"Prepared on {generated_at}", S_META))
     story.append(HRFlowable(width="100%", thickness=1.5, color=C_GOLD, spaceAfter=10))
@@ -1552,7 +1552,7 @@ def download_client_report():
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     buf.seek(0)
  
-    filename = f"Wedding_Guest_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+    filename = f"Guest_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
     return send_file(buf, as_attachment=True,
                      download_name=filename,
                      mimetype='application/pdf')
