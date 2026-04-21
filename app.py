@@ -680,7 +680,7 @@ def zip_qr_codes_web():
 def edit_guest(guest_id):
     with get_db_session() as db:
         try:
-            guest = db.get(Guest, guest_id)
+            guest = db.query(Guest).filter_by(visual_id=guest_id).first()
             if not guest:
                 flash("Guest not found.", "danger")
                 return redirect(url_for('view_all'))
