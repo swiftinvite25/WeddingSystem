@@ -3,178 +3,181 @@
 
 {% block content %}
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Outfit:wght@300;400;500;600&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+  body { font-family: 'Inter', sans-serif; background: #f5f7fa; }
+  .rp-wrap { max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
 
-:root {
-  --bg:        #0f1117;
-  --surface:   #181c27;
-  --surface2:  #1e2435;
-  --border:    #2a3045;
-  --green:     #2dba7e;
-  --green-dim: #1a3d2c;
-  --gold:      #e6b84a;
-  --gold-dim:  #3d2e0a;
-  --red:       #e05c5c;
-  --red-dim:   #3d1010;
-  --blue:      #5b9cf6;
-  --blue-dim:  #0f2340;
-  --text:      #e8eaf2;
-  --muted:     #7a8099;
-}
-*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-body{font-family:'Outfit',sans-serif;background:var(--bg);color:var(--text);min-height:100vh}
-.rp-wrap{max-width:960px;margin:0 auto;padding:2rem 1.25rem 5rem}
+  .rp-header {
+    background: #fff; border-radius: 12px; padding: 1.5rem 2rem;
+    margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+    display: flex; justify-content: space-between; align-items: center;
+    flex-wrap: wrap; gap: 1rem;
+  }
+  .rp-header h1 { font-size: 1.5rem; font-weight: 700; color: #111; margin: 0 0 .2rem; }
+  .rp-header p  { color: #6b7280; font-size: .85rem; margin: 0; }
+  .btn-row { display: flex; gap: .6rem; flex-wrap: wrap; }
+  .btn-rp {
+    display: inline-flex; align-items: center; gap: .35rem;
+    padding: .5rem 1.1rem; border-radius: 8px; font-size: .84rem;
+    font-weight: 600; border: none; cursor: pointer; text-decoration: none;
+    transition: filter .15s;
+  }
+  .btn-rp:hover { filter: brightness(.93); }
+  .btn-green  { background: #185a3f; color: #fff; }
+  .btn-gold   { background: #c9a84c; color: #fff; }
+  .btn-outline{ background: #fff; color: #374151; border: 1.5px solid #d1d5db; }
 
-/* header */
-.rp-head{display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:1rem;margin-bottom:2.5rem;padding-bottom:1.5rem;border-bottom:1px solid var(--border)}
-.rp-head h1{font-family:'Cormorant Garamond',serif;font-size:2.4rem;font-weight:700;line-height:1.1}
-.rp-head p{color:var(--muted);font-size:.85rem;margin-top:.35rem}
-.rp-btns{display:flex;gap:.65rem;flex-wrap:wrap;align-items:center}
-.btn-rp{display:inline-flex;align-items:center;gap:.4rem;padding:.55rem 1.25rem;border-radius:.5rem;font-family:'Outfit',sans-serif;font-size:.85rem;font-weight:600;border:none;cursor:pointer;text-decoration:none;transition:opacity .15s,transform .1s}
-.btn-rp:hover{opacity:.85;transform:translateY(-1px)}
-.btn-green{background:var(--green);color:#fff}
-.btn-gold{background:var(--gold);color:#111}
-.btn-ghost{background:transparent;color:var(--muted);border:1px solid var(--border)}
+  .stat-row {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
+    gap: .85rem; margin-bottom: 1.5rem;
+  }
+  .stat-card {
+    background: #fff; border-radius: 10px; padding: 1.2rem 1rem 1rem;
+    box-shadow: 0 1px 4px rgba(0,0,0,.06); border-top: 4px solid #185a3f;
+    text-align: center;
+  }
+  .stat-card.gold { border-color: #c9a84c; }
+  .stat-card.red  { border-color: #dc2626; }
+  .stat-num { font-size: 2rem; font-weight: 700; color: #185a3f; line-height: 1; margin-bottom: .25rem; }
+  .stat-card.gold .stat-num { color: #b07d1e; }
+  .stat-card.red  .stat-num { color: #dc2626; }
+  .stat-lbl { font-size: .73rem; color: #6b7280; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
 
-/* stat grid */
-.stat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:.75rem;margin-bottom:2.5rem}
-.sc{background:var(--surface);border:1px solid var(--border);border-radius:.75rem;padding:1.1rem 1rem .9rem;position:relative;overflow:hidden;transition:border-color .2s}
-.sc::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:var(--ac,var(--green))}
-.sc:hover{border-color:var(--ac,var(--green))}
-.sc.gold{--ac:var(--gold)}.sc.red{--ac:var(--red)}.sc.blue{--ac:var(--blue)}
-.sc-num{font-family:'Cormorant Garamond',serif;font-size:2.1rem;font-weight:700;color:var(--ac,var(--green));line-height:1}
-.sc-lbl{font-size:.72rem;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:.06em;margin-top:.3rem}
+  .sec-hd {
+    display: flex; align-items: center; gap: .75rem;
+    font-size: 1rem; font-weight: 600; color: #111; margin: 1.75rem 0 .75rem;
+  }
+  .sec-hd::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
+  .pill { font-size: .75rem; font-weight: 600; padding: .15rem .65rem; border-radius: 2rem; background: #e8f4ef; color: #185a3f; }
+  .pill.red { background: #fee2e2; color: #dc2626; }
 
-/* skeleton */
-.sk{background:linear-gradient(90deg,var(--surface) 25%,var(--surface2) 50%,var(--surface) 75%);background-size:200% 100%;animation:shim 1.4s infinite;border-radius:.35rem;height:2rem;width:65%}
-@keyframes shim{to{background-position:-200% 0}}
+  .table-wrap { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; margin-bottom: 1.5rem; }
+  .rp-table   { width: 100%; border-collapse: collapse; }
+  .rp-table thead th {
+    background: #185a3f; color: #fff; font-size: .78rem; font-weight: 600;
+    text-transform: uppercase; letter-spacing: .04em; padding: .75rem 1rem; text-align: left;
+  }
+  .rp-table tbody tr { border-bottom: 1px solid #f0f0f0; }
+  .rp-table tbody tr:last-child { border-bottom: none; }
+  .rp-table tbody tr:hover { background: #f9fafb; }
+  .rp-table tbody tr:nth-child(even) { background: #fafafa; }
+  .rp-table tbody tr:nth-child(even):hover { background: #f3f4f6; }
+  .rp-table td { padding: .65rem 1rem; font-size: .875rem; color: #374151; }
+  .td-num  { font-weight: 700; color: #185a3f; width: 70px; }
+  .td-type { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
+  .empty-row td { text-align: center; color: #9ca3af; font-style: italic; padding: 2rem; }
 
-/* section title */
-.sec-title{font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--muted);margin:2rem 0 .75rem;display:flex;align-items:center;gap:.75rem}
-.sec-title::after{content:'';flex:1;height:1px;background:var(--border)}
-
-/* panels */
-.pg{display:grid;grid-template-columns:1fr 1fr;gap:1rem;margin-bottom:1rem}
-@media(max-width:600px){.pg{grid-template-columns:1fr}}
-.panel{background:var(--surface);border:1px solid var(--border);border-radius:.875rem;overflow:hidden}
-.panel-full{grid-column:1/-1}
-.panel-top{display:flex;justify-content:space-between;align-items:center;padding:.85rem 1.1rem;border-bottom:1px solid var(--border);background:var(--surface2)}
-.panel-top h3{font-size:.92rem;font-weight:600}
-.pill{font-size:.75rem;font-weight:600;padding:.2rem .65rem;border-radius:2rem;background:var(--green-dim);color:var(--green)}
-.pill.red{background:var(--red-dim);color:var(--red)}
-.pill.gold{background:var(--gold-dim);color:var(--gold)}
-.pill.grey{background:var(--border);color:var(--muted)}
-
-/* chip list */
-.chip-list{padding:.85rem 1.1rem 1rem;display:flex;flex-wrap:wrap;gap:.45rem;min-height:56px;max-height:220px;overflow-y:auto}
-.chip-list::-webkit-scrollbar{width:4px}
-.chip-list::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
-.chip{display:inline-flex;align-items:center;gap:.35rem;padding:.28rem .7rem;border-radius:2rem;font-size:.8rem;font-weight:500;border:1px solid var(--border);background:var(--surface2);white-space:nowrap}
-.chip-num{font-size:.68rem;color:var(--muted)}
-.chip.g{border-color:var(--green-dim);color:var(--green);background:transparent}
-.chip.r{border-color:var(--red-dim);color:var(--red);background:transparent}
-.chip.d{border-color:var(--gold-dim);color:var(--gold);background:transparent}
-.chip.m{border-color:var(--border);color:var(--muted);background:transparent}
-.empty-st{width:100%;text-align:center;color:var(--muted);font-size:.82rem;padding:.5rem 0;font-style:italic}
+  .sk { background: linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%);
+        background-size: 200% 100%; animation: shim 1.3s infinite;
+        border-radius: 4px; height: 1.4rem; width: 70%; display: inline-block; }
+  @keyframes shim { to { background-position: -200% 0; } }
 </style>
 
 <div class="rp-wrap">
 
-  <div class="rp-head">
+  <div class="rp-header">
     <div>
-      <h1>Guest Report</h1>
-      <p id="rp-sub">Loading data…</p>
+      <h1>📋 Guest Report</h1>
+      <p id="rp-sub">Loading guest data…</p>
     </div>
-    <div class="rp-btns">
+    <div class="btn-row">
       <a href="/download_client_report" class="btn-rp btn-gold" target="_blank">⬇ Client PDF</a>
       <button class="btn-rp btn-green" onclick="location.href='{{ url_for('download_excel') }}'">📊 Excel</button>
-      <a href="{{ url_for('view_all') }}" class="btn-rp btn-ghost">← Back</a>
+      <a href="{{ url_for('view_all') }}" class="btn-rp btn-outline">← Back</a>
     </div>
   </div>
 
-  <!-- Stat grid skeleton -->
-  <div class="stat-grid" id="stat-grid">
-    {% for i in range(12) %}
-    <div class="sc {% if i in [1,2,3] %}gold{% elif i in [5,7,10] %}red{% elif i == 6 %}blue{% endif %}">
-      <div class="sk"></div>
-      <div class="sc-lbl">Loading</div>
-    </div>
-    {% endfor %}
+  <!-- Stat cards -->
+  <div class="stat-row" id="stat-row">
+    <div class="stat-card"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
+    <div class="stat-card"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
+    <div class="stat-card red"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
+    <div class="stat-card gold"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
+    <div class="stat-card gold"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
+    <div class="stat-card gold"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
+    <div class="stat-card"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
   </div>
 
-  <!-- Check-in -->
-  <p class="sec-title">Check-in</p>
-  <div class="pg">
-    <div class="panel"><div class="panel-top"><h3>✅ Checked In</h3><span class="pill" id="p-in">—</span></div><div class="chip-list" id="l-in"><span class="empty-st">Loading…</span></div></div>
-    <div class="panel"><div class="panel-top"><h3>⏳ Not Yet In</h3><span class="pill red" id="p-nin">—</span></div><div class="chip-list" id="l-nin"><span class="empty-st">Loading…</span></div></div>
+  <!-- Checked-in table -->
+  <div class="sec-hd">Checked In <span class="pill" id="pill-in">—</span></div>
+  <div class="table-wrap">
+    <table class="rp-table">
+      <thead>
+        <tr><th>#</th><th>Guest Name</th><th>Card Type</th><th>Entries Used</th><th>Check-in Time</th></tr>
+      </thead>
+      <tbody id="tbody-in">
+        <tr><td colspan="5" style="padding:2rem;text-align:center"><span class="sk" style="width:40%"></span></td></tr>
+      </tbody>
+    </table>
   </div>
 
-  <!-- RSVP -->
-  <p class="sec-title">RSVP</p>
-  <div class="pg">
-    <div class="panel"><div class="panel-top"><h3>💌 Attending</h3><span class="pill" id="p-att">—</span></div><div class="chip-list" id="l-att"><span class="empty-st">Loading…</span></div></div>
-    <div class="panel"><div class="panel-top"><h3>❌ Declined</h3><span class="pill red" id="p-dec">—</span></div><div class="chip-list" id="l-dec"><span class="empty-st">Loading…</span></div></div>
-    <div class="panel panel-full"><div class="panel-top"><h3>🔕 No Response</h3><span class="pill grey" id="p-nr">—</span></div><div class="chip-list" id="l-nr"><span class="empty-st">Loading…</span></div></div>
-  </div>
-
-  <!-- Delivery -->
-  <p class="sec-title">Invitation Delivery</p>
-  <div class="pg">
-    <div class="panel"><div class="panel-top"><h3>📲 WhatsApp Sent</h3><span class="pill" id="p-ws">—</span></div><div class="chip-list" id="l-ws"><span class="empty-st">Loading…</span></div></div>
-    <div class="panel"><div class="panel-top"><h3>📭 WA Pending</h3><span class="pill gold" id="p-wp">—</span></div><div class="chip-list" id="l-wp"><span class="empty-st">Loading…</span></div></div>
+  <!-- Not checked-in table -->
+  <div class="sec-hd">Not Yet Checked In <span class="pill red" id="pill-nin">—</span></div>
+  <div class="table-wrap">
+    <table class="rp-table">
+      <thead>
+        <tr><th>#</th><th>Guest Name</th><th>Card Type</th><th>Allowed Entries</th><th>RSVP</th></tr>
+      </thead>
+      <tbody id="tbody-nin">
+        <tr><td colspan="5" style="padding:2rem;text-align:center"><span class="sk" style="width:40%"></span></td></tr>
+      </tbody>
+    </table>
   </div>
 
 </div>
 
 <script>
-function mk(guests, cls='') {
-  if (!guests?.length) return '<span class="empty-st">None</span>';
-  return guests.map(g =>
-    `<span class="chip ${cls}">${g.name||'—'} <span class="chip-num">#${String(g.visual_id||0).padStart(4,'0')}</span></span>`
-  ).join('');
+function rsvpLabel(s) {
+  if (s === 'attending')     return '<span style="color:#185a3f;font-weight:600">✅ Confirmed</span>';
+  if (s === 'not_attending') return '<span style="color:#dc2626;font-weight:600">❌ Declined</span>';
+  return '<span style="color:#9ca3af">—</span>';
 }
-function sc(n, lbl, cls='') {
-  return `<div class="sc ${cls}"><div class="sc-num">${n}</div><div class="sc-lbl">${lbl}</div></div>`;
-}
+
 async function load() {
-  const d = await fetch('/guest_report_data').then(r => r.json());
-  const now = new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
-  document.getElementById('rp-sub').textContent = `As of ${now} · ${d.total_guests} guests`;
+  const d   = await fetch('/guest_report_data').then(r => r.json());
+  const now = new Date().toLocaleString('en-GB', {
+    day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
+  });
+  document.getElementById('rp-sub').textContent =
+    `As of ${now} · ${d.total_guests} guests registered`;
 
-  document.getElementById('stat-grid').innerHTML = [
-    sc(d.total_guests,       'Total Guests'),
-    sc(d.single_cards,       'Single Cards',  'gold'),
-    sc(d.double_cards,       'Double Cards',  'gold'),
-    sc(d.family_cards,       'Family Cards',  'gold'),
-    sc(d.entered_guests,     'Checked In'),
-    sc(d.not_entered_guests, 'Not In Yet',    'red'),
-    sc(d.attending,          'RSVP Yes',      'blue'),
-    sc(d.not_attending,      'RSVP No',       'red'),
-    sc(d.no_rsvp,            'No RSVP'),
-    sc(d.wa_sent,            'WA Sent'),
-    sc(d.wa_pending,         'WA Pending',    'red'),
-    sc(d.sms_sent,           'SMS Sent'),
-  ].join('');
+  document.getElementById('stat-row').innerHTML = [
+    {n: d.total_guests,       l: 'Total Guests',   c: ''},
+    {n: d.entered_guests,     l: 'Checked In',     c: ''},
+    {n: d.not_entered_guests, l: 'Not In Yet',     c: 'red'},
+    {n: d.single_cards,       l: 'Single Cards',   c: 'gold'},
+    {n: d.double_cards,       l: 'Double Cards',   c: 'gold'},
+    {n: d.family_cards,       l: 'Family Cards',   c: 'gold'},
+    {n: d.attending,          l: 'RSVP Confirmed', c: ''},
+  ].map(s => `<div class="stat-card ${s.c}">
+    <div class="stat-num">${s.n}</div>
+    <div class="stat-lbl">${s.l}</div>
+  </div>`).join('');
 
-  const setP = (id, val, cls='') => {
-    const e = document.getElementById(id);
-    if (e) { e.textContent = val; e.className = `pill ${cls}`; }
-  };
-  setP('p-in',  d.entered_guests,     '');
-  setP('p-nin', d.not_entered_guests, 'red');
-  setP('p-att', d.attending,          '');
-  setP('p-dec', d.not_attending,      'red');
-  setP('p-nr',  d.no_rsvp,            'grey');
-  setP('p-ws',  d.wa_sent,            '');
-  setP('p-wp',  d.wa_pending,         'gold');
+  document.getElementById('pill-in').textContent  = d.entered_guests;
+  document.getElementById('pill-nin').textContent = d.not_entered_guests;
 
-  document.getElementById('l-in').innerHTML  = mk(d.entered_list,    'g');
-  document.getElementById('l-nin').innerHTML = mk(d.not_entered_list, 'r');
-  document.getElementById('l-att').innerHTML = mk(d.attending_list,   'g');
-  document.getElementById('l-dec').innerHTML = mk(d.declined_list,    'r');
-  document.getElementById('l-nr').innerHTML  = mk(d.no_rsvp_list,     'm');
-  document.getElementById('l-ws').innerHTML  = mk(d.wa_sent_list,     'g');
-  document.getElementById('l-wp').innerHTML  = mk(d.wa_pending_list,  'd');
+  const tIn = document.getElementById('tbody-in');
+  tIn.innerHTML = d.entered_list?.length
+    ? d.entered_list.map(g => `<tr>
+        <td class="td-num">${String(g.visual_id||0).padStart(4,'0')}</td>
+        <td><strong>${g.name||'—'}</strong></td>
+        <td class="td-type">${g.card_type||'single'}</td>
+        <td>${g.checked_in_count||'—'} / ${g.group_size||'—'}</td>
+        <td style="color:#6b7280;font-size:.82rem">${g.entry_time||'—'}</td>
+      </tr>`).join('')
+    : '<tr class="empty-row"><td colspan="5">No guests have checked in yet.</td></tr>';
+
+  const tNin = document.getElementById('tbody-nin');
+  tNin.innerHTML = d.not_entered_list?.length
+    ? d.not_entered_list.map(g => `<tr>
+        <td class="td-num">${String(g.visual_id||0).padStart(4,'0')}</td>
+        <td><strong>${g.name||'—'}</strong></td>
+        <td class="td-type">${g.card_type||'single'}</td>
+        <td style="text-align:center">${g.group_size||1}</td>
+        <td>${rsvpLabel(g.rsvp_status)}</td>
+      </tr>`).join('')
+    : '<tr class="empty-row"><td colspan="5">🎉 All guests have checked in!</td></tr>';
 }
 load();
 </script>

@@ -1,87 +1,325 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <title>Scan QR Code</title>
-    <meta name="viewport" content="width=device-width,initial-scale=1" />
-    <script src="https://unpkg.com/html5-qrcode"></script>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <style>
-      #reader { width: 480px; max-width:100%; margin: 0 auto; border-radius: 8px; padding: 8px; box-shadow: 0 6px 18px rgba(0,0,0,0.12); }
-      .remaining { font-weight:700; font-size:1.1rem; }
-    </style>
-  </head>
-  <body>
-    <div class="container mt-4">
-      <h3 class="text-center mb-3">Scan Guest Invitation</h3>
+<head>
+  <meta charset="utf-8"/>
+  <title>Scan / Check-In</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    * { box-sizing: border-box; }
+    body { font-family: 'Inter', sans-serif; background: #f5f7fa; min-height: 100vh; }
 
-      <div id="reader"></div>
+    .page-wrap { max-width: 560px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
 
-      <div id="result" class="mt-4 text-center"></div>
+    /* ── header ── */
+    .page-head {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1.5rem;
+    }
+    .page-head h1 { font-size: 1.4rem; font-weight: 700; color: #111; margin: 0; }
+    .btn-back {
+      display: inline-flex; align-items: center; gap: .3rem;
+      padding: .45rem 1rem; border-radius: 8px; border: 1.5px solid #d1d5db;
+      background: #fff; color: #374151; font-size: .84rem; font-weight: 600;
+      text-decoration: none; transition: filter .15s;
+    }
+    .btn-back:hover { filter: brightness(.95); }
 
-      <div class="text-center mt-3">
-        <a href="/" class="btn btn-secondary">Back to Dashboard</a>
-      </div>
+    /* ── tabs ── */
+    .tab-bar {
+      display: flex; background: #e5e7eb; border-radius: 10px;
+      padding: 4px; gap: 4px; margin-bottom: 1.5rem;
+    }
+    .tab-btn {
+      flex: 1; padding: .55rem; border: none; border-radius: 7px;
+      background: transparent; font-family: 'Inter', sans-serif;
+      font-size: .875rem; font-weight: 600; color: #6b7280; cursor: pointer;
+      transition: all .15s;
+    }
+    .tab-btn.active { background: #fff; color: #185a3f; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+
+    /* ── panels ── */
+    .panel {
+      background: #fff; border-radius: 12px; padding: 1.5rem;
+      box-shadow: 0 1px 4px rgba(0,0,0,.06); display: none;
+    }
+    .panel.active { display: block; }
+
+    /* ── QR scanner ── */
+    #qr-reader { border-radius: 10px; overflow: hidden; }
+    #qr-reader video { border-radius: 10px; }
+    .scan-hint { font-size: .82rem; color: #6b7280; text-align: center; margin-top: .75rem; }
+
+    /* ── manual entry ── */
+    .manual-label {
+      font-size: .8rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: .05em; color: #6b7280; margin-bottom: .4rem;
+    }
+    .num-input-wrap {
+      display: flex; gap: .5rem;
+    }
+    .num-input {
+      flex: 1; padding: .75rem 1rem; border-radius: 8px; border: 1.5px solid #d1d5db;
+      font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 600;
+      color: #111; letter-spacing: .1em; text-align: center;
+      transition: border-color .15s; outline: none;
+    }
+    .num-input:focus { border-color: #185a3f; }
+    .num-input::placeholder { color: #9ca3af; font-weight: 400; letter-spacing: normal; font-size: .9rem; }
+    .btn-checkin {
+      padding: .75rem 1.4rem; border-radius: 8px; border: none;
+      background: #185a3f; color: #fff; font-family: 'Inter', sans-serif;
+      font-size: .95rem; font-weight: 600; cursor: pointer; transition: filter .15s;
+      white-space: nowrap;
+    }
+    .btn-checkin:hover { filter: brightness(.9); }
+    .btn-checkin:disabled { opacity: .5; cursor: not-allowed; }
+
+    /* ── result card ── */
+    #result-wrap { margin-top: 1.25rem; }
+    .result-card {
+      border-radius: 10px; padding: 1.1rem 1.25rem; animation: fadeIn .3s;
+    }
+    @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
+    .result-card.success { background: #e8f4ef; border: 1.5px solid #185a3f22; }
+    .result-card.error   { background: #fee2e2; border: 1.5px solid #dc262622; }
+    .result-card.warning { background: #fef3c7; border: 1.5px solid #d9770622; }
+    .result-icon { font-size: 1.5rem; margin-bottom: .4rem; }
+    .result-name { font-size: 1.1rem; font-weight: 700; color: #111; margin-bottom: .15rem; }
+    .result-detail { font-size: .85rem; color: #374151; }
+    .result-card.success .result-name { color: #185a3f; }
+    .result-card.error   .result-name { color: #dc2626; }
+    .result-card.warning .result-name { color: #92400e; }
+    .badge-entries {
+      display: inline-block; background: #185a3f; color: #fff;
+      font-size: .75rem; font-weight: 600; padding: .2rem .6rem;
+      border-radius: 2rem; margin-top: .4rem;
+    }
+
+    /* ── recent log ── */
+    .log-title { font-size: .8rem; font-weight: 600; text-transform: uppercase;
+                 letter-spacing: .05em; color: #6b7280; margin: 1.5rem 0 .5rem; }
+    .log-item {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: .55rem .75rem; background: #fff; border-radius: 8px;
+      border: 1px solid #e5e7eb; margin-bottom: .4rem; font-size: .84rem;
+    }
+    .log-name { font-weight: 600; color: #111; }
+    .log-time { font-size: .75rem; color: #9ca3af; }
+    .log-dot  { width: 8px; height: 8px; border-radius: 50%; background: #185a3f; margin-right: .5rem; flex-shrink: 0; }
+  </style>
+</head>
+<body>
+<div class="page-wrap">
+
+  <div class="page-head">
+    <h1>🎫 Guest Check-In</h1>
+    <a href="/" class="btn-back">← Dashboard</a>
+  </div>
+
+  <!-- Tab bar -->
+  <div class="tab-bar">
+    <button class="tab-btn active" id="tab-manual" onclick="switchTab('manual')">
+      ✏️ Card Number
+    </button>
+    <button class="tab-btn" id="tab-scan" onclick="switchTab('scan')">
+      📷 Scan QR Code
+    </button>
+  </div>
+
+  <!-- Manual entry panel -->
+  <div class="panel active" id="panel-manual">
+    <div class="manual-label">Enter Guest Card Number</div>
+    <div class="num-input-wrap">
+      <input
+        class="num-input" id="card-input" type="number"
+        placeholder="e.g. 0042" min="1" max="9999"
+        onkeydown="if(event.key==='Enter') doManualCheckin()"
+        autofocus
+      />
+      <button class="btn-checkin" id="manual-btn" onclick="doManualCheckin()">
+        Check In
+      </button>
     </div>
+    <div id="result-wrap"></div>
+  </div>
 
-    <script>
-      let lastScanned = null;
-      function showCard(statusClass, title, html) {
-        document.getElementById('result').innerHTML = `
-          <div class="card border-${statusClass} mx-auto" style="max-width:520px;">
-            <div class="card-body text-${statusClass}">
-              <h5 class="card-title">${title}</h5>
-              ${html}
-            </div>
-          </div>
-        `;
-      }
+  <!-- QR scan panel -->
+  <div class="panel" id="panel-scan">
+    <div id="qr-reader"></div>
+    <p class="scan-hint">Point camera at the QR code on the guest's card</p>
+    <div id="scan-result-wrap"></div>
+  </div>
 
-      function onScanSuccess(qrMessage) {
-        if (qrMessage === lastScanned) return;
-        lastScanned = qrMessage;
-        showCard('info', 'Processing...', '<div class="spinner-border" role="status"></div>');
+  <!-- Recent check-ins log -->
+  <div class="log-title">Recent Check-ins</div>
+  <div id="log-list"><p style="color:#9ca3af;font-size:.82rem;text-align:center">No check-ins yet this session</p></div>
 
-        fetch('/update_status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ qr_code_id: qrMessage })
-        })
-        .then(r => r.json())
-        .then(data => {
-          if (data.success) {
-            const g = data.guest;
-            const remaining = g.remaining_entries;
-            const remHtml = `<p class="mb-1"><strong>ID:</strong> ${g.visual_id || 'N/A'}</p>
-                             <p class="mb-1"><strong>Name:</strong> ${g.name}</p>
-                             <p class="mb-1"><strong>Card type:</strong> ${g.card_type}</p>
-                             <p class="remaining ${remaining>0? 'text-success':'text-danger'}">Remaining entries: ${remaining}</p>`;
-            showCard('success', 'Check-in successful', remHtml);
-          } else if (data.already_entered) {
-            const g = data.guest || {};
-            const remHtml = `<p class="mb-1"><strong>ID:</strong> ${g.visual_id || 'N/A'}</p>
-                             <p class="mb-1"><strong>Name:</strong> ${g.name || 'N/A'}</p>
-                             <p class="remaining text-danger">Remaining entries: ${g.remaining_entries ?? 0}</p>`;
-            showCard('danger', 'No entries remaining', remHtml);
-          } else {
-            showCard('warning', 'Not found', `<p>${data.message || 'Guest not found.'}</p>`);
-          }
-        })
-        .catch(err => {
-          console.error(err);
-          showCard('danger', 'Error', '<p>An error occurred while contacting the server.</p>');
-        });
+</div>
 
-        setTimeout(() => {
-          lastScanned = null;
-          // keep result visible for 6 seconds
-        }, 6000);
-      }
+<script>
+// ── tab switching ─────────────────────────────────────────────────────────
+let scanner = null;
+let scannerRunning = false;
 
-      function onScanError(err) { /* optional */ }
+function switchTab(tab) {
+  document.getElementById('tab-manual').classList.toggle('active', tab === 'manual');
+  document.getElementById('tab-scan').classList.toggle('active', tab === 'scan');
+  document.getElementById('panel-manual').classList.toggle('active', tab === 'manual');
+  document.getElementById('panel-scan').classList.toggle('active', tab === 'scan');
 
-      const scanner = new Html5QrcodeScanner("reader", { fps: 10, qrbox: 360 });
-      scanner.render(onScanSuccess, onScanError);
-    </script>
-  </body>
+  if (tab === 'scan' && !scannerRunning) {
+    startScanner();
+  } else if (tab === 'manual' && scannerRunning) {
+    stopScanner();
+  }
+}
+
+// ── recent log ────────────────────────────────────────────────────────────
+const log = [];
+function addLog(name, cardNum, ok) {
+  const now = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  log.unshift({name, cardNum, ok, time: now});
+  if (log.length > 10) log.pop();
+  renderLog();
+}
+function renderLog() {
+  const el = document.getElementById('log-list');
+  if (!log.length) { el.innerHTML = '<p style="color:#9ca3af;font-size:.82rem;text-align:center">No check-ins yet this session</p>'; return; }
+  el.innerHTML = log.map(l => `
+    <div class="log-item">
+      <div style="display:flex;align-items:center">
+        <div class="log-dot" style="background:${l.ok ? '#185a3f' : '#dc2626'}"></div>
+        <span class="log-name">${l.name}</span>
+        <span style="margin-left:.5rem;font-size:.75rem;color:#9ca3af">#${String(l.cardNum).padStart(4,'0')}</span>
+      </div>
+      <span class="log-time">${l.time}</span>
+    </div>`).join('');
+}
+
+// ── result renderer ───────────────────────────────────────────────────────
+function showResult(data, targetId) {
+  const el = document.getElementById(targetId);
+  if (!el) return;
+
+  if (data.success) {
+    const g = data.guest || {};
+    const remaining = g.remaining_entries ?? '—';
+    el.innerHTML = `<div class="result-card success">
+      <div class="result-icon">✅</div>
+      <div class="result-name">${g.name || 'Guest'}</div>
+      <div class="result-detail">
+        Card ${(g.card_type||'').toUpperCase()} · <strong>#${String(g.visual_id||0).padStart(4,'0')}</strong>
+      </div>
+      <span class="badge-entries">${remaining} ${remaining === 1 ? 'entry' : 'entries'} remaining</span>
+    </div>`;
+    addLog(g.name || 'Guest', g.visual_id || 0, true);
+  } else if (data.already_entered) {
+    const g = data.guest || {};
+    el.innerHTML = `<div class="result-card warning">
+      <div class="result-icon">⚠️</div>
+      <div class="result-name">Already Fully Checked In</div>
+      <div class="result-detail">${g.name || ''} — all ${g.card_type||''} entries used</div>
+    </div>`;
+    addLog(g.name || 'Already in', g.visual_id || 0, false);
+  } else {
+    el.innerHTML = `<div class="result-card error">
+      <div class="result-icon">❌</div>
+      <div class="result-name">Check-In Failed</div>
+      <div class="result-detail">${data.message || 'Unknown error'}</div>
+    </div>`;
+  }
+
+  // Auto-clear result after 5 seconds
+  setTimeout(() => { if (el) el.innerHTML = ''; }, 5000);
+}
+
+// ── API call ──────────────────────────────────────────────────────────────
+async function checkIn(qrCodeId, resultElId) {
+  try {
+    const res  = await fetch('/update_status', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({qr_code_id: qrCodeId}),
+    });
+    const data = await res.json();
+    showResult(data, resultElId);
+    return data;
+  } catch (err) {
+    const el = document.getElementById(resultElId);
+    if (el) el.innerHTML = `<div class="result-card error">
+      <div class="result-name">Network Error</div>
+      <div class="result-detail">${err}</div>
+    </div>`;
+  }
+}
+
+// ── Manual check-in ───────────────────────────────────────────────────────
+async function doManualCheckin() {
+  const input = document.getElementById('card-input');
+  const btn   = document.getElementById('manual-btn');
+  const raw   = input.value.trim();
+  if (!raw) { input.focus(); return; }
+
+  const num = parseInt(raw, 10);
+  if (isNaN(num) || num < 1) {
+    document.getElementById('result-wrap').innerHTML =
+      `<div class="result-card error"><div class="result-name">Invalid number</div><div class="result-detail">Please enter a valid card number</div></div>`;
+    return;
+  }
+
+  const qrId = `GUEST-${String(num).padStart(4, '0')}`;
+  btn.disabled = true;
+  btn.textContent = '⏳';
+
+  await checkIn(qrId, 'result-wrap');
+
+  btn.disabled = false;
+  btn.textContent = 'Check In';
+  input.value = '';
+  input.focus();
+}
+
+// ── QR Scanner ────────────────────────────────────────────────────────────
+let lastScanned = '';
+let scanCooldown = false;
+
+function startScanner() {
+  scanner = new Html5Qrcode("qr-reader");
+  scanner.start(
+    {facingMode: "environment"},
+    {fps: 10, qrbox: {width: 260, height: 260}},
+    async (decoded) => {
+      if (scanCooldown || decoded === lastScanned) return;
+      lastScanned  = decoded;
+      scanCooldown = true;
+      setTimeout(() => { scanCooldown = false; lastScanned = ''; }, 3000);
+      await checkIn(decoded, 'scan-result-wrap');
+    },
+    () => {}   // ignore frame errors
+  ).then(() => { scannerRunning = true; })
+   .catch(err => {
+     document.getElementById('qr-reader').innerHTML =
+       `<div style="padding:2rem;text-align:center;color:#dc2626">
+         Camera access denied or unavailable.<br>
+         <small>${err}</small>
+       </div>`;
+   });
+}
+
+function stopScanner() {
+  if (scanner) {
+    scanner.stop().then(() => {
+      scannerRunning = false;
+      scanner = null;
+    }).catch(() => {});
+  }
+}
+
+// Stop scanner when navigating away
+window.addEventListener('beforeunload', stopScanner);
+</script>
+</body>
 </html>

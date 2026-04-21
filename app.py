@@ -908,42 +908,47 @@ def guest_report_data():
         guests = db.query(Guest).order_by(Guest.visual_id).all()
  
     def g_dict(g):
-        """Minimal guest dict for the frontend name chips."""
-        return {"name": g.name, "visual_id": g.visual_id,
-                "card_type": g.card_type, "phone": g.phone}
+        return {
+            "name":             g.name,
+            "visual_id":        g.visual_id,
+            "card_type":        g.card_type,
+            "group_size":       g.group_size,
+            "checked_in_count": g.checked_in_count,
+            "rsvp_status":      g.rsvp_status,
+            "entry_time":       g.entry_time.strftime('%H:%M') if g.entry_time else None,
+        }
  
-    total          = len(guests)
-    entered        = [g for g in guests if g.has_entered]
-    not_entered    = [g for g in guests if not g.has_entered]
-    attending      = [g for g in guests if g.rsvp_status == 'attending']
-    declined       = [g for g in guests if g.rsvp_status == 'not_attending']
-    no_rsvp        = [g for g in guests if not g.rsvp_status]
-    wa_sent        = [g for g in guests if g.whatsapp_sent]
-    wa_pending     = [g for g in guests if not g.whatsapp_sent]
-    sms_sent       = [g for g in guests if g.at_sms_sent]
+    total       = len(guests)
+    entered     = [g for g in guests if g.has_entered]
+    not_entered = [g for g in guests if not g.has_entered]
+    attending   = [g for g in guests if g.rsvp_status == 'attending']
+    declined    = [g for g in guests if g.rsvp_status == 'not_attending']
+    no_rsvp     = [g for g in guests if not g.rsvp_status]
+    wa_sent     = [g for g in guests if g.whatsapp_sent]
+    wa_pending  = [g for g in guests if not g.whatsapp_sent]
+    sms_sent    = [g for g in guests if g.at_sms_sent]
  
     return jsonify({
-        # ── summary counts ──
-        "total_guests":      total,
-        "single_cards":      sum(1 for g in guests if (g.card_type or '') == 'single'),
-        "double_cards":      sum(1 for g in guests if (g.card_type or '') == 'double'),
-        "family_cards":      sum(1 for g in guests if (g.card_type or '') == 'family'),
-        "entered_guests":    len(entered),
-        "not_entered_guests":len(not_entered),
-        "attending":         len(attending),
-        "not_attending":     len(declined),
-        "no_rsvp":           len(no_rsvp),
-        "wa_sent":           len(wa_sent),
-        "wa_pending":        len(wa_pending),
-        "sms_sent":          len(sms_sent),
- 
-        # ── named lists ──
-        "entered_list":      [g_dict(g) for g in entered],
-        "not_entered_list":  [g_dict(g) for g in not_entered],
-        "attending_list":    [g_dict(g) for g in attending],
-        "declined_list":     [g_dict(g) for g in declined],
-        "no_rsvp_list":      [g_dict(g) for g in no_rsvp],
-        "wa_pending_list":   [g_dict(g) for g in wa_pending],
+        "total_guests":       total,
+        "single_cards":       sum(1 for g in guests if (g.card_type or '') == 'single'),
+        "double_cards":       sum(1 for g in guests if (g.card_type or '') == 'double'),
+        "family_cards":       sum(1 for g in guests if (g.card_type or '') == 'family'),
+        "entered_guests":     len(entered),
+        "not_entered_guests": len(not_entered),
+        "attending":          len(attending),
+        "not_attending":      len(declined),
+        "no_rsvp":            len(no_rsvp),
+        "wa_sent":            len(wa_sent),
+        "wa_pending":         len(wa_pending),
+        "sms_sent":           len(sms_sent),
+        # lists
+        "entered_list":       [g_dict(g) for g in entered],
+        "not_entered_list":   [g_dict(g) for g in not_entered],
+        "attending_list":     [g_dict(g) for g in attending],
+        "declined_list":      [g_dict(g) for g in declined],
+        "no_rsvp_list":       [g_dict(g) for g in no_rsvp],
+        "wa_sent_list":       [g_dict(g) for g in wa_sent],
+        "wa_pending_list":    [g_dict(g) for g in wa_pending],
     })
  
 
@@ -1355,255 +1360,203 @@ def data_deletion():
 @login_required
 def download_client_report():
     """
-    Generate a clean, elegant PDF report suitable for sharing with the client.
-    Shows: event summary, RSVP breakdown, check-in results, guest name lists.
+    Client-facing PDF: stat summary + two clean tables
+    (checked-in guests and not-checked-in guests).
+    Style matches the Huduma Family report aesthetic.
     """
     with get_db_session() as db:
         guests = db.query(Guest).order_by(Guest.visual_id).all()
  
-    # ── data ──────────────────────────────────────────────────────────────────
     total         = len(guests)
     entered       = [g for g in guests if g.has_entered]
     not_entered   = [g for g in guests if not g.has_entered]
-    attending     = [g for g in guests if g.rsvp_status == 'attending']
-    declined      = [g for g in guests if g.rsvp_status == 'not_attending']
-    no_rsvp       = [g for g in guests if not g.rsvp_status]
     single_count  = sum(1 for g in guests if (g.card_type or '') == 'single')
     double_count  = sum(1 for g in guests if (g.card_type or '') == 'double')
     family_count  = sum(1 for g in guests if (g.card_type or '') == 'family')
-    # total allowed entries (group_size)
     total_allowed = sum(g.group_size or 1 for g in guests)
+    generated_at  = datetime.now().strftime("%d %B %Y, %H:%M")
  
-    generated_at = datetime.now().strftime("%d %B %Y, %H:%M")
- 
-    # ── colours ───────────────────────────────────────────────────────────────
+    # ── colours ──────────────────────────────────────────────────────────────
     C_GREEN  = colors.HexColor("#185a3f")
     C_GOLD   = colors.HexColor("#c9a84c")
-    C_RED    = colors.HexColor("#b03a2e")
+    C_RED    = colors.HexColor("#dc2626")
     C_LIGHT  = colors.HexColor("#f0f7f4")
-    C_BORDER = colors.HexColor("#d4e6de")
+    C_BORDER = colors.HexColor("#d1d5db")
     C_GREY   = colors.HexColor("#6b7280")
-    C_INK    = colors.HexColor("#1a1a2e")
+    C_INK    = colors.HexColor("#1f2937")
     C_WHITE  = colors.white
+    C_ROW2   = colors.HexColor("#fafafa")
  
-    # ── styles ────────────────────────────────────────────────────────────────
-    styles = getSampleStyleSheet()
+    W = A4[0] - 40 * mm   # usable content width
  
-    def style(name, **kw):
+    def ps(name, **kw):
         return ParagraphStyle(name, **kw)
  
-    S_TITLE = style('title',
-        fontName='Helvetica-Bold', fontSize=26, textColor=C_GREEN,
-        alignment=TA_CENTER, spaceAfter=2)
+    S_TITLE  = ps('tt', fontName='Helvetica-Bold', fontSize=22, textColor=C_GREEN,  alignment=TA_CENTER, spaceAfter=3)
+    S_SUB    = ps('su', fontName='Helvetica',      fontSize=10, textColor=C_GOLD,   alignment=TA_CENTER, spaceAfter=2)
+    S_META   = ps('me', fontName='Helvetica',      fontSize=8,  textColor=C_GREY,   alignment=TA_CENTER, spaceAfter=12)
+    S_SEC    = ps('se', fontName='Helvetica-Bold', fontSize=12, textColor=C_GREEN,  spaceBefore=14, spaceAfter=5)
+    S_BODY   = ps('bo', fontName='Helvetica',      fontSize=9,  textColor=C_INK,    leading=14)
+    S_CELL   = ps('ce', fontName='Helvetica',      fontSize=8.5,textColor=C_INK,    leading=12)
+    S_CELL_B = ps('cb', fontName='Helvetica-Bold', fontSize=8.5,textColor=C_INK,    leading=12)
+    S_HEAD   = ps('hd', fontName='Helvetica-Bold', fontSize=8,  textColor=C_WHITE,  alignment=TA_CENTER)
  
-    S_SUBTITLE = style('subtitle',
-        fontName='Helvetica', fontSize=11, textColor=C_GOLD,
-        alignment=TA_CENTER, spaceAfter=2)
- 
-    S_META = style('meta',
-        fontName='Helvetica', fontSize=8, textColor=C_GREY,
-        alignment=TA_CENTER, spaceAfter=14)
- 
-    S_SECTION = style('section',
-        fontName='Helvetica-Bold', fontSize=13, textColor=C_GREEN,
-        spaceBefore=18, spaceAfter=6)
- 
-    S_BODY = style('body',
-        fontName='Helvetica', fontSize=9.5, textColor=C_INK,
-        leading=15)
- 
-    S_NAME = style('name',
-        fontName='Helvetica', fontSize=9, textColor=C_INK, leading=13)
- 
-    S_NAME_BOLD = style('name_bold',
-        fontName='Helvetica-Bold', fontSize=9, textColor=C_INK, leading=13)
- 
-    S_SMALL = style('small',
-        fontName='Helvetica', fontSize=7.5, textColor=C_GREY,
-        alignment=TA_RIGHT)
- 
-    # ── helper: name table ────────────────────────────────────────────────────
-    def name_table(guest_list, highlight_color=C_LIGHT):
-        if not guest_list:
-            return Paragraph("<i>None</i>", S_BODY)
- 
-        rows = []
-        for i in range(0, len(guest_list), 2):
-            row = []
-            for g in guest_list[i:i+2]:
-                row.append(Paragraph(
-                    f"<b>{g.name or '—'}</b> &nbsp;"
-                    f"<font color='#888888' size='7'>#{g.visual_id:04d} · "
-                    f"{(g.card_type or 'single').title()}</font>",
-                    S_NAME))
-            while len(row) < 2:
-                row.append(Paragraph('', S_NAME))
-            rows.append(row)
- 
-        col_w = (A4[0] - 40*mm) / 2
-        tbl = Table(rows, colWidths=[col_w, col_w], repeatRows=0)
-        tbl.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), highlight_color),
-            ('ROWBACKGROUNDS', (0,0), (-1,-1),
-             [highlight_color, colors.HexColor("#f8faf9")]),
-            ('GRID',       (0,0), (-1,-1), 0.3, C_BORDER),
-            ('LEFTPADDING',  (0,0), (-1,-1), 6),
-            ('RIGHTPADDING', (0,0), (-1,-1), 6),
-            ('TOPPADDING',   (0,0), (-1,-1), 5),
-            ('BOTTOMPADDING',(0,0), (-1,-1), 5),
-            ('VALIGN',     (0,0), (-1,-1), 'MIDDLE'),
-        ]))
-        return tbl
- 
-    # ── helper: summary stat row ──────────────────────────────────────────────
-    def stat_row(items):
-        """items = list of (label, value, color)"""
+    def stat_table(items):
+        cw   = W / len(items)
         data = [[
             Paragraph(
-                f"<font color='{c.hexval() if hasattr(c,'hexval') else c}'>"
-                f"<b>{v}</b></font><br/>"
+                f"<font size='20' color='{c.hexval()}'><b>{v}</b></font><br/>"
                 f"<font size='7' color='#6b7280'>{lbl}</font>",
-                style(f'sr_{lbl}', alignment=TA_CENTER,
-                      fontName='Helvetica-Bold', fontSize=18,
-                      textColor=C_GREEN, leading=22))
+                ps(f'sr{lbl}', fontName='Helvetica-Bold', fontSize=20,
+                   textColor=c, alignment=TA_CENTER, leading=24))
             for lbl, v, c in items
         ]]
-        col_w = (A4[0] - 40*mm) / len(items)
-        tbl = Table(data, colWidths=[col_w]*len(items))
+        tbl = Table(data, colWidths=[cw] * len(items))
         tbl.setStyle(TableStyle([
-            ('BACKGROUND', (0,0), (-1,-1), C_LIGHT),
-            ('BOX',        (0,0), (-1,-1), 0.5, C_BORDER),
-            ('INNERGRID',  (0,0), (-1,-1), 0.3, C_BORDER),
+            ('BACKGROUND',    (0,0), (-1,-1), C_LIGHT),
+            ('BOX',           (0,0), (-1,-1), 0.5, C_BORDER),
+            ('INNERGRID',     (0,0), (-1,-1), 0.3, C_BORDER),
             ('TOPPADDING',    (0,0), (-1,-1), 10),
             ('BOTTOMPADDING', (0,0), (-1,-1), 10),
-            ('ALIGN',     (0,0), (-1,-1), 'CENTER'),
+            ('ALIGN',         (0,0), (-1,-1), 'CENTER'),
         ]))
         return tbl
  
-    # ── build document ────────────────────────────────────────────────────────
+    def guest_table(guest_list, cols, col_widths, row_fn, empty_msg="None"):
+        header = [Paragraph(c, S_HEAD) for c in cols]
+        rows   = [header]
+        if guest_list:
+            for i, g in enumerate(guest_list):
+                rows.append(row_fn(g, i))
+        else:
+            rows.append([Paragraph(f"<i>{empty_msg}</i>", S_CELL)]
+                        + [Paragraph('', S_CELL)] * (len(cols) - 1))
+        tbl = Table(rows, colWidths=col_widths, repeatRows=1)
+        tbl.setStyle(TableStyle([
+            ('BACKGROUND',    (0,0),  (-1,0),   C_GREEN),
+            ('ROWBACKGROUNDS',(0,1),  (-1,-1),  [C_WHITE, C_ROW2]),
+            ('GRID',          (0,0),  (-1,-1),  0.3, C_BORDER),
+            ('LEFTPADDING',   (0,0),  (-1,-1),  6),
+            ('RIGHTPADDING',  (0,0),  (-1,-1),  6),
+            ('TOPPADDING',    (0,0),  (-1,-1),  5),
+            ('BOTTOMPADDING', (0,0),  (-1,-1),  5),
+            ('VALIGN',        (0,0),  (-1,-1),  'MIDDLE'),
+            ('FONTNAME',      (0,1),  (-1,-1),  'Helvetica'),
+            ('FONTSIZE',      (0,1),  (-1,-1),  8.5),
+        ]))
+        return tbl
+ 
+    def rsvp_str(s):
+        if s == 'attending':     return 'Confirmed'
+        if s == 'not_attending': return 'Declined'
+        return '—'
+ 
+    def in_row(g, i):
+        et = g.entry_time.strftime('%H:%M') if g.entry_time else '—'
+        return [
+            Paragraph(f"{g.visual_id:04d}", S_CELL_B),
+            Paragraph(f"<b>{g.name or '—'}</b>", S_CELL),
+            Paragraph((g.card_type or 'single').title(), S_CELL),
+            Paragraph(f"{g.checked_in_count or 0}/{g.group_size or 1}", S_CELL),
+            Paragraph(et, S_CELL),
+        ]
+ 
+    def nin_row(g, i):
+        return [
+            Paragraph(f"{g.visual_id:04d}", S_CELL_B),
+            Paragraph(f"<b>{g.name or '—'}</b>", S_CELL),
+            Paragraph((g.card_type or 'single').title(), S_CELL),
+            Paragraph(str(g.group_size or 1), S_CELL),
+            Paragraph(rsvp_str(g.rsvp_status), S_CELL),
+        ]
+ 
+    # ── build PDF ─────────────────────────────────────────────────────────────
     buf = BytesIO()
     doc = SimpleDocTemplate(
-        buf,
-        pagesize=A4,
+        buf, pagesize=A4,
         leftMargin=20*mm, rightMargin=20*mm,
-        topMargin=18*mm, bottomMargin=18*mm,
-        title="Wedding Guest Report",
-        author="SwiftInvite",
+        topMargin=20*mm, bottomMargin=16*mm,
+        title="Wedding Guest Report", author="SwiftInvite",
     )
  
-    # Page header/footer
     def on_page(canvas, doc):
         canvas.saveState()
         w, h = A4
-        # top bar
         canvas.setFillColor(C_GREEN)
-        canvas.rect(0, h - 12*mm, w, 12*mm, fill=1, stroke=0)
+        canvas.rect(0, h - 11*mm, w, 11*mm, fill=1, stroke=0)
         canvas.setFillColor(C_WHITE)
-        canvas.setFont("Helvetica-Bold", 9)
-        canvas.drawCentredString(w/2, h - 8*mm, "WEDDING GUEST REPORT — CONFIDENTIAL")
-        # bottom bar
-        canvas.setFillColor(C_LIGHT)
-        canvas.rect(0, 0, w, 9*mm, fill=1, stroke=0)
+        canvas.setFont("Helvetica-Bold", 8.5)
+        canvas.drawCentredString(w/2, h - 7.5*mm, "WEDDING GUEST REPORT — CONFIDENTIAL")
+        canvas.setFillColor(colors.HexColor("#f3f4f6"))
+        canvas.rect(0, 0, w, 8*mm, fill=1, stroke=0)
         canvas.setFillColor(C_GREY)
-        canvas.setFont("Helvetica", 7.5)
-        canvas.drawString(20*mm, 3.5*mm, f"Generated by SwiftInvite · {generated_at}")
-        canvas.drawRightString(w - 20*mm, 3.5*mm, f"Page {doc.page}")
+        canvas.setFont("Helvetica", 7)
+        canvas.drawString(20*mm, 3*mm, f"Generated by SwiftInvite · {generated_at}")
+        canvas.drawRightString(w - 20*mm, 3*mm, f"Page {doc.page}")
         canvas.restoreState()
  
     story = []
- 
-    # ── Cover / title block ───────────────────────────────────────────────────
-    story.append(Spacer(1, 8*mm))
+    story.append(Spacer(1, 6*mm))
     story.append(Paragraph("Wedding Guest Report", S_TITLE))
-    story.append(Paragraph("Event Summary &amp; Attendance Overview", S_SUBTITLE))
+    story.append(Paragraph("Event Summary &amp; Attendance Overview", S_SUB))
     story.append(Paragraph(f"Prepared on {generated_at}", S_META))
-    story.append(HRFlowable(width="100%", thickness=1.5,
-                             color=C_GOLD, spaceAfter=14))
+    story.append(HRFlowable(width="100%", thickness=1.5, color=C_GOLD, spaceAfter=10))
  
-    # ── Summary stats ─────────────────────────────────────────────────────────
-    story.append(Paragraph("Overview", S_SECTION))
-    story.append(stat_row([
-        ("Total Guests",    total,         C_GREEN),
-        ("Total Allowed In",total_allowed, C_GREEN),
-        ("Checked In",      len(entered),  C_GREEN),
-        ("Not Yet In",      len(not_entered), C_RED),
+    # Summary stats
+    story.append(Paragraph("Summary", S_SEC))
+    story.append(stat_table([
+        ("Total Guests",   total,         C_GREEN),
+        ("Total Allowed",  total_allowed, C_GREEN),
+        ("Checked In",     len(entered),  C_GREEN),
+        ("Not In Yet",     len(not_entered), C_RED),
     ]))
-    story.append(Spacer(1, 6))
-    story.append(stat_row([
+    story.append(Spacer(1, 5))
+    story.append(stat_table([
         ("Single Cards", single_count, C_GOLD),
         ("Double Cards", double_count, C_GOLD),
         ("Family Cards", family_count, C_GOLD),
-        ("RSVP Yes",     len(attending), C_GREEN),
+        ("RSVP Yes",     sum(1 for g in guests if g.rsvp_status == 'attending'), C_GREEN),
     ]))
  
-    # ── Check-in results ──────────────────────────────────────────────────────
-    story.append(Paragraph("Check-in Results", S_SECTION))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=C_BORDER, spaceAfter=8))
+    # Checked-in table
+    story.append(Paragraph(f"Checked In — {len(entered)} of {total} guests", S_SEC))
+    story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER, spaceAfter=5))
+    story.append(guest_table(
+        entered,
+        ["#", "Guest Name", "Card Type", "Entries", "Time In"],
+        [14*mm, W - 14*mm - 22*mm - 18*mm - 22*mm, 22*mm, 18*mm, 22*mm],
+        in_row,
+        "No guests have checked in yet.",
+    ))
  
-    story.append(Paragraph(
-        f"<b>{len(entered)} of {total}</b> invited guests checked in on the day.",
-        S_BODY))
+    # Not-checked-in table
+    story.append(Paragraph(f"Not Yet Checked In — {len(not_entered)} guests", S_SEC))
+    story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER, spaceAfter=5))
+    story.append(guest_table(
+        not_entered,
+        ["#", "Guest Name", "Card Type", "Allowed", "RSVP"],
+        [14*mm, W - 14*mm - 22*mm - 18*mm - 22*mm, 22*mm, 18*mm, 22*mm],
+        nin_row,
+        "All guests have checked in!",
+    ))
+ 
+    story.append(Spacer(1, 10))
+    story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER))
     story.append(Spacer(1, 4))
- 
-    story.append(KeepTogether([
-        Paragraph(f"✅  Checked In ({len(entered)})", S_SECTION),
-        name_table(entered, C_LIGHT),
-    ]))
- 
-    story.append(Spacer(1, 8))
- 
-    story.append(KeepTogether([
-        Paragraph(f"⏳  Did Not Check In ({len(not_entered)})", S_SECTION),
-        name_table(not_entered, colors.HexColor("#fff5f5")),
-    ]))
- 
-    # ── RSVP ──────────────────────────────────────────────────────────────────
-    story.append(Paragraph("RSVP Summary", S_SECTION))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=C_BORDER, spaceAfter=8))
- 
-    story.append(Paragraph(
-        f"<b>{len(attending)}</b> guests confirmed attendance · "
-        f"<b>{len(declined)}</b> declined · "
-        f"<b>{len(no_rsvp)}</b> did not respond.",
-        S_BODY))
-    story.append(Spacer(1, 4))
- 
-    story.append(KeepTogether([
-        Paragraph(f"Confirmed Attending ({len(attending)})", S_SECTION),
-        name_table(attending, C_LIGHT),
-    ]))
- 
-    if declined:
-        story.append(Spacer(1, 8))
-        story.append(KeepTogether([
-            Paragraph(f"Declined ({len(declined)})", S_SECTION),
-            name_table(declined, colors.HexColor("#fff5f5")),
-        ]))
- 
-    if no_rsvp:
-        story.append(Spacer(1, 8))
-        story.append(KeepTogether([
-            Paragraph(f"No Response ({len(no_rsvp)})", S_SECTION),
-            name_table(no_rsvp, colors.HexColor("#fafafa")),
-        ]))
- 
-    # ── Footer note ───────────────────────────────────────────────────────────
-    story.append(Spacer(1, 14))
-    story.append(HRFlowable(width="100%", thickness=0.5, color=C_BORDER))
-    story.append(Spacer(1, 6))
     story.append(Paragraph(
         "This report was generated automatically by SwiftInvite. "
         "All guest data is confidential.",
-        style('foot', fontName='Helvetica', fontSize=8,
-              textColor=C_GREY, alignment=TA_CENTER)))
+        ps('ft', fontName='Helvetica', fontSize=7.5,
+           textColor=C_GREY, alignment=TA_CENTER)))
  
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     buf.seek(0)
  
-    filename = f"Wedding_Guest_Report_{datetime.now().strftime('%Y%m%d')}.pdf"
+    filename = f"Wedding_Guest_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
     return send_file(buf, as_attachment=True,
                      download_name=filename,
                      mimetype='application/pdf')
+ 
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
