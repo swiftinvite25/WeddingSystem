@@ -1498,7 +1498,6 @@ def download_client_report():
     story = []
     story.append(Spacer(1, 6*mm))
     story.append(Paragraph("Guest Report", S_TITLE))
-    story.append(Paragraph("Event Summary &amp; Attendance Overview", S_SUB))
     story.append(Paragraph(f"Prepared on {generated_at}", S_META))
     story.append(HRFlowable(width="100%", thickness=1.5, color=C_GOLD, spaceAfter=10))
  
