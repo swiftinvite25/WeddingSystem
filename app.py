@@ -363,8 +363,16 @@ def get_next_visual_id(db_session):
     return 1 if max_id is None else int(max_id) + 1
 
 def build_sms_message(guest) -> str:
-    return (f"Habari {guest.name}, Karibu tusherekee siku hii ya furaha pamoja. "
-            f"Namba yako ya kadi: {guest.visual_id:04d}. Karibu sana.")
+    return (
+        f"MWALIKO\n"
+        f"Habari {guest.name},\n"
+        f"Tafadhali pokea mwaliko wa HARUSI ya PAUL J. MISALABA MAHEWA, "
+        f"itakayofanyika Jumamosi, tarehe 25 Aprili 2026 saa 12:00 Jioni, NEXUS HALL KIBAHA.\n"
+        f"Kadi No: {guest.visual_id:04d} - {(guest.card_type or 'SINGLE').upper()}\n"
+        f"Tafadhali fika na kadi hii ukumbini.\n"
+        f"Karibu sana!\n"
+        f"Sent by SwiftInvite"
+    )
 
 # ---------------------------------------------------------------------------
 # Auth
