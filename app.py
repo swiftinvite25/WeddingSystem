@@ -271,7 +271,7 @@ def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
     img.paste(qr_img.resize((QR_SIZE, QR_SIZE), Image.LANCZOS), (QR_X, QR_Y))
 
     # 4. Card type — above QR
-    type_label = (guest.card_type or "SINGLE").upper()
+    type_label = "GROUP" if (guest.card_type or "").lower() == "family" else (guest.card_type or "SINGLE").upper()
     type_bbox  = draw.textbbox((0, 0), type_label, font=type_font)
     draw.text((QR_X, QR_Y - (type_bbox[3] - type_bbox[1]) - CARD_TYPE_GAP),
               type_label, font=type_font, fill=CARD_TYPE_COLOR)
