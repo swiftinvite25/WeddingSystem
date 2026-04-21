@@ -580,11 +580,18 @@ def search_guests():
             ).order_by(Guest.visual_id).all()
         else:
             guests = db.query(Guest).order_by(Guest.visual_id).all()
+
         return jsonify([{
-            "visual_id":   g.visual_id, "name": g.name, "phone": g.phone,
-            "qr_code_url": g.qr_code_url, "has_entered": g.has_entered,
-            "entry_time":  g.entry_time.strftime('%Y-%m-%d %H:%M:%S') if g.entry_time else 'N/A',
-            "card_type":   g.card_type
+            "id": g.id,                          # ← ADD THIS
+            "visual_id": g.visual_id,
+            "name": g.name,
+            "phone": g.phone,
+            "qr_code_url": g.qr_code_url,
+            "has_entered": g.has_entered,
+            "checked_in_count": g.checked_in_count,   # ← ADD THIS
+            "group_size": g.group_size,               # ← ADD THIS
+            "entry_time": g.entry_time.strftime('%Y-%m-%d %H:%M:%S') if g.entry_time else 'N/A',
+            "card_type": g.card_type
         } for g in guests])
 
 # -------------------- download_excel --------------------
