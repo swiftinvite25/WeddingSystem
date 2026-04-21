@@ -687,29 +687,27 @@ def zip_qr_codes_web():
 def edit_guest(guest_id):
     with get_db_session() as db:
         try:
-            guest = db.query(Guest).filter_by(visual_id=guest_id).first()
+            guest = db.query(Guest).filter(Guest.id == guest_id).first()  # ← fix here
             if not guest:
                 flash("Guest not found.", "danger")
                 return redirect(url_for('view_all'))
 
             if request.method == 'POST':
-                guest.name        = request.form.get('name', guest.name).strip()
-                guest.phone       = to_whatsapp_number(request.form.get('phone', guest.phone))
+                guest.name = request.form.get('name', guest.name).strip()
+                guest.phone = to_whatsapp_number(request.form.get('phone', guest.phone))
                 guest.has_entered = 'has_entered' in request.form
-
                 new_card_type_raw = request.form.get('card_type', guest.card_type)
-                group_size_raw    = request.form.get('group_size', '').strip()
-                new_card_type, _  = normalize_card_type(new_card_type_raw, group_size_raw or None)
+                group_size_raw = request.form.get('group_size', '').strip()
+                new_card_type, _ = normalize_card_type(new_card_type_raw, group_size_raw or None)
 
                 if new_card_type == "family":
                     try:
-                        new_group_size = max(1, int(request.form.get('group_size','').strip()))
-                    except Exception:
+                        new_group_size = max(1, int(request.form.get('group_size', '').strip()))
+                    except:
                         flash("Invalid group size for family card.", "danger")
                         return redirect(request.url)
                     if new_group_size < guest.checked_in_count:
-                        flash(f"Group size cannot be less than checked-in count "
-                              f"({guest.checked_in_count}).", "danger")
+                        flash(f"Group size cannot be less than checked-in count ({guest.checked_in_count}).", "danger")
                         return redirect(request.url)
                 elif new_card_type == "single":
                     new_group_size = 1
@@ -725,25 +723,14 @@ def edit_guest(guest_id):
                     flash("Unknown card type.", "danger")
                     return redirect(request.url)
 
-                guest.card_type  = new_card_type
+                guest.card_type = new_card_type
                 guest.group_size = new_group_size
                 db.commit()
-
-                # Re-upload QR under new filename in case name changed
-                try:
-                    new_qr_bytes = generate_qr_bytes(guest.qr_code_id)
-                    new_qr_fname = qr_filename_from_guest(guest)
-                    new_qr_url   = upload_to_supabase(QR_BUCKET, new_qr_fname,
-                                                      new_qr_bytes, content_type="image/png")
-                    guest.qr_code_url = new_qr_url
-                    db.commit()
-                except Exception as e:
-                    current_app.logger.warning(f"Could not re-upload QR after name edit: {e}")
-
                 flash('Guest updated successfully.', 'success')
                 return redirect(url_for('view_all'))
 
             return render_template('edit_guest.html', guest=guest)
+
         except Exception as e:
             db.rollback()
             flash(f'Error updating guest: {e}', 'danger')
