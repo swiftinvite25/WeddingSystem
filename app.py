@@ -909,6 +909,7 @@ def guest_report_data():
     with get_db_session() as db:
         guests = db.query(Guest).order_by(Guest.visual_id).all()
  
+    # ── full dict — used by internal guest_report.html (includes rsvp_status) ──
     def g_dict(g):
         return {
             "name":             g.name,
@@ -943,7 +944,7 @@ def guest_report_data():
         "wa_sent":            len(wa_sent),
         "wa_pending":         len(wa_pending),
         "sms_sent":           len(sms_sent),
-        # lists
+        # lists (with rsvp_status — for internal report only)
         "entered_list":       [g_dict(g) for g in entered],
         "not_entered_list":   [g_dict(g) for g in not_entered],
         "attending_list":     [g_dict(g) for g in attending],
@@ -953,7 +954,7 @@ def guest_report_data():
         "wa_pending_list":    [g_dict(g) for g in wa_pending],
     })
  
-
+ 
 @app.route('/guest_report')
 @login_required
 def guest_report():
@@ -1364,8 +1365,17 @@ def download_client_report():
     """
     Client-facing PDF: stat summary + two clean tables
     (checked-in guests and not-checked-in guests).
-    Style matches the Huduma Family report aesthetic.
+    NO RSVP data anywhere in this document.
     """
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import (
+        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
+    )
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+ 
     with get_db_session() as db:
         guests = db.query(Guest).order_by(Guest.visual_id).all()
  
@@ -1395,23 +1405,21 @@ def download_client_report():
         return ParagraphStyle(name, **kw)
  
     S_TITLE  = ps('tt', fontName='Helvetica-Bold', fontSize=22, textColor=C_GREEN,  alignment=TA_CENTER, spaceAfter=3)
-    S_SUB    = ps('su', fontName='Helvetica',      fontSize=10, textColor=C_GOLD,   alignment=TA_CENTER, spaceAfter=2)
     S_META   = ps('me', fontName='Helvetica',      fontSize=8,  textColor=C_GREY,   alignment=TA_CENTER, spaceAfter=12)
     S_SEC    = ps('se', fontName='Helvetica-Bold', fontSize=12, textColor=C_GREEN,  spaceBefore=14, spaceAfter=5)
-    S_BODY   = ps('bo', fontName='Helvetica',      fontSize=9,  textColor=C_INK,    leading=14)
-    S_CELL   = ps('ce', fontName='Helvetica',      fontSize=8.5,textColor=C_INK,    leading=12)
-    S_CELL_B = ps('cb', fontName='Helvetica-Bold', fontSize=8.5,textColor=C_INK,    leading=12)
+    S_CELL   = ps('ce', fontName='Helvetica',      fontSize=8.5, textColor=C_INK,   leading=12)
+    S_CELL_B = ps('cb', fontName='Helvetica-Bold', fontSize=8.5, textColor=C_INK,   leading=12)
     S_HEAD   = ps('hd', fontName='Helvetica-Bold', fontSize=8,  textColor=C_WHITE,  alignment=TA_CENTER)
  
     def stat_table(items):
-        cw   = W / len(items)
+        cw = W / len(items)
         data = [[
             Paragraph(
                 f"<font size='20' color='{c.hexval()}'><b>{v}</b></font><br/>"
                 f"<font size='7' color='#6b7280'>{lbl}</font>",
-                ps(f'sr{lbl}', fontName='Helvetica-Bold', fontSize=20,
+                ps(f'sr{i}', fontName='Helvetica-Bold', fontSize=20,
                    textColor=c, alignment=TA_CENTER, leading=24))
-            for lbl, v, c in items
+            for i, (lbl, v, c) in enumerate(items)
         ]]
         tbl = Table(data, colWidths=[cw] * len(items))
         tbl.setStyle(TableStyle([
@@ -1435,23 +1443,20 @@ def download_client_report():
                         + [Paragraph('', S_CELL)] * (len(cols) - 1))
         tbl = Table(rows, colWidths=col_widths, repeatRows=1)
         tbl.setStyle(TableStyle([
-            ('BACKGROUND',    (0,0),  (-1,0),   C_GREEN),
-            ('ROWBACKGROUNDS',(0,1),  (-1,-1),  [C_WHITE, C_ROW2]),
-            ('GRID',          (0,0),  (-1,-1),  0.3, C_BORDER),
-            ('LEFTPADDING',   (0,0),  (-1,-1),  6),
-            ('RIGHTPADDING',  (0,0),  (-1,-1),  6),
-            ('TOPPADDING',    (0,0),  (-1,-1),  5),
-            ('BOTTOMPADDING', (0,0),  (-1,-1),  5),
-            ('VALIGN',        (0,0),  (-1,-1),  'MIDDLE'),
-            ('FONTNAME',      (0,1),  (-1,-1),  'Helvetica'),
-            ('FONTSIZE',      (0,1),  (-1,-1),  8.5),
+            ('BACKGROUND',    (0,0),  (-1,0),  C_GREEN),
+            ('ROWBACKGROUNDS',(0,1),  (-1,-1), [C_WHITE, C_ROW2]),
+            ('GRID',          (0,0),  (-1,-1), 0.3, C_BORDER),
+            ('LEFTPADDING',   (0,0),  (-1,-1), 6),
+            ('RIGHTPADDING',  (0,0),  (-1,-1), 6),
+            ('TOPPADDING',    (0,0),  (-1,-1), 5),
+            ('BOTTOMPADDING', (0,0),  (-1,-1), 5),
+            ('VALIGN',        (0,0),  (-1,-1), 'MIDDLE'),
+            ('FONTNAME',      (0,1),  (-1,-1), 'Helvetica'),
+            ('FONTSIZE',      (0,1),  (-1,-1), 8.5),
         ]))
         return tbl
  
-    def rsvp_str(s):
-        if s == 'attending':     return 'Confirmed'
-        if s == 'not_attending': return 'Declined'
-        return '—'
+    # ── row builders ─────────────────────────────────────────────────────────
  
     def in_row(g, i):
         et = g.entry_time.strftime('%H:%M') if g.entry_time else '—'
@@ -1463,13 +1468,13 @@ def download_client_report():
             Paragraph(et, S_CELL),
         ]
  
+    # ← NO rsvp_status here — 4 columns only
     def nin_row(g, i):
         return [
             Paragraph(f"{g.visual_id:04d}", S_CELL_B),
             Paragraph(f"<b>{g.name or '—'}</b>", S_CELL),
             Paragraph((g.card_type or 'single').title(), S_CELL),
             Paragraph(str(g.group_size or 1), S_CELL),
-            Paragraph(rsvp_str(g.rsvp_status), S_CELL),
         ]
  
     # ── build PDF ─────────────────────────────────────────────────────────────
@@ -1503,23 +1508,22 @@ def download_client_report():
     story.append(Paragraph(f"Prepared on {generated_at}", S_META))
     story.append(HRFlowable(width="100%", thickness=1.5, color=C_GOLD, spaceAfter=10))
  
-    # Summary stats
+    # ── Summary (NO "RSVP Yes" tile) ─────────────────────────────────────────
     story.append(Paragraph("Summary", S_SEC))
     story.append(stat_table([
-        ("Total Guests",   total,         C_GREEN),
-        ("Total Allowed",  total_allowed, C_GREEN),
-        ("Checked In",     len(entered),  C_GREEN),
-        ("Not In Yet",     len(not_entered), C_RED),
+        ("Total Guests",  total,           C_GREEN),
+        ("Total Allowed", total_allowed,   C_GREEN),
+        ("Checked In",    len(entered),    C_GREEN),
+        ("Not In Yet",    len(not_entered), C_RED),
     ]))
     story.append(Spacer(1, 5))
     story.append(stat_table([
         ("Single Cards", single_count, C_GOLD),
         ("Double Cards", double_count, C_GOLD),
         ("Family Cards", family_count, C_GOLD),
-        ("RSVP Yes",     sum(1 for g in guests if g.rsvp_status == 'attending'), C_GREEN),
     ]))
  
-    # Checked-in table
+    # ── Checked-in table (unchanged) ─────────────────────────────────────────
     story.append(Paragraph(f"Checked In — {len(entered)} of {total} guests", S_SEC))
     story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER, spaceAfter=5))
     story.append(guest_table(
@@ -1530,13 +1534,13 @@ def download_client_report():
         "No guests have checked in yet.",
     ))
  
-    # Not-checked-in table
+    # ── Not-checked-in table (NO RSVP column) ────────────────────────────────
     story.append(Paragraph(f"Not Yet Checked In — {len(not_entered)} guests", S_SEC))
     story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER, spaceAfter=5))
     story.append(guest_table(
         not_entered,
-        ["#", "Guest Name", "Card Type", "Allowed", "RSVP"],
-        [14*mm, W - 14*mm - 22*mm - 18*mm - 22*mm, 22*mm, 18*mm, 22*mm],
+        ["#", "Guest Name", "Card Type", "Allowed"],   # ← 4 cols, no RSVP
+        [14*mm, W - 14*mm - 22*mm - 18*mm, 22*mm, 18*mm],
         nin_row,
         "All guests have checked in!",
     ))
