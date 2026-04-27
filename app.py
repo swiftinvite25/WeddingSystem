@@ -92,6 +92,14 @@ SUPABASE_KEY  = os.getenv("SUPABASE_SERVICE_KEY")
 QR_BUCKET     = os.getenv("SUPABASE_QR_BUCKET",    "qr-codes")
 CARDS_BUCKET  = os.getenv("SUPABASE_CARDS_BUCKET", "guest-cards")
 
+# ---------------------------------------------------------------------------
+# Event Configuration (set these in your .env file)
+# ---------------------------------------------------------------------------
+EVENT_WEDS_NAMES = os.getenv("EVENT_WEDS_NAMES", "the Bride & Groom")
+EVENT_DAY        = os.getenv("EVENT_DAY",        "Jumamosi")
+EVENT_DATE       = os.getenv("EVENT_DATE",       "TBD")
+EVENT_VENUE      = os.getenv("EVENT_VENUE",      "TBD")
+
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
     supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -372,9 +380,9 @@ def build_sms_message(guest) -> str:
     return (
         f"MWALIKO\n"
         f"Habari {guest.name},\n"
-        f"Tafadhali pokea mwaliko wa HARUSI ya PAUL J. MISALABA MAHEWA, "
-        f"itakayofanyika Jumamosi, tarehe 25 Aprili 2026 saa 12:00 Jioni, NEXUS HALL KIBAHA.\n"
-        f"Kadi No: {guest.visual_id:04d} - {(guest.card_type or 'SINGLE').upper()}\n"
+        f"Tafadhali pokea mwaliko wa HARUSI ya {EVENT_WEDS_NAMES},"
+        f" itakayofanyika {EVENT_DAY}, tarehe {EVENT_DATE} saa 12:00 Jioni, {EVENT_VENUE}.\n"
+        f"Kadi No:{guest.visual_id:04d} - {(guest.card_type or 'Single').title()}\n"
         f"Tafadhali fika na kadi hii ukumbini.\n"
         f"Karibu sana!\n"
         f"Sent by SwiftInvite"
@@ -964,33 +972,78 @@ def download_card_by_id(visual_id):
 @app.route('/download_all_cards')
 @login_required
 def download_all_cards():
+    """
+    Regenerates every guest card on the fly (same as individual download)
+    and bundles them into a ZIP. Does NOT rely on Supabase storage.
+    """
     try:
+        if not os.path.exists(os.path.join("static", "Card Template.jpg")):
+            flash("Card template missing — cannot generate cards.", "danger")
+            return redirect(url_for('view_all'))
+
         with get_db_session() as db:
-            guests = db.query(Guest).all()
-            guest_data = [(card_filename_from_guest(g), g.name) for g in guests]
+            guests = db.query(Guest).order_by(Guest.visual_id).all()
+            # Snapshot all data we need while session is open
+            guest_snapshots = [
+                {
+                    "visual_id":   g.visual_id,
+                    "name":        g.name,
+                    "phone":       g.phone,
+                    "card_type":   g.card_type,
+                    "group_size":  g.group_size,
+                    "qr_code_id":  g.qr_code_id,
+                    "qr_filename": qr_filename_from_guest(g),
+                    "card_fname":  card_filename_from_guest(g),
+                }
+                for g in guests
+            ]
+
+        if not guest_snapshots:
+            flash("No guests found.", "warning")
+            return redirect(url_for('view_all'))
 
         zip_buffer = BytesIO()
-        count = 0
+        count  = 0
         errors = []
+
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-            for fname, gname in guest_data:
+            for snap in guest_snapshots:
                 try:
-                    card_bytes = download_from_supabase(CARDS_BUCKET, fname)
-                    if card_bytes:
-                        zf.writestr(fname, card_bytes)
-                        count += 1
-                    else:
-                        errors.append(gname)
+                    # Fetch QR — fall back to regenerating if not in storage
+                    try:
+                        qr_data = download_from_supabase(QR_BUCKET, snap["qr_filename"])
+                    except Exception:
+                        qr_data = generate_qr_bytes(snap["qr_code_id"])
+
+                    # Build a lightweight guest-like object for _draw_card
+                    class _G:
+                        pass
+                    g = _G()
+                    g.visual_id  = snap["visual_id"]
+                    g.name       = snap["name"]
+                    g.phone      = snap["phone"]
+                    g.card_type  = snap["card_type"]
+                    g.group_size = snap["group_size"]
+
+                    qr_img = Image.open(BytesIO(qr_data))
+                    card   = _draw_card(g, qr_img)
+                    buf    = BytesIO()
+                    card.save(buf, format="JPEG", quality=92)
+                    zf.writestr(snap["card_fname"], buf.getvalue())
+                    count += 1
+
                 except Exception as e:
-                    current_app.logger.warning(f"Could not fetch card for {gname}: {e}")
-                    errors.append(gname)
+                    current_app.logger.warning(
+                        f"Skipped card for guest {snap['visual_id']} ({snap['name']}): {e}"
+                    )
+                    errors.append(snap["name"])
 
         if count == 0:
-            flash("No invitation cards found in storage. Please generate cards first.", "warning")
+            flash("Could not generate any cards. Check the card template and logs.", "danger")
             return redirect(url_for('view_all'))
 
         if errors:
-            current_app.logger.warning(f"Skipped {len(errors)} cards during download: {errors}")
+            flash(f"Downloaded {count} cards. Skipped {len(errors)}: {', '.join(errors)}", "warning")
 
         zip_buffer.seek(0)
         response = make_response(zip_buffer.read())
@@ -1000,7 +1053,7 @@ def download_all_cards():
 
     except Exception as e:
         current_app.logger.exception(f"download_all_cards failed: {e}")
-        flash(f"Error downloading cards: {str(e)}", "danger")
+        flash(f"Error: {e}", "danger")
         return redirect(url_for('view_all'))
 
 # -------------------- guest_report --------------------
