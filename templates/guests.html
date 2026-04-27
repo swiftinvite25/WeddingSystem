@@ -30,7 +30,7 @@
         <a href="{{ url_for('add_guest') }}" class="btn btn-success">Add Single Guest</a>
         <a href="{{ url_for('upload_csv') }}" class="btn btn-primary">Upload Guests (CSV)</a>
         <a href="{{ url_for('download_excel') }}" class="btn btn-dark">Download Excel Report</a>
-        <a href="{{ url_for('export_guests_simple', format='xlsx') }}" class="btn btn-warning">📋 Export Guest List (Excel)</a>
+        <a href="{{ url_for('export_guests_simple', format='pdf') }}" class="btn btn-warning">📋 Export Guest List (PDF)</a>
         <a href="{{ url_for('export_guests_simple', format='csv') }}" class="btn btn-outline-secondary">📋 Export Guest List (CSV)</a>
         <a href="{{ url_for('zip_qr_codes_web') }}" class="btn btn-secondary">Download All QR Codes</a>
         <a href="{{ url_for('generate_cards_page') }}" class="btn btn-primary">Generate Guest Cards</a>

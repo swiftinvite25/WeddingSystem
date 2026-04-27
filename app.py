@@ -679,8 +679,8 @@ def download_excel():
 @app.route('/export_guests_simple')
 @login_required
 def export_guests_simple():
-    """Export a simple guest list (Card No, Name, Phone, Card Type) as Excel or CSV."""
-    fmt = request.args.get('format', 'xlsx').lower()
+    """Export a simple guest list (Card No, Name, Phone, Card Type) as CSV or PDF."""
+    fmt = request.args.get('format', 'pdf').lower()
     with get_db_session() as db:
         guests = db.query(Guest).order_by(Guest.visual_id).all()
         rows = [
@@ -700,29 +700,54 @@ def export_guests_simple():
         output.headers['Content-Type'] = 'text/csv'
         return output
 
-    # Default: xlsx
-    wb = Workbook()
-    ws = wb.active
-    ws.title = 'Guests'
-    header_font = Font(bold=True, color='FFFFFF')
-    header_fill = PatternFill(start_color='185a3f', end_color='185a3f', fill_type='solid')
-    for col, h in enumerate(headers, 1):
-        cell = ws.cell(row=1, column=col, value=h)
-        cell.font = header_font
-        cell.fill = header_fill
-    for row_idx, (card_no, name, phone, card_type) in enumerate(rows, start=2):
-        ws.cell(row_idx, 1, card_no)
-        ws.cell(row_idx, 2, name)
-        ws.cell(row_idx, 3, phone)
-        ws.cell(row_idx, 4, card_type)
-    for column in ws.columns:
-        ws.column_dimensions[column[0].column_letter].width = (
-            max((len(str(c.value)) for c in column if c.value), default=10) + 3)
-    output = BytesIO()
-    wb.save(output)
-    output.seek(0)
-    return send_file(output, as_attachment=True, download_name='guests_list.xlsx',
-                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+    # Default: PDF
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib import colors
+    from reportlab.lib.units import mm
+    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER
+
+    buf = BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4,
+                            leftMargin=15*mm, rightMargin=15*mm,
+                            topMargin=20*mm, bottomMargin=20*mm)
+
+    C_GREEN = colors.HexColor("#185a3f")
+    C_GOLD  = colors.HexColor("#c9a84c")
+    C_LIGHT = colors.HexColor("#f0f7f4")
+
+    S_TITLE = ParagraphStyle('title', fontSize=16, textColor=C_GREEN,
+                              alignment=TA_CENTER, spaceAfter=4)
+    S_SUB   = ParagraphStyle('sub',   fontSize=9,  textColor=colors.grey,
+                              alignment=TA_CENTER, spaceAfter=12)
+
+    col_widths = [30*mm, 70*mm, 45*mm, 30*mm]
+    table_data = [headers] + list(rows)
+
+    t = Table(table_data, colWidths=col_widths, repeatRows=1)
+    t.setStyle(TableStyle([
+        ('BACKGROUND',  (0,0), (-1,0),  C_GREEN),
+        ('TEXTCOLOR',   (0,0), (-1,0),  colors.white),
+        ('FONTNAME',    (0,0), (-1,0),  'Helvetica-Bold'),
+        ('FONTSIZE',    (0,0), (-1,0),  10),
+        ('ALIGN',       (0,0), (-1,-1), 'CENTER'),
+        ('VALIGN',      (0,0), (-1,-1), 'MIDDLE'),
+        ('ROWBACKGROUNDS', (0,1), (-1,-1), [colors.white, C_LIGHT]),
+        ('FONTSIZE',    (0,1), (-1,-1), 9),
+        ('GRID',        (0,0), (-1,-1), 0.5, C_GOLD),
+        ('ROWHEIGHT',   (0,0), (-1,-1), 7*mm),
+    ]))
+
+    story = [
+        Paragraph('Guest List', S_TITLE),
+        Paragraph(f'Generated {now_eat().strftime("%d %B %Y, %H:%M")} · {len(rows)} guests', S_SUB),
+        t,
+    ]
+    doc.build(story)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True, download_name='guests_list.pdf',
+                     mimetype='application/pdf')
 
 # -------------------- zip_qr_codes_web --------------------
 
