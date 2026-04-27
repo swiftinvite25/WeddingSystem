@@ -380,14 +380,14 @@ def build_sms_message(guest) -> str:
     return (
         f"MWALIKO\n"
         f"Habari {guest.name},\n"
-        f"Umealikwa HARUSI ya:\n"
+        f"Pokea mwaliko wa HARUSI ya:\n"
         f"{EVENT_WEDS_NAMES.upper()}\n"
         f"{EVENT_DAY.upper()}, {EVENT_DATE.upper()}\n"
         f"Saa 12:00 Jioni\n"
         f"{EVENT_VENUE.upper()}\n"
         f"\n"
         f"Kadi No: {guest.visual_id:04d} - {(guest.card_type or 'Single').title()}\n"
-        f"Fika na kadi hii ukumbini.\n"
+        f"Tafadhali fika na kadi hii ukumbini.\n"
         f"Karibu sana! - SwiftInvite"
     )
 
