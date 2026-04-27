@@ -380,14 +380,14 @@ def build_sms_message(guest) -> str:
     return (
         f"MWALIKO\n"
         f"Habari {guest.name},\n"
-        f"Pokea mwaliko wa HARUSI ya:\n"
+        f"Umealikwa HARUSI ya:\n"
         f"{EVENT_WEDS_NAMES.upper()}\n"
         f"{EVENT_DAY.upper()}, {EVENT_DATE.upper()}\n"
         f"Saa 12:00 Jioni\n"
         f"{EVENT_VENUE.upper()}\n"
         f"\n"
         f"Kadi No: {guest.visual_id:04d} - {(guest.card_type or 'Single').title()}\n"
-        f"Tafadhali fika na kadi hii ukumbini.\n"
+        f"Fika na kadi hii ukumbini.\n"
         f"Karibu sana! - SwiftInvite"
     )
 
@@ -1237,18 +1237,33 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True):
 
     # ── WhatsApp ──────────────────────────────────────────────────────────
     if send_wa:
+        print(f"[WA DEBUG] Starting WA send for guest: {guest.name} | phone: {phone}", flush=True)
         try:
             card_fname = card_filename_from_guest(guest)
+            print(f"[WA DEBUG] Card filename: {card_fname}", flush=True)
+
+            # Try fetching from Supabase first, fall back to regenerating
+            card_bytes = None
             try:
                 card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
-            except Exception:
+                print(f"[WA DEBUG] Card fetched from Supabase: {len(card_bytes)} bytes", flush=True)
+            except Exception as supa_err:
+                print(f"[WA DEBUG] Supabase fetch failed ({supa_err}), regenerating card...", flush=True)
                 card_bytes = _generate_card_bytes(guest)
                 if card_bytes:
-                    upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes,
-                                       content_type="image/jpeg")
+                    print(f"[WA DEBUG] Card regenerated: {len(card_bytes)} bytes", flush=True)
+                    try:
+                        upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes,
+                                           content_type="image/jpeg")
+                    except Exception as up_err:
+                        print(f"[WA DEBUG] Re-upload to Supabase failed (non-fatal): {up_err}", flush=True)
+                else:
+                    print(f"[WA DEBUG] Card regeneration also failed!", flush=True)
+
             if not card_bytes:
                 raise ValueError("Could not retrieve or generate card image.")
 
+            print(f"[WA DEBUG] Calling send_guest_card...", flush=True)
             wa_result = send_guest_card(
                 to=phone,
                 guest_name=guest.name or "Guest",
@@ -1257,6 +1272,8 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True):
                 image_bytes=card_bytes,
                 filename=card_fname,
             )
+            print(f"[WA DEBUG] send_guest_card result: {wa_result}", flush=True)
+
             if wa_result.get("status") == "invalid_number":
                 guest.has_whatsapp        = False
                 guest.whatsapp_checked_at = now
@@ -1271,7 +1288,11 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True):
                 wa_status = "sent"
                 messages.append("WhatsApp: sent.")
         except Exception as e:
+            import traceback
             err_str = str(e)[:500]
+            tb      = traceback.format_exc()
+            print(f"[WA ERROR] WA send failed for {guest.name}: {err_str}", flush=True)
+            print(f"[WA ERROR] Traceback:\n{tb}", flush=True)
             guest.whatsapp_sent  = False
             guest.whatsapp_error = err_str
             wa_status = "failed"
