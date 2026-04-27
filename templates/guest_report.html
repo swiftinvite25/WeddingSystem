@@ -83,6 +83,8 @@
     <div class="btn-row">
       <a href="/download_client_report" class="btn-rp btn-gold" target="_blank">⬇ Client PDF</a>
       <button class="btn-rp btn-green" onclick="location.href='{{ url_for('download_excel') }}'">📊 Excel</button>
+      <a href="{{ url_for('export_guests_simple', format='xlsx') }}" class="btn-rp btn-gold">📋 Guest List (Excel)</a>
+      <a href="{{ url_for('export_guests_simple', format='csv') }}" class="btn-rp btn-outline">📋 Guest List (CSV)</a>
       <a href="{{ url_for('view_all') }}" class="btn-rp btn-outline">← Back</a>
     </div>
   </div>

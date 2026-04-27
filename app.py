@@ -9,7 +9,13 @@ import zipfile
 import textwrap
 import tempfile
 from io import BytesIO, StringIO
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# East Africa Time (UTC+3) — used everywhere instead of now_eat()
+EAT = timezone(timedelta(hours=3))
+def now_eat() -> datetime:
+    """Return current datetime in East Africa Time (UTC+3)."""
+    return datetime.now(tz=EAT)
 from functools import wraps
 from urllib.parse import quote as url_encode
 from whatsapp import send_guest_card
@@ -563,7 +569,7 @@ def update_status():
             guest.checked_in_count = (guest.checked_in_count or 0) + 1
             if guest.checked_in_count >= guest.group_size:
                 guest.has_entered = True
-                guest.entry_time  = datetime.now()
+                guest.entry_time  = now_eat()
             db.commit()
             return jsonify(
                 success=True, message="Check-in successful.",
@@ -667,6 +673,56 @@ def download_excel():
     output = BytesIO(); wb.save(output); output.seek(0)
     return send_file(output, as_attachment=True, download_name="guest_report.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+# -------------------- export_guests_simple --------------------
+
+@app.route('/export_guests_simple')
+@login_required
+def export_guests_simple():
+    """Export a simple guest list (Card No, Name, Phone, Card Type) as Excel or CSV."""
+    fmt = request.args.get('format', 'xlsx').lower()
+    with get_db_session() as db:
+        guests = db.query(Guest).order_by(Guest.visual_id).all()
+        rows = [
+            (f"{g.visual_id:04d}", g.name or '', g.phone or '', (g.card_type or '').title())
+            for g in guests
+        ]
+
+    headers = ['Card Number', 'Name', 'Phone Number', 'Card Type']
+
+    if fmt == 'csv':
+        si = StringIO()
+        writer = csv.writer(si)
+        writer.writerow(headers)
+        writer.writerows(rows)
+        output = make_response(si.getvalue())
+        output.headers['Content-Disposition'] = 'attachment; filename=guests_list.csv'
+        output.headers['Content-Type'] = 'text/csv'
+        return output
+
+    # Default: xlsx
+    wb = Workbook()
+    ws = wb.active
+    ws.title = 'Guests'
+    header_font = Font(bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='185a3f', end_color='185a3f', fill_type='solid')
+    for col, h in enumerate(headers, 1):
+        cell = ws.cell(row=1, column=col, value=h)
+        cell.font = header_font
+        cell.fill = header_fill
+    for row_idx, (card_no, name, phone, card_type) in enumerate(rows, start=2):
+        ws.cell(row_idx, 1, card_no)
+        ws.cell(row_idx, 2, name)
+        ws.cell(row_idx, 3, phone)
+        ws.cell(row_idx, 4, card_type)
+    for column in ws.columns:
+        ws.column_dimensions[column[0].column_letter].width = (
+            max((len(str(c.value)) for c in column if c.value), default=10) + 3)
+    output = BytesIO()
+    wb.save(output)
+    output.seek(0)
+    return send_file(output, as_attachment=True, download_name='guests_list.xlsx',
+                     mimetype='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
 
 # -------------------- zip_qr_codes_web --------------------
 
@@ -883,23 +939,44 @@ def download_card_by_id(visual_id):
 @app.route('/download_all_cards')
 @login_required
 def download_all_cards():
-    with get_db_session() as db:
-        guests = db.query(Guest).all()
-    zip_buffer = BytesIO()
-    count = 0
-    with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
-        for guest in guests:
-            try:
-                fname = card_filename_from_guest(guest)
-                zf.writestr(fname, download_from_supabase(CARDS_BUCKET, fname))
-                count += 1
-            except Exception as e:
-                current_app.logger.warning(f"Could not fetch card for {guest.name}: {e}")
-    if count == 0:
-        flash("No invitation cards found. Please generate them first.", "warning")
+    try:
+        with get_db_session() as db:
+            guests = db.query(Guest).all()
+            guest_data = [(card_filename_from_guest(g), g.name) for g in guests]
+
+        zip_buffer = BytesIO()
+        count = 0
+        errors = []
+        with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
+            for fname, gname in guest_data:
+                try:
+                    card_bytes = download_from_supabase(CARDS_BUCKET, fname)
+                    if card_bytes:
+                        zf.writestr(fname, card_bytes)
+                        count += 1
+                    else:
+                        errors.append(gname)
+                except Exception as e:
+                    current_app.logger.warning(f"Could not fetch card for {gname}: {e}")
+                    errors.append(gname)
+
+        if count == 0:
+            flash("No invitation cards found in storage. Please generate cards first.", "warning")
+            return redirect(url_for('view_all'))
+
+        if errors:
+            current_app.logger.warning(f"Skipped {len(errors)} cards during download: {errors}")
+
+        zip_buffer.seek(0)
+        response = make_response(zip_buffer.read())
+        response.headers['Content-Type'] = 'application/zip'
+        response.headers['Content-Disposition'] = 'attachment; filename="invitation_cards.zip"'
+        return response
+
+    except Exception as e:
+        current_app.logger.exception(f"download_all_cards failed: {e}")
+        flash(f"Error downloading cards: {str(e)}", "danger")
         return redirect(url_for('view_all'))
-    zip_buffer.seek(0)
-    return send_file(zip_buffer, download_name="invitation_cards.zip", as_attachment=True)
 
 # -------------------- guest_report --------------------
 
@@ -922,8 +999,10 @@ def guest_report_data():
         }
  
     total       = len(guests)
-    entered     = [g for g in guests if g.has_entered]
-    not_entered = [g for g in guests if not g.has_entered]
+    # A guest counts as entered if ANY scan has occurred (checked_in_count >= 1)
+    # This ensures double cards scanned once still appear as checked-in
+    entered     = [g for g in guests if (g.checked_in_count or 0) >= 1]
+    not_entered = [g for g in guests if (g.checked_in_count or 0) == 0]
     attending   = [g for g in guests if g.rsvp_status == 'attending']
     declined    = [g for g in guests if g.rsvp_status == 'not_attending']
     no_rsvp     = [g for g in guests if not g.rsvp_status]
@@ -1041,7 +1120,7 @@ def _handle_rsvp(from_number: str, button_text: str):
                 f"No guest found for: {from_number} (tried: {variants})")
             return
         guest.rsvp_status = rsvp_status
-        guest.rsvp_at     = datetime.now()
+        guest.rsvp_at     = now_eat()
         db.commit()
         current_app.logger.info(
             f"RSVP saved: {guest.name} → {rsvp_status}")
@@ -1065,7 +1144,7 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True):
       wa / sms values: "sent" | "skipped" | "failed" | "invalid" | "not_configured"
       overall:         "success" | "partial" | "failed"
     """
-    now        = datetime.now()
+    now        = now_eat()
     wa_status  = "skipped"
     sms_status = "skipped"
     messages   = []
@@ -1380,13 +1459,14 @@ def download_client_report():
         guests = db.query(Guest).order_by(Guest.visual_id).all()
  
     total         = len(guests)
-    entered       = [g for g in guests if g.has_entered]
-    not_entered   = [g for g in guests if not g.has_entered]
+    # A guest counts as entered if ANY scan has occurred (checked_in_count >= 1)
+    entered       = [g for g in guests if (g.checked_in_count or 0) >= 1]
+    not_entered   = [g for g in guests if (g.checked_in_count or 0) == 0]
     single_count  = sum(1 for g in guests if (g.card_type or '') == 'single')
     double_count  = sum(1 for g in guests if (g.card_type or '') == 'double')
     family_count  = sum(1 for g in guests if (g.card_type or '') == 'family')
     total_allowed = sum(g.group_size or 1 for g in guests)
-    generated_at  = datetime.now().strftime("%d %B %Y, %H:%M")
+    generated_at  = now_eat().strftime("%d %B %Y, %H:%M")
  
     # ── colours ──────────────────────────────────────────────────────────────
     C_GREEN  = colors.HexColor("#185a3f")
@@ -1557,7 +1637,7 @@ def download_client_report():
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     buf.seek(0)
  
-    filename = f"Guest_Report_{datetime.now().strftime('%Y%m%d_%H%M')}.pdf"
+    filename = f"Guest_Report_{now_eat().strftime('%Y%m%d_%H%M')}.pdf"
     return send_file(buf, as_attachment=True,
                      download_name=filename,
                      mimetype='application/pdf')
