@@ -378,12 +378,14 @@ def get_next_visual_id(db_session):
 
 def build_sms_message(guest) -> str:
     return (
-        f"MWALIKO\n"
+        f"*MWALIKO*\n"
         f"Habari {guest.name},\n"
         f"Tafadhali pokea mwaliko wa HARUSI ya {EVENT_WEDS_NAMES},"
         f" itakayofanyika {EVENT_DAY}, tarehe {EVENT_DATE} saa 12:00 Jioni, {EVENT_VENUE}.\n"
         f"Kadi No:{guest.visual_id:04d} - {(guest.card_type or 'Single').title()}\n"
         f"Tafadhali fika na kadi hii ukumbini.\n"
+        f"Karibu sana!\n"
+        f"Sent by SwiftInvite"
     )
 
 # ---------------------------------------------------------------------------
