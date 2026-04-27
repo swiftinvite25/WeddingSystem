@@ -384,8 +384,6 @@ def build_sms_message(guest) -> str:
         f" itakayofanyika {EVENT_DAY}, tarehe {EVENT_DATE} saa 12:00 Jioni, {EVENT_VENUE}.\n"
         f"Kadi No:{guest.visual_id:04d} - {(guest.card_type or 'Single').title()}\n"
         f"Tafadhali fika na kadi hii ukumbini.\n"
-        f"Karibu sana!\n"
-        f"Sent by SwiftInvite"
     )
 
 # ---------------------------------------------------------------------------
