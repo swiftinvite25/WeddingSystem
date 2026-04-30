@@ -125,9 +125,10 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logging.info(f"Using database: {DATABASE_URL}")
 
-ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
+ADMIN_USERNAME  = os.environ.get("ADMIN_USERNAME",  "admin")
 ADMIN_PASSWORD  = os.environ.get("ADMIN_PASSWORD",  "WedSy#01")
-WORKER_PASSWORD = os.environ.get("WORKER_PASSWORD", "")   # set this in Render env vars
+WORKER_USERNAME = os.environ.get("WORKER_USERNAME", "worker")
+WORKER_PASSWORD = os.environ.get("WORKER_PASSWORD", "")
 
 with app.app_context():
     init_db(app)
@@ -677,7 +678,9 @@ def login():
             session['role']      = 'admin'
             flash('Login successful.', 'success')
             return redirect(url_for('view_all'))
-        elif WORKER_PASSWORD and password == WORKER_PASSWORD:
+        elif (WORKER_PASSWORD
+              and username == WORKER_USERNAME
+              and password == WORKER_PASSWORD):
             session['logged_in'] = True
             session['role']      = 'worker'
             flash('Logged in as worker.', 'success')
@@ -821,12 +824,20 @@ def upload_csv():
 def update_status():
     data       = request.get_json() or {}
     qr_code_id = data.get("qr_code_id")
-    if not qr_code_id:
-        return jsonify(success=False, message="Missing qr_code_id.")
+    visual_id  = data.get("visual_id")
+    if not qr_code_id and not visual_id:
+        return jsonify(success=False, message="Missing qr_code_id or visual_id.")
 
     with get_db_session() as db:
         try:
-            guest = db.query(Guest).filter_by(qr_code_id=qr_code_id).first()
+            ev    = get_active_event(db)
+            eid   = ev.id if ev else None
+            guest = None
+            if qr_code_id:
+                guest = db.query(Guest).filter_by(qr_code_id=qr_code_id).first()
+            if not guest and visual_id:
+                guest = db.query(Guest).filter_by(
+                    visual_id=int(visual_id), event_id=eid).first()
             if not guest:
                 return jsonify(success=False, message="Guest not found.")
             remaining = guest.group_size - guest.checked_in_count
@@ -1104,6 +1115,34 @@ def edit_guest(guest_id):
             flash(f'Error updating guest: {e}', 'danger')
             current_app.logger.error(f"Error updating guest {guest_id}: {e}", exc_info=True)
             return redirect(url_for('view_all'))
+
+@app.route('/scan_guests_data')
+@login_required
+def scan_guests_data():
+    """Return all guests for the active event as JSON for offline scan caching."""
+    with get_db_session() as db:
+        ev  = get_active_event(db)
+        eid = ev.id if ev else None
+        guests = db.query(Guest).filter_by(event_id=eid).all()
+        data = {}
+        for g in guests:
+            # Index by qr_code_id (for QR scan) AND by visual_id (for card number)
+            entry = {
+                'id':               g.id,
+                'name':             g.name or '',
+                'visual_id':        g.visual_id or 0,
+                'card_type':        g.card_type or 'single',
+                'group_size':       g.group_size or 1,
+                'checked_in_count': g.checked_in_count or 0,
+                'has_entered':      bool(g.has_entered),
+                'qr_code_id':       g.qr_code_id or '',
+            }
+            if g.qr_code_id:
+                data[g.qr_code_id] = entry
+            if g.visual_id:
+                data[f'VID:{g.visual_id}'] = entry
+    return jsonify(guests=data, event_name=ev.name if ev else '')
+
 
 @app.route('/scan_qr')
 @login_required

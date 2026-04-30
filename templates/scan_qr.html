@@ -10,222 +10,380 @@
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     * { box-sizing: border-box; }
     body { font-family: 'Inter', sans-serif; background: #f5f7fa; min-height: 100vh; }
-
     .page-wrap { max-width: 560px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
 
-    /* ── header ── */
-    .page-head {
-      display: flex; justify-content: space-between; align-items: center;
-      margin-bottom: 1.5rem;
-    }
+    .page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
     .page-head h1 { font-size: 1.4rem; font-weight: 700; color: #111; margin: 0; }
-    .btn-back {
-      display: inline-flex; align-items: center; gap: .3rem;
-      padding: .45rem 1rem; border-radius: 8px; border: 1.5px solid #d1d5db;
-      background: #fff; color: #374151; font-size: .84rem; font-weight: 600;
-      text-decoration: none; transition: filter .15s;
-    }
-    .btn-back:hover { filter: brightness(.95); }
+    .btn-back { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem 1rem;
+                border-radius: 8px; border: 1.5px solid #d1d5db; background: #fff;
+                color: #374151; font-size: .84rem; font-weight: 600; text-decoration: none; }
 
-    /* ── tabs ── */
-    .tab-bar {
-      display: flex; background: #e5e7eb; border-radius: 10px;
-      padding: 4px; gap: 4px; margin-bottom: 1.5rem;
-    }
-    .tab-btn {
-      flex: 1; padding: .55rem; border: none; border-radius: 7px;
-      background: transparent; font-family: 'Inter', sans-serif;
-      font-size: .875rem; font-weight: 600; color: #6b7280; cursor: pointer;
-      transition: all .15s;
-    }
+    /* offline banner */
+    #offline-banner { display: none; background: #fef3c7; border: 1.5px solid #f59e0b;
+                      border-radius: 8px; padding: .6rem 1rem; margin-bottom: 1rem;
+                      font-size: .84rem; font-weight: 600; color: #92400e; }
+    #offline-banner.show { display: flex; align-items: center; gap: .5rem; }
+    #sync-banner { display: none; background: #e0f2fe; border: 1.5px solid #0284c7;
+                   border-radius: 8px; padding: .6rem 1rem; margin-bottom: 1rem;
+                   font-size: .84rem; font-weight: 600; color: #0369a1; }
+    #sync-banner.show { display: flex; align-items: center; gap: .5rem; justify-content: space-between; }
+
+    /* cache status */
+    #cache-status { font-size: .75rem; color: #9ca3af; margin-bottom: 1rem; text-align: center; }
+
+    /* tabs */
+    .tab-bar { display: flex; background: #e5e7eb; border-radius: 10px; padding: 4px; gap: 4px; margin-bottom: 1.5rem; }
+    .tab-btn { flex: 1; padding: .55rem; border: none; border-radius: 7px; background: transparent;
+               font-family: 'Inter', sans-serif; font-size: .875rem; font-weight: 600;
+               color: #6b7280; cursor: pointer; transition: all .15s; }
     .tab-btn.active { background: #fff; color: #185a3f; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
 
-    /* ── panels ── */
-    .panel {
-      background: #fff; border-radius: 12px; padding: 1.5rem;
-      box-shadow: 0 1px 4px rgba(0,0,0,.06); display: none;
-    }
+    .panel { background: #fff; border-radius: 12px; padding: 1.5rem;
+             box-shadow: 0 1px 4px rgba(0,0,0,.06); display: none; }
     .panel.active { display: block; }
 
-    /* ── QR scanner ── */
     #qr-reader { border-radius: 10px; overflow: hidden; }
     #qr-reader video { border-radius: 10px; }
     .scan-hint { font-size: .82rem; color: #6b7280; text-align: center; margin-top: .75rem; }
 
-    /* ── manual entry ── */
-    .manual-label {
-      font-size: .8rem; font-weight: 600; text-transform: uppercase;
-      letter-spacing: .05em; color: #6b7280; margin-bottom: .4rem;
-    }
-    .num-input-wrap {
-      display: flex; gap: .5rem;
-    }
-    .num-input {
-      flex: 1; padding: .75rem 1rem; border-radius: 8px; border: 1.5px solid #d1d5db;
-      font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 600;
-      color: #111; letter-spacing: .1em; text-align: center;
-      transition: border-color .15s; outline: none;
-    }
+    .manual-label { font-size: .8rem; font-weight: 600; text-transform: uppercase;
+                    letter-spacing: .05em; color: #6b7280; margin-bottom: .4rem; }
+    .num-input-wrap { display: flex; gap: .5rem; }
+    .num-input { flex: 1; padding: .75rem 1rem; border-radius: 8px; border: 1.5px solid #d1d5db;
+                 font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 600;
+                 color: #111; letter-spacing: .1em; text-align: center; outline: none; }
     .num-input:focus { border-color: #185a3f; }
-    .num-input::placeholder { color: #9ca3af; font-weight: 400; letter-spacing: normal; font-size: .9rem; }
-    .btn-checkin {
-      padding: .75rem 1.4rem; border-radius: 8px; border: none;
-      background: #185a3f; color: #fff; font-family: 'Inter', sans-serif;
-      font-size: .95rem; font-weight: 600; cursor: pointer; transition: filter .15s;
-      white-space: nowrap;
-    }
-    .btn-checkin:hover { filter: brightness(.9); }
+    .btn-checkin { padding: .75rem 1.4rem; border-radius: 8px; border: none;
+                   background: #185a3f; color: #fff; font-family: 'Inter', sans-serif;
+                   font-size: .95rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .btn-checkin:disabled { opacity: .5; cursor: not-allowed; }
 
-    /* ── result card ── */
-    #result-wrap { margin-top: 1.25rem; }
-    .result-card {
-      border-radius: 10px; padding: 1.1rem 1.25rem; animation: fadeIn .3s;
-    }
+    #result-wrap, #scan-result-wrap { margin-top: 1.25rem; }
+    .result-card { border-radius: 10px; padding: 1.1rem 1.25rem; animation: fadeIn .3s; }
     @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
     .result-card.success { background: #e8f4ef; border: 1.5px solid #185a3f22; }
     .result-card.error   { background: #fee2e2; border: 1.5px solid #dc262622; }
     .result-card.warning { background: #fef3c7; border: 1.5px solid #d9770622; }
+    .result-card.offline-ok { background: #e0f2fe; border: 1.5px solid #0284c722; }
     .result-icon { font-size: 1.5rem; margin-bottom: .4rem; }
     .result-name { font-size: 1.1rem; font-weight: 700; color: #111; margin-bottom: .15rem; }
     .result-detail { font-size: .85rem; color: #374151; }
     .result-card.success .result-name { color: #185a3f; }
     .result-card.error   .result-name { color: #dc2626; }
     .result-card.warning .result-name { color: #92400e; }
-    .badge-entries {
-      display: inline-block; background: #185a3f; color: #fff;
-      font-size: .75rem; font-weight: 600; padding: .2rem .6rem;
-      border-radius: 2rem; margin-top: .4rem;
-    }
+    .result-card.offline-ok .result-name { color: #0369a1; }
+    .badge-entries { display: inline-block; background: #185a3f; color: #fff;
+                     font-size: .75rem; font-weight: 600; padding: .2rem .6rem;
+                     border-radius: 2rem; margin-top: .4rem; }
+    .badge-offline { display: inline-block; background: #f59e0b; color: #fff;
+                     font-size: .75rem; font-weight: 600; padding: .2rem .6rem;
+                     border-radius: 2rem; margin-top: .4rem; margin-left: .3rem; }
 
-    /* ── recent log ── */
     .log-title { font-size: .8rem; font-weight: 600; text-transform: uppercase;
                  letter-spacing: .05em; color: #6b7280; margin: 1.5rem 0 .5rem; }
-    .log-item {
-      display: flex; align-items: center; justify-content: space-between;
-      padding: .55rem .75rem; background: #fff; border-radius: 8px;
-      border: 1px solid #e5e7eb; margin-bottom: .4rem; font-size: .84rem;
-    }
+    .log-item { display: flex; align-items: center; justify-content: space-between;
+                padding: .55rem .75rem; background: #fff; border-radius: 8px;
+                border: 1px solid #e5e7eb; margin-bottom: .4rem; font-size: .84rem; }
     .log-name { font-weight: 600; color: #111; }
     .log-time { font-size: .75rem; color: #9ca3af; }
-    .log-dot  { width: 8px; height: 8px; border-radius: 50%; background: #185a3f; margin-right: .5rem; flex-shrink: 0; }
+    .log-dot { width: 8px; height: 8px; border-radius: 50%; background: #185a3f;
+               margin-right: .5rem; flex-shrink: 0; }
   </style>
 </head>
 <body>
 {% include "_navbar.html" %}
 
 <div class="page-wrap">
-
   <div class="page-head">
     <h1>🎫 Guest Check-In</h1>
     <a href="/" class="btn-back">← Dashboard</a>
   </div>
 
-  <!-- Tab bar -->
+  <!-- Offline/sync banners -->
+  <div id="offline-banner">
+    <span>📡</span>
+    <span>Offline mode — check-ins saved locally and will sync when reconnected</span>
+  </div>
+  <div id="sync-banner">
+    <span>🔄 <span id="sync-count">0</span> pending check-in(s) to sync</span>
+    <button onclick="syncQueue()" style="border:none;background:#0284c7;color:#fff;border-radius:6px;padding:.3rem .8rem;font-weight:600;cursor:pointer;">Sync Now</button>
+  </div>
+  <div id="cache-status">Loading guest data…</div>
+
+  <!-- Tabs -->
   <div class="tab-bar">
-    <button class="tab-btn active" id="tab-manual" onclick="switchTab('manual')">
-      ✏️ Card Number
-    </button>
-    <button class="tab-btn" id="tab-scan" onclick="switchTab('scan')">
-      📷 Scan QR Code
-    </button>
+    <button class="tab-btn active" id="tab-manual" onclick="switchTab('manual')">✏️ Card Number</button>
+    <button class="tab-btn" id="tab-scan" onclick="switchTab('scan')">📷 Scan QR Code</button>
   </div>
 
-  <!-- Manual entry panel -->
+  <!-- Manual entry -->
   <div class="panel active" id="panel-manual">
     <div class="manual-label">Enter Guest Card Number</div>
     <div class="num-input-wrap">
-      <input
-        class="num-input" id="card-input" type="number"
-        placeholder="e.g. 0042" min="1" max="9999"
-        onkeydown="if(event.key==='Enter') doManualCheckin()"
-        autofocus
-      />
-      <button class="btn-checkin" id="manual-btn" onclick="doManualCheckin()">
-        Check In
-      </button>
+      <input class="num-input" id="card-input" type="number"
+             placeholder="e.g. 0042" min="1" max="9999"
+             onkeydown="if(event.key==='Enter') doManualCheckin()" autofocus/>
+      <button class="btn-checkin" id="manual-btn" onclick="doManualCheckin()">Check In</button>
     </div>
     <div id="result-wrap"></div>
   </div>
 
-  <!-- QR scan panel -->
+  <!-- QR scan -->
   <div class="panel" id="panel-scan">
     <div id="qr-reader"></div>
     <p class="scan-hint">Point camera at the QR code on the guest's card</p>
     <div id="scan-result-wrap"></div>
   </div>
 
-  <!-- Recent check-ins log -->
+  <!-- Recent log -->
   <div class="log-title">Recent Check-ins</div>
   <div id="log-list"><p style="color:#9ca3af;font-size:.82rem;text-align:center">No check-ins yet this session</p></div>
-
 </div>
 
 <script>
-// ── tab switching ─────────────────────────────────────────────────────────
-let scanner = null;
-let scannerRunning = false;
+// ═══════════════════════════════════════════════════════════════════════════
+// OFFLINE GUEST CACHE
+// ═══════════════════════════════════════════════════════════════════════════
 
-function switchTab(tab) {
-  document.getElementById('tab-manual').classList.toggle('active', tab === 'manual');
-  document.getElementById('tab-scan').classList.toggle('active', tab === 'scan');
-  document.getElementById('panel-manual').classList.toggle('active', tab === 'manual');
-  document.getElementById('panel-scan').classList.toggle('active', tab === 'scan');
+const CACHE_KEY   = 'swiftinvite_guests';
+const QUEUE_KEY   = 'swiftinvite_queue';
+const CACHE_TS_KEY= 'swiftinvite_cache_ts';
 
-  if (tab === 'scan' && !scannerRunning) {
-    startScanner();
-  } else if (tab === 'manual' && scannerRunning) {
-    stopScanner();
+let guestCache   = {};   // qr_code_id / VID:n → guest object
+let offlineQueue = [];   // pending check-ins to sync
+let isOnline     = navigator.onLine;
+
+// Load cache from localStorage on startup
+function loadLocalCache() {
+  try {
+    const raw = localStorage.getItem(CACHE_KEY);
+    if (raw) guestCache = JSON.parse(raw);
+    const q = localStorage.getItem(QUEUE_KEY);
+    if (q) offlineQueue = JSON.parse(q);
+  } catch(e) { guestCache = {}; offlineQueue = []; }
+}
+
+function saveLocalCache() {
+  try { localStorage.setItem(CACHE_KEY, JSON.stringify(guestCache)); } catch(e) {}
+}
+
+function saveQueue() {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(offlineQueue)); } catch(e) {}
+}
+
+// Fetch fresh guest data from server and cache it
+async function refreshCache() {
+  try {
+    const res  = await fetch('/scan_guests_data');
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    const data = await res.json();
+    guestCache = data.guests || {};
+    saveLocalCache();
+    const ts = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+    localStorage.setItem(CACHE_TS_KEY, ts);
+    const count = Object.keys(guestCache).filter(k => !k.startsWith('VID:')).length;
+    document.getElementById('cache-status').textContent =
+      `✅ ${count} guests loaded (${data.event_name || ''}) · Last synced ${ts}`;
+    return true;
+  } catch(e) {
+    const ts = localStorage.getItem(CACHE_TS_KEY);
+    const count = Object.keys(guestCache).filter(k => !k.startsWith('VID:')).length;
+    if (count > 0) {
+      document.getElementById('cache-status').textContent =
+        `⚠️ Using cached data (${count} guests) · Last synced ${ts || 'unknown'}`;
+    } else {
+      document.getElementById('cache-status').textContent =
+        `❌ No guest data available — go online to load guests`;
+    }
+    return false;
   }
 }
 
-// ── recent log ────────────────────────────────────────────────────────────
-const log = [];
-function addLog(name, cardNum, ok) {
-  const now = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
-  log.unshift({name, cardNum, ok, time: now});
-  if (log.length > 10) log.pop();
-  renderLog();
-}
-function renderLog() {
-  const el = document.getElementById('log-list');
-  if (!log.length) { el.innerHTML = '<p style="color:#9ca3af;font-size:.82rem;text-align:center">No check-ins yet this session</p>'; return; }
-  el.innerHTML = log.map(l => `
-    <div class="log-item">
-      <div style="display:flex;align-items:center">
-        <div class="log-dot" style="background:${l.ok ? '#185a3f' : '#dc2626'}"></div>
-        <span class="log-name">${l.name}</span>
-        <span style="margin-left:.5rem;font-size:.75rem;color:#9ca3af">#${String(l.cardNum).padStart(4,'0')}</span>
-      </div>
-      <span class="log-time">${l.time}</span>
-    </div>`).join('');
+// ═══════════════════════════════════════════════════════════════════════════
+// OFFLINE QUEUE — sync pending check-ins when back online
+// ═══════════════════════════════════════════════════════════════════════════
+
+function updateSyncBanner() {
+  const banner = document.getElementById('sync-banner');
+  const count  = document.getElementById('sync-count');
+  if (offlineQueue.length > 0) {
+    banner.classList.add('show');
+    count.textContent = offlineQueue.length;
+  } else {
+    banner.classList.remove('show');
+  }
 }
 
-// ── result renderer ───────────────────────────────────────────────────────
-function showResult(data, targetId) {
+async function syncQueue() {
+  if (!navigator.onLine || offlineQueue.length === 0) return;
+  const toSync = [...offlineQueue];
+  let synced = 0;
+  for (const item of toSync) {
+    try {
+      const res = await fetch('/update_status', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify(item),
+      });
+      if (res.ok) {
+        offlineQueue = offlineQueue.filter(q => q._id !== item._id);
+        synced++;
+      }
+    } catch(e) { break; }
+  }
+  saveQueue();
+  updateSyncBanner();
+  if (synced > 0) {
+    await refreshCache();
+    alert(`✅ Synced ${synced} check-in(s) to server.`);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// ONLINE / OFFLINE DETECTION
+// ═══════════════════════════════════════════════════════════════════════════
+
+function setOnline(online) {
+  isOnline = online;
+  const banner = document.getElementById('offline-banner');
+  if (online) {
+    banner.classList.remove('show');
+    syncQueue();
+    refreshCache();
+  } else {
+    banner.classList.add('show');
+  }
+}
+
+window.addEventListener('online',  () => setOnline(true));
+window.addEventListener('offline', () => setOnline(false));
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CHECK-IN LOGIC
+// ═══════════════════════════════════════════════════════════════════════════
+
+function localLookup(key) {
+  return guestCache[key] || null;
+}
+
+function localCheckin(guest) {
+  // Apply check-in to local cache optimistically
+  const remaining = guest.group_size - guest.checked_in_count;
+  if (remaining <= 0) {
+    return { success: false, already_entered: true, guest };
+  }
+  // Update cache
+  guest.checked_in_count += 1;
+  if (guest.checked_in_count >= guest.group_size) guest.has_entered = true;
+  // Update both keys
+  if (guest.qr_code_id) guestCache[guest.qr_code_id] = guest;
+  guestCache[`VID:${guest.visual_id}`] = guest;
+  saveLocalCache();
+  return {
+    success: true,
+    offline: true,
+    guest: {
+      name:              guest.name,
+      visual_id:         guest.visual_id,
+      card_type:         guest.card_type,
+      remaining_entries: guest.group_size - guest.checked_in_count,
+    }
+  };
+}
+
+async function checkIn(key, resultElId, isVisualId = false) {
+  // key is either qr_code_id string or visual_id number
+  const cacheKey = isVisualId ? `VID:${key}` : key;
+  const guest    = localLookup(cacheKey);
+
+  if (!navigator.onLine) {
+    // ── Fully offline ──────────────────────────────────────────────────────
+    if (!guest) {
+      showResultRaw({ success: false, message: 'Guest not found in cached data.' }, resultElId);
+      return;
+    }
+    const result = localCheckin(guest);
+    showResultRaw({ ...result, offline: true }, resultElId);
+    // Queue for sync
+    const queueItem = isVisualId
+      ? { visual_id: key, _id: Date.now() }
+      : { qr_code_id: key, _id: Date.now() };
+    offlineQueue.push(queueItem);
+    saveQueue();
+    updateSyncBanner();
+    addLog(guest.name, guest.visual_id, result.success, true);
+    return;
+  }
+
+  // ── Online — try server first, fall back to local on network error ───────
+  try {
+    const body = isVisualId ? { visual_id: key } : { qr_code_id: key };
+    const res  = await fetch('/update_status', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    showResultRaw(data, resultElId);
+    // Update local cache to reflect server state
+    if (data.success && data.guest) {
+      const g = localLookup(cacheKey);
+      if (g) {
+        g.checked_in_count = g.group_size - (data.guest.remaining_entries || 0);
+        if (g.checked_in_count >= g.group_size) g.has_entered = true;
+        if (guest && guest.qr_code_id) guestCache[guest.qr_code_id] = g;
+        guestCache[`VID:${g.visual_id}`] = g;
+        saveLocalCache();
+      }
+    }
+    addLog(data.guest?.name || '?', data.guest?.visual_id || 0, data.success, false);
+  } catch(err) {
+    // Network failed mid-attempt — fall back to local
+    if (guest) {
+      const result = localCheckin(guest);
+      showResultRaw({ ...result, offline: true }, resultElId);
+      const queueItem = isVisualId
+        ? { visual_id: key, _id: Date.now() }
+        : { qr_code_id: key, _id: Date.now() };
+      offlineQueue.push(queueItem);
+      saveQueue();
+      updateSyncBanner();
+      addLog(guest.name, guest.visual_id, result.success, true);
+    } else {
+      showResultRaw({ success: false, message: 'Network error and no cached data.' }, resultElId);
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// UI HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function showResultRaw(data, targetId) {
   const el = document.getElementById(targetId);
   if (!el) return;
+  const offlineBadge = data.offline
+    ? '<span class="badge-offline">📡 Queued offline</span>' : '';
 
   if (data.success) {
     const g = data.guest || {};
     const remaining = g.remaining_entries ?? '—';
-    el.innerHTML = `<div class="result-card success">
-      <div class="result-icon">✅</div>
+    el.innerHTML = `<div class="result-card ${data.offline ? 'offline-ok' : 'success'}">
+      <div class="result-icon">${data.offline ? '📡' : '✅'}</div>
       <div class="result-name">${g.name || 'Guest'}</div>
       <div class="result-detail">
         Card ${(g.card_type||'').toUpperCase()} · <strong>#${String(g.visual_id||0).padStart(4,'0')}</strong>
       </div>
       <span class="badge-entries">${remaining} ${remaining === 1 ? 'entry' : 'entries'} remaining</span>
+      ${offlineBadge}
     </div>`;
-    addLog(g.name || 'Guest', g.visual_id || 0, true);
   } else if (data.already_entered) {
     const g = data.guest || {};
     el.innerHTML = `<div class="result-card warning">
       <div class="result-icon">⚠️</div>
       <div class="result-name">Already Fully Checked In</div>
-      <div class="result-detail">${g.name || ''} — all ${g.card_type||''} entries used</div>
+      <div class="result-detail">${g.name || ''} — all entries used</div>
     </div>`;
-    addLog(g.name || 'Already in', g.visual_id || 0, false);
   } else {
     el.innerHTML = `<div class="result-card error">
       <div class="result-icon">❌</div>
@@ -233,95 +391,101 @@ function showResult(data, targetId) {
       <div class="result-detail">${data.message || 'Unknown error'}</div>
     </div>`;
   }
-
-  // Auto-clear result after 5 seconds
   setTimeout(() => { if (el) el.innerHTML = ''; }, 5000);
 }
 
-// ── API call ──────────────────────────────────────────────────────────────
-async function checkIn(qrCodeId, resultElId) {
-  try {
-    const res  = await fetch('/update_status', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({qr_code_id: qrCodeId}),
-    });
-    const data = await res.json();
-    showResult(data, resultElId);
-    return data;
-  } catch (err) {
-    const el = document.getElementById(resultElId);
-    if (el) el.innerHTML = `<div class="result-card error">
-      <div class="result-name">Network Error</div>
-      <div class="result-detail">${err}</div>
-    </div>`;
+// ── log ───────────────────────────────────────────────────────────────────
+const log = [];
+function addLog(name, cardNum, ok, offline) {
+  const now = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
+  log.unshift({ name, cardNum, ok, offline, time: now });
+  if (log.length > 15) log.pop();
+  renderLog();
+}
+function renderLog() {
+  const el = document.getElementById('log-list');
+  if (!log.length) {
+    el.innerHTML = '<p style="color:#9ca3af;font-size:.82rem;text-align:center">No check-ins yet this session</p>';
+    return;
   }
+  el.innerHTML = log.map(l => `
+    <div class="log-item">
+      <div style="display:flex;align-items:center">
+        <div class="log-dot" style="background:${l.ok ? '#185a3f' : '#dc2626'}"></div>
+        <span class="log-name">${l.name}</span>
+        <span style="margin-left:.5rem;font-size:.75rem;color:#9ca3af">#${String(l.cardNum).padStart(4,'0')}</span>
+        ${l.offline ? '<span style="margin-left:.4rem;font-size:.7rem;background:#f59e0b;color:#fff;padding:.1rem .4rem;border-radius:4px">offline</span>' : ''}
+      </div>
+      <span class="log-time">${l.time}</span>
+    </div>`).join('');
 }
 
-// ── Manual check-in ───────────────────────────────────────────────────────
+// ── tabs ──────────────────────────────────────────────────────────────────
+let scanner = null, scannerRunning = false;
+
+function switchTab(tab) {
+  document.getElementById('tab-manual').classList.toggle('active', tab === 'manual');
+  document.getElementById('tab-scan').classList.toggle('active', tab === 'scan');
+  document.getElementById('panel-manual').classList.toggle('active', tab === 'manual');
+  document.getElementById('panel-scan').classList.toggle('active', tab === 'scan');
+  if (tab === 'scan' && !scannerRunning) startScanner();
+  else if (tab === 'manual' && scannerRunning) stopScanner();
+}
+
+// ── manual check-in ───────────────────────────────────────────────────────
 async function doManualCheckin() {
   const input = document.getElementById('card-input');
   const btn   = document.getElementById('manual-btn');
   const raw   = input.value.trim();
   if (!raw) { input.focus(); return; }
-
   const num = parseInt(raw, 10);
   if (isNaN(num) || num < 1) {
     document.getElementById('result-wrap').innerHTML =
-      `<div class="result-card error"><div class="result-name">Invalid number</div><div class="result-detail">Please enter a valid card number</div></div>`;
+      `<div class="result-card error"><div class="result-name">Invalid number</div>
+       <div class="result-detail">Please enter a valid card number</div></div>`;
     return;
   }
-
-  const qrId = `GUEST-${String(num).padStart(4, '0')}`;
-  btn.disabled = true;
-  btn.textContent = '⏳';
-
-  await checkIn(qrId, 'result-wrap');
-
-  btn.disabled = false;
-  btn.textContent = 'Check In';
-  input.value = '';
-  input.focus();
+  btn.disabled = true; btn.textContent = '⏳';
+  await checkIn(num, 'result-wrap', true);  // isVisualId = true
+  btn.disabled = false; btn.textContent = 'Check In';
+  input.value = ''; input.focus();
 }
 
-// ── QR Scanner ────────────────────────────────────────────────────────────
-let lastScanned = '';
-let scanCooldown = false;
+// ── QR scanner ────────────────────────────────────────────────────────────
+let lastScanned = '', scanCooldown = false;
 
 function startScanner() {
   scanner = new Html5Qrcode("qr-reader");
   scanner.start(
-    {facingMode: "environment"},
-    {fps: 10, qrbox: {width: 260, height: 260}},
+    { facingMode: "environment" },
+    { fps: 10, qrbox: { width: 260, height: 260 } },
     async (decoded) => {
       if (scanCooldown || decoded === lastScanned) return;
-      lastScanned  = decoded;
-      scanCooldown = true;
+      lastScanned = decoded; scanCooldown = true;
       setTimeout(() => { scanCooldown = false; lastScanned = ''; }, 3000);
-      await checkIn(decoded, 'scan-result-wrap');
+      await checkIn(decoded, 'scan-result-wrap', false);
     },
-    () => {}   // ignore frame errors
+    () => {}
   ).then(() => { scannerRunning = true; })
    .catch(err => {
      document.getElementById('qr-reader').innerHTML =
        `<div style="padding:2rem;text-align:center;color:#dc2626">
-         Camera access denied or unavailable.<br>
-         <small>${err}</small>
-       </div>`;
+          Camera access denied or unavailable.<br><small>${err}</small></div>`;
    });
 }
 
 function stopScanner() {
-  if (scanner) {
-    scanner.stop().then(() => {
-      scannerRunning = false;
-      scanner = null;
-    }).catch(() => {});
-  }
+  if (scanner) scanner.stop().then(() => { scannerRunning = false; scanner = null; }).catch(() => {});
 }
-
-// Stop scanner when navigating away
 window.addEventListener('beforeunload', stopScanner);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// STARTUP
+// ═══════════════════════════════════════════════════════════════════════════
+loadLocalCache();
+setOnline(navigator.onLine);
+refreshCache();
+updateSyncBanner();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
