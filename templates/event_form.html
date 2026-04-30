@@ -5,7 +5,7 @@
   <a href="{{ url_for('events_list') }}" class="btn btn-outline-secondary">← Back to Events</a>
 </div>
 
-<form method="POST" class="card p-4 shadow-sm">
+<form method="POST" class="card p-4 shadow-sm mb-4">
   <h5 class="mb-3 text-success">Event Details</h5>
   <div class="row g-3 mb-4">
     <div class="col-md-6">
@@ -15,7 +15,18 @@
              placeholder="e.g. Paul & Grace Wedding">
     </div>
     <div class="col-md-6">
-      <label class="form-label">Couple Names (for SMS/cards)</label>
+      <label class="form-label">Event Type</label>
+      <select name="event_type" class="form-select">
+        {% set types = ["Wedding", "Send-Off", "Birthday", "Conference", "Confirmation", "Corporate", "Other"] %}
+        {% for t in types %}
+        <option value="{{ t }}" {% if (event.event_type if event else 'Wedding') == t %}selected{% endif %}>
+          {{ t }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Couple / Honoree Names (for SMS)</label>
       <input type="text" name="weds_names" class="form-control"
              value="{{ event.weds_names if event else '' }}"
              placeholder="e.g. PAUL J. MISALABA & GRACE MAHEWA">
@@ -95,4 +106,34 @@
     <a href="{{ url_for('events_list') }}" class="btn btn-outline-secondary">Cancel</a>
   </div>
 </form>
+
+{% if event %}
+<!-- Card Template Upload (edit mode only) -->
+<div class="card p-4 shadow-sm">
+  <h5 class="mb-1 text-dark">🃏 Card Template</h5>
+  <p class="text-muted mb-3" style="font-size:.875rem">
+    Upload a JPG/PNG card template for this event. If none uploaded, the global
+    <code>static/Card Template.jpg</code> is used as fallback.
+  </p>
+  {% if event.card_template_url %}
+  <div class="mb-3">
+    <span class="badge bg-success">✅ Template uploaded</span>
+    <a href="{{ event.card_template_url }}" target="_blank" class="ms-2 small">Preview</a>
+  </div>
+  {% else %}
+  <div class="mb-3">
+    <span class="badge bg-secondary">No template yet — using global default</span>
+  </div>
+  {% endif %}
+  <form method="POST"
+        action="{{ url_for('event_upload_template', event_id=event.id) }}"
+        enctype="multipart/form-data"
+        class="d-flex gap-2 align-items-center">
+    <input type="file" name="template_file" accept=".jpg,.jpeg,.png"
+           class="form-control" style="max-width:320px">
+    <button type="submit" class="btn btn-primary">Upload Template</button>
+  </form>
+</div>
+{% endif %}
+
 {% endblock %}

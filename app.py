@@ -90,7 +90,8 @@ if DATABASE_URL.startswith("postgres://"):
 SUPABASE_URL  = os.getenv("SUPABASE_URL")
 SUPABASE_KEY  = os.getenv("SUPABASE_SERVICE_KEY")
 QR_BUCKET     = os.getenv("SUPABASE_QR_BUCKET",    "qr-codes")
-CARDS_BUCKET  = os.getenv("SUPABASE_CARDS_BUCKET", "guest-cards")
+CARDS_BUCKET     = os.getenv("SUPABASE_CARDS_BUCKET",    "guest-cards")
+TEMPLATES_BUCKET = os.getenv("SUPABASE_TEMPLATES_BUCKET","card-templates")
 
 # ---------------------------------------------------------------------------
 # Default Event seed (used only when first event is auto-created from .env)
@@ -268,7 +269,7 @@ def _fit_name_font(draw, name: str, max_width: int):
     return font, wrapped.split("\n")
 
 
-def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
+def _draw_card(guest, qr_img: Image.Image, template_bytes=None) -> Image.Image:
     """
     Card layout:
     1. Card number  → top-left  (NO. XXXX)
@@ -276,11 +277,14 @@ def _draw_card(guest, qr_img: Image.Image) -> Image.Image:
     3. QR code      → bottom-left
     4. Card type    → above QR  (SINGLE / DOUBLE / FAMILY)
     """
-    template_path = os.path.join("static", "Card Template.jpg")
-    if not os.path.exists(template_path):
-        raise FileNotFoundError(f"Card template not found: {template_path}")
-
-    img  = Image.open(template_path).convert("RGB")
+    # Per-event template takes priority over the global static one
+    if template_bytes:
+        img = Image.open(BytesIO(template_bytes)).convert("RGB")
+    else:
+        template_path = os.path.join("static", "Card Template.jpg")
+        if not os.path.exists(template_path):
+            raise FileNotFoundError(f"Card template not found: {template_path}")
+        img = Image.open(template_path).convert("RGB")
     draw = ImageDraw.Draw(img)
     fp   = _bold_font_path()
 
@@ -340,7 +344,18 @@ def _render_and_upload_card(guest) -> bool:
         return False
 
 
-def _generate_card_bytes(guest) -> bytes | None:
+def _get_event_template_bytes(event) -> bytes | None:
+    """Fetch per-event card template from Supabase, or None to use global static."""
+    if not event or not event.card_template_url:
+        return None
+    try:
+        fname = f"template_{event.slug}.jpg"
+        return download_from_supabase(TEMPLATES_BUCKET, fname)
+    except Exception:
+        return None
+
+
+def _generate_card_bytes(guest, event=None) -> bytes | None:
     """Return raw JPEG card bytes (used as fallback in send engine)."""
     try:
         try:
@@ -348,8 +363,9 @@ def _generate_card_bytes(guest) -> bytes | None:
         except Exception:
             qr_data = generate_qr_bytes(guest.qr_code_id)
 
+        template_bytes = _get_event_template_bytes(event)
         qr_img = Image.open(BytesIO(qr_data))
-        img    = _draw_card(guest, qr_img)
+        img    = _draw_card(guest, qr_img, template_bytes=template_bytes)
         buf    = BytesIO()
         img.save(buf, format="JPEG", quality=92)
         buf.seek(0)
@@ -398,21 +414,53 @@ def normalize_card_type(card_type_input, allowed_input=None):
     return "single", 1
 
 def get_next_visual_id(db_session, event_id=None):
-    """Return next globally unique visual_id.
-    visual_id has a DB-level unique constraint so we always use the global max,
-    regardless of event. event_id param kept for compatibility but ignored."""
-    max_id = db_session.query(func.max(Guest.visual_id)).scalar()
-    return 1 if max_id is None else int(max_id) + 1
+    """Return next unique visual_id.
+    Per-event when event_id given; falls back to global max to avoid DB collisions.
+    We offset per-event IDs by event_id * 10000 to guarantee global uniqueness
+    while still having per-event numbering that starts near 1.
+    E.g. Event 1 → 10001, 10002 ... Event 2 → 20001, 20002 ...
+    Exception: event_id=1 (default/first event) keeps original numbering (1,2,3...)
+    for backwards compatibility with existing guests."""
+    if event_id is None:
+        max_id = db_session.query(func.max(Guest.visual_id)).scalar()
+        return 1 if max_id is None else int(max_id) + 1
+    if event_id == 1:
+        # Legacy first event — keep 1-based numbering
+        q = db_session.query(func.max(Guest.visual_id)).filter(
+            Guest.event_id == event_id)
+        max_id = q.scalar()
+        return 1 if max_id is None else int(max_id) + 1
+    # Other events: base offset = event_id * 10000
+    base   = event_id * 10000
+    q      = db_session.query(func.max(Guest.visual_id)).filter(
+        Guest.visual_id >= base,
+        Guest.visual_id <  base + 10000,
+    )
+    max_id = q.scalar()
+    return base + 1 if max_id is None else int(max_id) + 1
+
+# Swahili event type labels for SMS
+EVENT_TYPE_LABELS = {
+    "Wedding":      "HARUSI",
+    "Send-Off":     "SEND-OFF",
+    "Birthday":     "SIKUKUU YA KUZALIWA",
+    "Conference":   "MKUTANO",
+    "Confirmation": "IBADA YA KIPAIMARA",
+    "Corporate":    "TUKIO LA KAMPUNI",
+    "Other":        "TUKIO",
+}
 
 def build_sms_message(guest, event=None) -> str:
-    weds  = (event.weds_names  if event and event.weds_names  else DEFAULT_WEDS_NAMES) or ""
-    day   = (event.event_day   if event and event.event_day   else DEFAULT_EVENT_DAY)  or ""
-    date  = (event.event_date  if event and event.event_date  else DEFAULT_EVENT_DATE) or ""
-    venue = (event.event_venue if event and event.event_venue else DEFAULT_EVENT_VENUE)or ""
+    weds       = (event.weds_names  if event and event.weds_names  else DEFAULT_WEDS_NAMES) or ""
+    day        = (event.event_day   if event and event.event_day   else DEFAULT_EVENT_DAY)  or ""
+    date       = (event.event_date  if event and event.event_date  else DEFAULT_EVENT_DATE) or ""
+    venue      = (event.event_venue if event and event.event_venue else DEFAULT_EVENT_VENUE)or ""
+    ev_type    = (event.event_type  if event and event.event_type  else "Wedding")
+    type_label = EVENT_TYPE_LABELS.get(ev_type, ev_type.upper())
     return (
         f"MWALIKO\n"
         f"Habari {guest.name},\n"
-        f"Umealikwa HARUSI ya:\n"
+        f"Umealikwa {type_label} ya:\n"
         f"{weds.upper()}\n"
         f"{day.upper()}, {date.upper()}\n"
         f"Saa 12:00 Jioni\n"
@@ -560,6 +608,7 @@ def event_new():
             ev = Event(
                 name           = name,
                 slug           = slug,
+                event_type     = request.form.get('event_type', 'Wedding').strip(),
                 weds_names     = request.form.get('weds_names', '').strip(),
                 event_day      = request.form.get('event_day',  '').strip(),
                 event_date     = request.form.get('event_date', '').strip(),
@@ -594,6 +643,7 @@ def event_edit(event_id):
             return redirect(url_for('events_list'))
         if request.method == 'POST':
             ev.name           = request.form.get('name', ev.name).strip()
+            ev.event_type     = request.form.get('event_type', ev.event_type or 'Wedding').strip()
             ev.weds_names     = request.form.get('weds_names', '').strip()
             ev.event_day      = request.form.get('event_day',  '').strip()
             ev.event_date     = request.form.get('event_date', '').strip()
@@ -611,6 +661,8 @@ def event_edit(event_id):
         # Snapshot for template
         ev_data = {
             'id': ev.id, 'name': ev.name, 'slug': ev.slug,
+            'event_type': ev.event_type or 'Wedding',
+            'card_template_url': ev.card_template_url or '',
             'weds_names': ev.weds_names, 'event_day': ev.event_day,
             'event_date': ev.event_date, 'event_venue': ev.event_venue,
             'wa_phone_number_id': ev.wa_phone_number_id or '',
@@ -648,6 +700,39 @@ def event_archive(event_id):
             state = 'reactivated' if ev.is_active else 'archived'
             flash(f'Event "{ev.name}" {state}.', 'success')
     return redirect(url_for('events_list'))
+
+
+@app.route('/events/<int:event_id>/upload_template', methods=['POST'])
+@admin_required
+def event_upload_template(event_id):
+    """Upload a per-event card template image to Supabase."""
+    file = request.files.get('template_file')
+    if not file or not file.filename:
+        flash('No file selected.', 'danger')
+        return redirect(url_for('event_edit', event_id=event_id))
+    if not file.filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+        flash('Only JPG/PNG files are supported.', 'danger')
+        return redirect(url_for('event_edit', event_id=event_id))
+    with get_db_session() as db:
+        ev = db.get(Event, event_id)
+        if not ev:
+            flash('Event not found.', 'danger')
+            return redirect(url_for('events_list'))
+        fname = f"template_{ev.slug}.jpg"
+        img_bytes = file.read()
+        # Convert PNG to JPEG if needed
+        if file.filename.lower().endswith('.png'):
+            from PIL import Image as PilImage
+            img_obj = PilImage.open(BytesIO(img_bytes)).convert('RGB')
+            buf = BytesIO()
+            img_obj.save(buf, format='JPEG', quality=95)
+            img_bytes = buf.getvalue()
+        url = upload_to_supabase(TEMPLATES_BUCKET, fname, img_bytes,
+                                  content_type='image/jpeg')
+        ev.card_template_url = url
+        db.commit()
+        flash(f'Card template uploaded for "{ev.name}".', 'success')
+    return redirect(url_for('event_edit', event_id=event_id))
 
 
 
@@ -1350,8 +1435,9 @@ def download_all_cards():
                     g.card_type  = snap["card_type"]
                     g.group_size = snap["group_size"]
 
-                    qr_img = Image.open(BytesIO(qr_data))
-                    card   = _draw_card(g, qr_img)
+                    qr_img         = Image.open(BytesIO(qr_data))
+                    tmpl_bytes     = _get_event_template_bytes(ev_obj) if 'ev_obj' in dir() else None
+                    card           = _draw_card(g, qr_img, template_bytes=tmpl_bytes)
                     buf    = BytesIO()
                     card.save(buf, format="JPEG", quality=92)
                     zf.writestr(snap["card_fname"], buf.getvalue())
@@ -1575,7 +1661,7 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
                 print(f"[WA DEBUG] Card fetched from Supabase: {len(card_bytes)} bytes", flush=True)
             except Exception as supa_err:
                 print(f"[WA DEBUG] Supabase fetch failed ({supa_err}), regenerating card...", flush=True)
-                card_bytes = _generate_card_bytes(guest)
+                card_bytes = _generate_card_bytes(guest, event=event)
                 if card_bytes:
                     print(f"[WA DEBUG] Card regenerated: {len(card_bytes)} bytes", flush=True)
                     try:

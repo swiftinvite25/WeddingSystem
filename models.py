@@ -43,8 +43,20 @@ def _run_migrations(engine):
             except Exception:
                 conn.rollback()
 
-        # ── events table is created by Base.metadata.create_all already ───
-        # Nothing else needed for now.
+        # ── events table: add new columns if missing ─────────────────────
+        ev_cols = {c['name'] for c in inspector.get_columns('events')}
+        for col_def in [
+            ("event_type",        "VARCHAR DEFAULT 'Wedding'"),
+            ("card_template_url", "VARCHAR"),
+        ]:
+            if col_def[0] not in ev_cols:
+                try:
+                    conn.execute(text(
+                        f"ALTER TABLE events ADD COLUMN {col_def[0]} {col_def[1]}"
+                    ))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
 
 
 @contextmanager
@@ -90,7 +102,9 @@ class Event(Base):
     at_sender_id = Column(String, nullable=True)
 
     # Per-event Supabase storage prefix (keeps files separate per event)
-    storage_prefix = Column(String, nullable=True)  # e.g. "paul-grace-2026"
+    storage_prefix     = Column(String, nullable=True)  # e.g. "paul-grace-2026"
+    event_type         = Column(String, nullable=True, default="Wedding")  # Wedding, Send-Off, etc.
+    card_template_url  = Column(String, nullable=True)  # Supabase URL to per-event card template
 
     # Status
     is_active   = Column(Boolean, default=True)
