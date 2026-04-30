@@ -29,11 +29,13 @@
             📅 {{ active_event_name | default('Select Event') }}
           </a>
           <ul class="dropdown-menu dropdown-menu-end">
+            {% if session.get('role') == 'admin' %}
             <li>
               <a class="dropdown-item fw-bold text-success"
                  href="{{ url_for('events_list') }}">⚙️ Manage Events</a>
             </li>
             <li><hr class="dropdown-divider"></li>
+            {% endif %}
             {% for ev in all_events | default([]) %}
             <li>
               <a class="dropdown-item {% if ev.id == session.get('active_event_id') %}fw-bold{% endif %}"

@@ -45,7 +45,8 @@
     {% endif %}
     {% endwith %}
 
-    <!-- Add Guest Form -->
+    <!-- Add Guest Form — admin only -->
+    {% if session.get('role') == 'admin' %}
     <div class="card mb-4">
         <div class="card-body">
             <h4 class="card-title">Add New Guest</h4>
@@ -88,6 +89,7 @@
             </form>
         </div>
     </div>
+    {% endif %}
 
     <!-- Guest List -->
     <h4>Guest List</h4>
@@ -121,8 +123,10 @@
                 </td>
                 <td>{{ "Yes" if guest.has_entered else "No" }}</td>
                 <td>
+                    {% if session.get('role') == 'admin' %}
                     <a href="{{ url_for('edit_guest', guest_id=guest.id) }}" class="btn btn-sm btn-primary">Edit</a>
                     <a href="{{ url_for('delete_guest', guest_id=guest.id) }}" class="btn btn-sm btn-danger" onclick="return confirm('Are you sure?')">Delete</a>
+                    {% endif %}
                 </td>
             </tr>
             {% endfor %}

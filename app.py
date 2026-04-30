@@ -126,7 +126,8 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logging.info(f"Using database: {DATABASE_URL}")
 
 ADMIN_USERNAME = os.environ.get("ADMIN_USERNAME", "admin")
-ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "WedSy#01")
+ADMIN_PASSWORD  = os.environ.get("ADMIN_PASSWORD",  "WedSy#01")
+WORKER_PASSWORD = os.environ.get("WORKER_PASSWORD", "")   # set this in Render env vars
 
 with app.app_context():
     init_db(app)
@@ -431,6 +432,20 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
+
+def admin_required(f):
+    """Restrict route to admin role only."""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            flash('Please log in first.', 'warning')
+            return redirect(url_for('login'))
+        if session.get('role') != 'admin':
+            flash('Admin access required.', 'danger')
+            return redirect(url_for('view_all'))
+        return f(*args, **kwargs)
+    return decorated_function
+
 # ---------------------------------------------------------------------------
 # Event helpers — active event in session
 # ---------------------------------------------------------------------------
@@ -521,7 +536,7 @@ def events_list():
 
 
 @app.route('/events/new', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def event_new():
     if request.method == 'POST':
         import re
@@ -565,7 +580,7 @@ def event_new():
 
 
 @app.route('/events/<int:event_id>/edit', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def event_edit(event_id):
     with get_db_session() as db:
         ev = db.get(Event, event_id)
@@ -618,7 +633,7 @@ def event_switch(event_id):
 
 
 @app.route('/events/<int:event_id>/archive', methods=['POST'])
-@login_required
+@admin_required
 def event_archive(event_id):
     with get_db_session() as db:
         ev = db.get(Event, event_id)
@@ -655,10 +670,17 @@ def view_all():
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
-        if (request.form.get('username') == ADMIN_USERNAME and
-                request.form.get('password') == ADMIN_PASSWORD):
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
             session['logged_in'] = True
+            session['role']      = 'admin'
             flash('Login successful.', 'success')
+            return redirect(url_for('view_all'))
+        elif WORKER_PASSWORD and password == WORKER_PASSWORD:
+            session['logged_in'] = True
+            session['role']      = 'worker'
+            flash('Logged in as worker.', 'success')
             return redirect(url_for('view_all'))
         flash('Invalid credentials.', 'danger')
     return render_template('login.html')
@@ -667,13 +689,14 @@ def login():
 @login_required
 def logout():
     session.pop('logged_in', None)
+    session.pop('role', None)
     flash('Logged out.', 'info')
     return redirect(url_for('login'))
 
 # -------------------- add_guest --------------------
 
 @app.route('/add_guest', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def add_guest():
     if request.method == 'POST':
         name             = (request.form.get('name') or '').strip()
@@ -691,8 +714,8 @@ def add_guest():
             if db.query(Guest).filter_by(phone=phone, event_id=eid).first():
                 flash(f"Guest with phone {phone} already exists in this event.", "warning")
                 return redirect(url_for('add_guest'))
-            visual_id = get_next_visual_id(db, ev.id if ev else None)
-            qr_id     = f"GUEST-{visual_id:04d}"
+            visual_id = get_next_visual_id(db, eid)
+            qr_id     = f"EV{eid or 0}-GUEST-{visual_id:04d}"
             try:
                 qr_bytes = generate_qr_bytes(qr_id)
                 qr_fname = f"{qr_id}-{get_safe_filename_name_part(name or 'GUEST')}.png"
@@ -718,7 +741,7 @@ def add_guest():
 # -------------------- upload_csv --------------------
 
 @app.route('/upload_csv', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def upload_csv():
     if request.method == 'POST':
         file = request.files.get('file')
@@ -768,7 +791,7 @@ def upload_csv():
                     skipped += 1; continue
 
                 visual_id = get_next_visual_id(db, eid)
-                qr_id     = f"GUEST-{visual_id:04d}"
+                qr_id     = f"EV{eid or 0}-GUEST-{visual_id:04d}"
                 qr_fname  = f"{qr_id}-{get_safe_filename_name_part(name or 'GUEST')}.png"
                 try:
                     qr_bytes = generate_qr_bytes(qr_id)
@@ -861,7 +884,7 @@ def search_guests():
 # -------------------- download_excel --------------------
 
 @app.route('/download_excel')
-@login_required
+@admin_required
 def download_excel():
     with get_db_session() as db:
         ev     = get_active_event(db)
@@ -1028,7 +1051,7 @@ def zip_qr_codes_web():
 # -------------------- edit_guest --------------------
 
 @app.route('/edit_guest/<int:guest_id>', methods=['GET', 'POST'])
-@login_required
+@admin_required
 def edit_guest(guest_id):
     with get_db_session() as db:
         try:
@@ -1090,7 +1113,7 @@ def scan_qr():
 # -------------------- delete_guest --------------------
 
 @app.route('/delete_guest/<int:guest_id>', methods=['GET'])
-@login_required
+@admin_required
 def delete_guest(guest_id):
     with get_db_session() as db:
         try:
@@ -1112,7 +1135,7 @@ def delete_guest(guest_id):
 # -------------------- regenerate_qr_codes --------------------
 
 @app.route('/regenerate_qr_codes')
-@login_required
+@admin_required
 def regenerate_qr_codes():
     with get_db_session() as db:
         try:
@@ -1141,7 +1164,7 @@ def regenerate_qr_codes():
 # ===========================================================================
 
 @app.route('/generate_guest_cards')
-@login_required
+@admin_required
 def generate_guest_cards():
     """Returns JSON list of visual_ids. Frontend calls /generate_card/<id> per guest."""
     if not os.path.exists(os.path.join("static", "Card Template.jpg")):
@@ -1180,7 +1203,7 @@ def generate_card(visual_id):
 
 
 @app.route('/generate_cards_page')
-@login_required
+@admin_required
 def generate_cards_page():
     """Renders the progress-bar page that drives per-card generation."""
     return render_template('generate_cards.html')
@@ -1376,7 +1399,7 @@ def guest_report():
 # -------------------- clear_all_data --------------------
 
 @app.route('/clear_all_data', methods=['GET'])
-@login_required
+@admin_required
 def clear_all_data():
     with get_db_session() as db:
         try:
