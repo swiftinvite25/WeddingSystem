@@ -419,6 +419,19 @@ def build_sms_message(guest, event=None) -> str:
 
 
 # ---------------------------------------------------------------------------
+# Auth
+# ---------------------------------------------------------------------------
+
+def login_required(f):
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not session.get('logged_in'):
+            flash('Please log in first.', 'warning')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# ---------------------------------------------------------------------------
 # Event helpers — active event in session
 # ---------------------------------------------------------------------------
 
@@ -617,18 +630,6 @@ def event_archive(event_id):
     return redirect(url_for('events_list'))
 
 
-# ---------------------------------------------------------------------------
-# Auth
-# ---------------------------------------------------------------------------
-
-def login_required(f):
-    @wraps(f)
-    def decorated_function(*args, **kwargs):
-        if not session.get('logged_in'):
-            flash('Please log in first.', 'warning')
-            return redirect(url_for('login'))
-        return f(*args, **kwargs)
-    return decorated_function
 
 # ---------------------------------------------------------------------------
 # Routes — core
