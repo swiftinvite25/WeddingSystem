@@ -686,11 +686,11 @@ def add_guest():
                       else default_size)
 
         with get_db_session() as db:
-            if db.query(Guest).filter_by(phone=phone).first():
-                flash(f"Guest with phone {phone} already exists.", "warning")
-                return redirect(url_for('add_guest'))
-
             ev        = get_active_event(db)
+            eid       = ev.id if ev else None
+            if db.query(Guest).filter_by(phone=phone, event_id=eid).first():
+                flash(f"Guest with phone {phone} already exists in this event.", "warning")
+                return redirect(url_for('add_guest'))
             visual_id = get_next_visual_id(db, ev.id if ev else None)
             qr_id     = f"GUEST-{visual_id:04d}"
             try:
@@ -1663,6 +1663,7 @@ def send_card_single(guest_id):
         guest = db.get(Guest, guest_id)
         if not guest:
             return jsonify(success=False, message="Guest not found.")
+        ev     = get_active_event(db)
         result = _send_to_guest(guest, db, send_wa=True, send_sms=False, event=ev)
         return jsonify(success=(result["wa"] == "sent"),
                        message=result["message"], guest_id=guest_id)
