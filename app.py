@@ -125,10 +125,15 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logging.info(f"Using database: {DATABASE_URL}")
 
-ADMIN_USERNAME  = os.environ.get("ADMIN_USERNAME",  "admin")
-ADMIN_PASSWORD  = os.environ.get("ADMIN_PASSWORD",  "WedSy#01")
-WORKER_USERNAME = os.environ.get("WORKER_USERNAME", "worker")
-WORKER_PASSWORD = os.environ.get("WORKER_PASSWORD", "")
+# Credentials — set ALL of these in Render environment variables
+# No hardcoded defaults for security — app will reject login if not set
+ADMIN_USERNAME  = os.environ.get("ADMIN_USERNAME")
+ADMIN_PASSWORD  = os.environ.get("ADMIN_PASSWORD")
+WORKER_USERNAME = os.environ.get("WORKER_USERNAME")
+WORKER_PASSWORD = os.environ.get("WORKER_PASSWORD")
+
+if not ADMIN_USERNAME or not ADMIN_PASSWORD:
+    logging.warning("ADMIN_USERNAME or ADMIN_PASSWORD not set in environment variables!")
 
 with app.app_context():
     init_db(app)
@@ -393,11 +398,10 @@ def normalize_card_type(card_type_input, allowed_input=None):
     return "single", 1
 
 def get_next_visual_id(db_session, event_id=None):
-    """Return next available visual_id, scoped to event if given."""
-    q = db_session.query(func.max(Guest.visual_id))
-    if event_id is not None:
-        q = q.filter(Guest.event_id == event_id)
-    max_id = q.scalar()
+    """Return next globally unique visual_id.
+    visual_id has a DB-level unique constraint so we always use the global max,
+    regardless of event. event_id param kept for compatibility but ignored."""
+    max_id = db_session.query(func.max(Guest.visual_id)).scalar()
     return 1 if max_id is None else int(max_id) + 1
 
 def build_sms_message(guest, event=None) -> str:
@@ -673,14 +677,19 @@ def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-        if username == ADMIN_USERNAME and password == ADMIN_PASSWORD:
+        # Read fresh from env each login attempt
+        _admin_u = os.environ.get("ADMIN_USERNAME")
+        _admin_p = os.environ.get("ADMIN_PASSWORD")
+        _worker_u= os.environ.get("WORKER_USERNAME")
+        _worker_p= os.environ.get("WORKER_PASSWORD")
+        if _admin_u and _admin_p and username == _admin_u and password == _admin_p:
             session['logged_in'] = True
             session['role']      = 'admin'
             flash('Login successful.', 'success')
             return redirect(url_for('view_all'))
-        elif (WORKER_PASSWORD
-              and username == WORKER_USERNAME
-              and password == WORKER_PASSWORD):
+        elif (_worker_u and _worker_p
+              and username == _worker_u
+              and password == _worker_p):
             session['logged_in'] = True
             session['role']      = 'worker'
             flash('Logged in as worker.', 'success')
