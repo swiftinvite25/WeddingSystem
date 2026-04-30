@@ -37,7 +37,7 @@ from sqlalchemy.sql import func
 from sqlalchemy.exc import IntegrityError
 
 from supabase import create_client, Client
-from models import Guest, init_db, get_db_session
+from models import Guest, Event, init_db, get_db_session
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.units import mm
 from reportlab.lib import colors
@@ -93,12 +93,12 @@ QR_BUCKET     = os.getenv("SUPABASE_QR_BUCKET",    "qr-codes")
 CARDS_BUCKET  = os.getenv("SUPABASE_CARDS_BUCKET", "guest-cards")
 
 # ---------------------------------------------------------------------------
-# Event Configuration (set these in your .env file)
+# Default Event seed (used only when first event is auto-created from .env)
 # ---------------------------------------------------------------------------
-EVENT_WEDS_NAMES = os.getenv("EVENT_WEDS_NAMES", "the Bride & Groom")
-EVENT_DAY        = os.getenv("EVENT_DAY",        "Jumamosi")
-EVENT_DATE       = os.getenv("EVENT_DATE",       "TBD")
-EVENT_VENUE      = os.getenv("EVENT_VENUE",      "TBD")
+DEFAULT_WEDS_NAMES = os.getenv("EVENT_WEDS_NAMES", "the Bride & Groom")
+DEFAULT_EVENT_DAY  = os.getenv("EVENT_DAY",        "Jumamosi")
+DEFAULT_EVENT_DATE = os.getenv("EVENT_DATE",       "TBD")
+DEFAULT_EVENT_VENUE= os.getenv("EVENT_VENUE",      "TBD")
 
 supabase: Client = None
 if SUPABASE_URL and SUPABASE_KEY:
@@ -130,6 +130,24 @@ ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "WedSy#01")
 
 with app.app_context():
     init_db(app)
+
+
+@app.context_processor
+def inject_events():
+    """Make active_event_name and all_events available in every template."""
+    if not session.get('logged_in'):
+        return {}
+    try:
+        with get_db_session() as db:
+            ev  = get_active_event(db)
+            evs = db.query(Event).filter_by(is_active=True).order_by(Event.id).all()
+            all_evs = [{'id': e.id, 'name': e.name} for e in evs]
+            return {
+                'active_event_name': ev.name if ev else 'No Event',
+                'all_events':        all_evs,
+            }
+    except Exception:
+        return {}
 
 # ---------------------------------------------------------------------------
 # Card rendering constants  (1240 × 1748 px template)
@@ -372,24 +390,232 @@ def normalize_card_type(card_type_input, allowed_input=None):
         except ValueError: pass
     return "single", 1
 
-def get_next_visual_id(db_session):
-    max_id = db_session.query(func.max(Guest.visual_id)).scalar()
+def get_next_visual_id(db_session, event_id=None):
+    """Return next available visual_id, scoped to event if given."""
+    q = db_session.query(func.max(Guest.visual_id))
+    if event_id is not None:
+        q = q.filter(Guest.event_id == event_id)
+    max_id = q.scalar()
     return 1 if max_id is None else int(max_id) + 1
 
-def build_sms_message(guest) -> str:
+def build_sms_message(guest, event=None) -> str:
+    weds  = (event.weds_names  if event and event.weds_names  else DEFAULT_WEDS_NAMES) or ""
+    day   = (event.event_day   if event and event.event_day   else DEFAULT_EVENT_DAY)  or ""
+    date  = (event.event_date  if event and event.event_date  else DEFAULT_EVENT_DATE) or ""
+    venue = (event.event_venue if event and event.event_venue else DEFAULT_EVENT_VENUE)or ""
     return (
         f"MWALIKO\n"
         f"Habari {guest.name},\n"
         f"Umealikwa HARUSI ya:\n"
-        f"{EVENT_WEDS_NAMES.upper()}\n"
-        f"{EVENT_DAY.upper()}, {EVENT_DATE.upper()}\n"
+        f"{weds.upper()}\n"
+        f"{day.upper()}, {date.upper()}\n"
         f"Saa 12:00 Jioni\n"
-        f"{EVENT_VENUE.upper()}\n"
+        f"{venue.upper()}\n"
         f"\n"
         f"Kadi No: {guest.visual_id:04d} - {(guest.card_type or 'Single').title()}\n"
         f"Fika na kadi hii ukumbini.\n"
         f"Karibu sana! - SwiftInvite"
     )
+
+
+# ---------------------------------------------------------------------------
+# Event helpers — active event in session
+# ---------------------------------------------------------------------------
+
+def _seed_default_event(db):
+    """Create the default event from .env values if no events exist yet."""
+    import re
+    if db.query(Event).count() == 0:
+        slug = re.sub(r'[^a-z0-9]+', '-',
+                      DEFAULT_WEDS_NAMES.lower()).strip('-') or 'event-1'
+        ev = Event(
+            name          = DEFAULT_WEDS_NAMES,
+            slug          = slug,
+            weds_names    = DEFAULT_WEDS_NAMES,
+            event_day     = DEFAULT_EVENT_DAY,
+            event_date    = DEFAULT_EVENT_DATE,
+            event_venue   = DEFAULT_EVENT_VENUE,
+            storage_prefix= slug,
+            is_active     = True,
+            created_at    = now_eat(),
+        )
+        db.add(ev)
+        db.flush()
+        # Assign all existing guests to this event
+        db.query(Guest).filter(Guest.event_id.is_(None)).update(
+            {'event_id': ev.id}, synchronize_session=False
+        )
+        db.commit()
+        return ev
+    return None
+
+
+def get_active_event(db):
+    """Return the Event the user is currently working on.
+    Falls back to the first event if nothing is set in session."""
+    _seed_default_event(db)
+    eid = session.get('active_event_id')
+    ev  = None
+    if eid:
+        ev = db.get(Event, eid)
+    if not ev:
+        ev = db.query(Event).order_by(Event.id).first()
+        if ev:
+            session['active_event_id'] = ev.id
+    return ev
+
+
+def require_event(f):
+    """Decorator: ensure an active event is in session before entering route."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if not session.get('logged_in'):
+            return redirect(url_for('login'))
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            if not ev:
+                flash('Please create an event first.', 'warning')
+                return redirect(url_for('events_list'))
+        return f(*args, **kwargs)
+    return decorated
+
+
+# ---------------------------------------------------------------------------
+# Event management routes
+# ---------------------------------------------------------------------------
+
+@app.route('/events')
+@login_required
+def events_list():
+    with get_db_session() as db:
+        _seed_default_event(db)
+        events = db.query(Event).order_by(Event.id.desc()).all()
+        active = get_active_event(db)
+        # snapshot so objects are usable outside session
+        evs = [{
+            'id':           e.id,
+            'name':         e.name,
+            'slug':         e.slug,
+            'weds_names':   e.weds_names,
+            'event_day':    e.event_day,
+            'event_date':   e.event_date,
+            'event_venue':  e.event_venue,
+            'is_active':    e.is_active,
+            'guest_count':  db.query(Guest).filter_by(event_id=e.id).count(),
+        } for e in events]
+        active_id = active.id if active else None
+    return render_template('events.html', events=evs, active_id=active_id)
+
+
+@app.route('/events/new', methods=['GET', 'POST'])
+@login_required
+def event_new():
+    if request.method == 'POST':
+        import re
+        name   = request.form.get('name', '').strip()
+        if not name:
+            flash('Event name is required.', 'danger')
+            return redirect(url_for('event_new'))
+        slug_base = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+        with get_db_session() as db:
+            # Ensure slug is unique
+            slug = slug_base
+            counter = 1
+            while db.query(Event).filter_by(slug=slug).first():
+                slug = f"{slug_base}-{counter}"
+                counter += 1
+            ev = Event(
+                name           = name,
+                slug           = slug,
+                weds_names     = request.form.get('weds_names', '').strip(),
+                event_day      = request.form.get('event_day',  '').strip(),
+                event_date     = request.form.get('event_date', '').strip(),
+                event_venue    = request.form.get('event_venue','').strip(),
+                wa_phone_number_id   = request.form.get('wa_phone_number_id','').strip() or None,
+                wa_access_token      = request.form.get('wa_access_token','').strip() or None,
+                wa_template_name     = request.form.get('wa_template_name','event_invitation').strip() or 'event_invitation',
+                wa_template_language = request.form.get('wa_template_language','sw').strip() or 'sw',
+                at_username    = request.form.get('at_username','').strip() or None,
+                at_api_key     = request.form.get('at_api_key','').strip() or None,
+                at_sender_id   = request.form.get('at_sender_id','').strip() or None,
+                storage_prefix = slug,
+                is_active      = True,
+                created_at     = now_eat(),
+            )
+            db.add(ev)
+            db.commit()
+            db.refresh(ev)
+            session['active_event_id'] = ev.id
+            flash(f'Event "{name}" created and set as active.', 'success')
+        return redirect(url_for('events_list'))
+    return render_template('event_form.html', event=None, title='New Event')
+
+
+@app.route('/events/<int:event_id>/edit', methods=['GET', 'POST'])
+@login_required
+def event_edit(event_id):
+    with get_db_session() as db:
+        ev = db.get(Event, event_id)
+        if not ev:
+            flash('Event not found.', 'danger')
+            return redirect(url_for('events_list'))
+        if request.method == 'POST':
+            ev.name           = request.form.get('name', ev.name).strip()
+            ev.weds_names     = request.form.get('weds_names', '').strip()
+            ev.event_day      = request.form.get('event_day',  '').strip()
+            ev.event_date     = request.form.get('event_date', '').strip()
+            ev.event_venue    = request.form.get('event_venue','').strip()
+            ev.wa_phone_number_id   = request.form.get('wa_phone_number_id','').strip() or None
+            ev.wa_access_token      = request.form.get('wa_access_token','').strip() or None
+            ev.wa_template_name     = request.form.get('wa_template_name','event_invitation').strip() or 'event_invitation'
+            ev.wa_template_language = request.form.get('wa_template_language','sw').strip() or 'sw'
+            ev.at_username    = request.form.get('at_username','').strip() or None
+            ev.at_api_key     = request.form.get('at_api_key','').strip() or None
+            ev.at_sender_id   = request.form.get('at_sender_id','').strip() or None
+            db.commit()
+            flash(f'Event "{ev.name}" updated.', 'success')
+            return redirect(url_for('events_list'))
+        # Snapshot for template
+        ev_data = {
+            'id': ev.id, 'name': ev.name, 'slug': ev.slug,
+            'weds_names': ev.weds_names, 'event_day': ev.event_day,
+            'event_date': ev.event_date, 'event_venue': ev.event_venue,
+            'wa_phone_number_id': ev.wa_phone_number_id or '',
+            'wa_access_token': ev.wa_access_token or '',
+            'wa_template_name': ev.wa_template_name or 'event_invitation',
+            'wa_template_language': ev.wa_template_language or 'sw',
+            'at_username': ev.at_username or '',
+            'at_api_key': ev.at_api_key or '',
+            'at_sender_id': ev.at_sender_id or '',
+        }
+    return render_template('event_form.html', event=ev_data, title='Edit Event')
+
+
+@app.route('/events/<int:event_id>/switch')
+@login_required
+def event_switch(event_id):
+    with get_db_session() as db:
+        ev = db.get(Event, event_id)
+        if not ev:
+            flash('Event not found.', 'danger')
+        else:
+            session['active_event_id'] = ev.id
+            flash(f'Switched to: {ev.name}', 'success')
+    return redirect(request.referrer or url_for('view_all'))
+
+
+@app.route('/events/<int:event_id>/archive', methods=['POST'])
+@login_required
+def event_archive(event_id):
+    with get_db_session() as db:
+        ev = db.get(Event, event_id)
+        if ev:
+            ev.is_active = not ev.is_active
+            db.commit()
+            state = 'reactivated' if ev.is_active else 'archived'
+            flash(f'Event "{ev.name}" {state}.', 'success')
+    return redirect(url_for('events_list'))
+
 
 # ---------------------------------------------------------------------------
 # Auth
@@ -412,14 +638,18 @@ def login_required(f):
 @login_required
 def view_all():
     with get_db_session() as db:
-        guests  = db.query(Guest).order_by(Guest.visual_id).all()
+        ev      = get_active_event(db)
+        eid     = ev.id if ev else None
+        guests  = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
         missing = [g for g in guests if g.visual_id is None]
         for g in missing:
             g.visual_id = get_next_visual_id(db)
             db.add(g)
         if missing:
             db.commit()
-    return render_template('guests.html', guests=guests, current_environment=flask_env)
+        ev_name = ev.name if ev else "No Event"
+    return render_template('guests.html', guests=guests,
+                           current_environment=flask_env, active_event_name=ev_name)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -459,7 +689,8 @@ def add_guest():
                 flash(f"Guest with phone {phone} already exists.", "warning")
                 return redirect(url_for('add_guest'))
 
-            visual_id = get_next_visual_id(db)
+            ev        = get_active_event(db)
+            visual_id = get_next_visual_id(db, ev.id if ev else None)
             qr_id     = f"GUEST-{visual_id:04d}"
             try:
                 qr_bytes = generate_qr_bytes(qr_id)
@@ -470,9 +701,12 @@ def add_guest():
                 current_app.logger.warning(f"QR upload failed: {e}")
                 qr_url = ""
 
+            ev = get_active_event(db)
             db.add(Guest(name=name, phone=phone, qr_code_id=qr_id,
                          qr_code_url=qr_url, visual_id=visual_id,
-                         card_type=card_type, group_size=group_size, checked_in_count=0))
+                         card_type=card_type, group_size=group_size,
+                         checked_in_count=0,
+                         event_id=ev.id if ev else None))
             db.commit()
             flash(f"Guest '{name or phone}' added. Card: {card_type.title()}, "
                   f"entries: {group_size}.", "success")
@@ -509,6 +743,8 @@ def upload_csv():
             return "single"
 
         with get_db_session() as db:
+            ev  = get_active_event(db)
+            eid = ev.id if ev else None
             for row in reader:
                 name      = get_row(row, "name", "Name")
                 raw_phone = get_row(row, "phone", "Phone")
@@ -527,10 +763,10 @@ def upload_csv():
                     except Exception:
                         group_size = 1
 
-                if db.query(Guest).filter_by(phone=phone).first():
+                if db.query(Guest).filter_by(phone=phone, event_id=eid).first():
                     skipped += 1; continue
 
-                visual_id = get_next_visual_id(db)
+                visual_id = get_next_visual_id(db, eid)
                 qr_id     = f"GUEST-{visual_id:04d}"
                 qr_fname  = f"{qr_id}-{get_safe_filename_name_part(name or 'GUEST')}.png"
                 try:
@@ -544,7 +780,7 @@ def upload_csv():
                 db.add(Guest(name=name, phone=phone, qr_code_id=qr_id,
                              qr_code_url=qr_url, visual_id=visual_id,
                              card_type=card_type, group_size=group_size,
-                             checked_in_count=0))
+                             checked_in_count=0, event_id=eid))
                 db.flush()
                 added += 1
             db.commit()
@@ -599,12 +835,14 @@ def update_status():
 def search_guests():
     query = request.args.get('q', '').strip()
     with get_db_session() as db:
+        ev  = get_active_event(db)
+        eid = ev.id if ev else None
         if query:
-            guests = db.query(Guest).filter(
+            guests = db.query(Guest).filter(Guest.event_id == eid).filter(
                 (Guest.name.ilike(f'%{query}%')) | (Guest.phone.ilike(f'%{query}%'))
             ).order_by(Guest.visual_id).all()
         else:
-            guests = db.query(Guest).order_by(Guest.visual_id).all()
+            guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
 
         return jsonify([{
             "id": g.id,                          # ← ADD THIS
@@ -625,7 +863,9 @@ def search_guests():
 @login_required
 def download_excel():
     with get_db_session() as db:
-        guests = db.query(Guest).all()
+        ev     = get_active_event(db)
+        eid    = ev.id if ev else None
+        guests = db.query(Guest).filter_by(event_id=eid).all()
 
     def ct(g): return (g.card_type or "").strip().lower()
     total_guests         = len(guests)
@@ -693,7 +933,9 @@ def export_guests_simple():
     """Export a simple guest list (Card No, Name, Phone, Card Type) as CSV or PDF."""
     fmt = request.args.get('format', 'pdf').lower()
     with get_db_session() as db:
-        guests = db.query(Guest).order_by(Guest.visual_id).all()
+        ev     = get_active_event(db)
+        eid    = ev.id if ev else None
+        guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
         rows = [
             (f"{g.visual_id:04d}", g.name or '', g.phone or '', (g.card_type or '').title())
             for g in guests
@@ -766,7 +1008,9 @@ def export_guests_simple():
 @login_required
 def zip_qr_codes_web():
     with get_db_session() as db:
-        guests = db.query(Guest).all()
+        ev     = get_active_event(db)
+        eid    = ev.id if ev else None
+        guests = db.query(Guest).filter_by(event_id=eid).all()
     buf = BytesIO()
     with zipfile.ZipFile(buf, 'w') as zf:
         for guest in guests:
@@ -871,7 +1115,9 @@ def delete_guest(guest_id):
 def regenerate_qr_codes():
     with get_db_session() as db:
         try:
-            guests = db.query(Guest).all()
+            ev     = get_active_event(db)
+            eid    = ev.id if ev else None
+            guests = db.query(Guest).filter_by(event_id=eid).all()
             for guest in guests:
                 if guest.visual_id is None:
                     guest.visual_id = get_next_visual_id(db)
@@ -906,7 +1152,9 @@ def generate_guest_cards():
         return jsonify(success=False, error=str(e)), 500
 
     with get_db_session() as db:
-        guests = db.query(Guest).order_by(Guest.visual_id).all()
+        ev     = get_active_event(db)
+        eid    = ev.id if ev else None
+        guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
         ids    = [g.visual_id for g in guests if g.qr_code_url]
     return jsonify(success=True, visual_ids=ids, total=len(ids))
 
@@ -985,7 +1233,9 @@ def download_all_cards():
             return redirect(url_for('view_all'))
 
         with get_db_session() as db:
-            guests = db.query(Guest).order_by(Guest.visual_id).all()
+            ev     = get_active_event(db)
+            eid    = ev.id if ev else None
+            guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
             # Snapshot all data we need while session is open
             guest_snapshots = [
                 {
@@ -1065,7 +1315,9 @@ def download_all_cards():
 @login_required
 def guest_report_data():
     with get_db_session() as db:
-        guests = db.query(Guest).order_by(Guest.visual_id).all()
+        ev     = get_active_event(db)
+        eid    = ev.id if ev else None
+        guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
  
     # ── full dict — used by internal guest_report.html (includes rsvp_status) ──
     def g_dict(g):
@@ -1127,13 +1379,15 @@ def guest_report():
 def clear_all_data():
     with get_db_session() as db:
         try:
-            guests = db.query(Guest).all()
+            ev  = get_active_event(db)
+            eid = ev.id if ev else None
+            guests = db.query(Guest).filter_by(event_id=eid).all()
             for guest in guests:
                 delete_from_supabase(QR_BUCKET,    qr_filename_from_guest(guest))
                 delete_from_supabase(CARDS_BUCKET, card_filename_from_guest(guest))
-            num_deleted = db.query(Guest).delete()
+            num_deleted = db.query(Guest).filter_by(event_id=eid).delete()
             db.commit()
-            flash(f"Successfully deleted {num_deleted} guests.", "success")
+            flash(f"Successfully deleted {num_deleted} guests from this event.", "success")
         except Exception as e:
             db.rollback()
             flash(f"An error occurred while clearing data: {e}", "danger")
@@ -1210,7 +1464,7 @@ def _handle_rsvp(from_number: str, button_text: str):
 # UNIFIED SEND ENGINE
 # ===========================================================================
 
-def _send_to_guest(guest, db, send_wa=True, send_sms=True):
+def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
     """
     Deliver invitation to one guest.
 
@@ -1307,7 +1561,7 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True):
             messages.append("SMS: Africa's Talking not configured.")
         else:
             try:
-                sms_result = at_send_sms(phone, build_sms_message(guest))
+                sms_result = at_send_sms(phone, build_sms_message(guest, event=event))
                 if sms_result.get("success"):
                     guest.at_sms_sent    = True
                     guest.at_sms_error   = None
@@ -1356,7 +1610,8 @@ def send_unified_single(guest_id):
         guest = db.get(Guest, guest_id)
         if not guest:
             return jsonify(success=False, message="Guest not found.")
-        result = _send_to_guest(guest, db, send_wa=True, send_sms=True)
+        ev     = get_active_event(db)
+        result = _send_to_guest(guest, db, send_wa=True, send_sms=True, event=ev)
         return jsonify(success=(result["overall"] != "failed"),
                        overall=result["overall"], wa=result["wa"],
                        sms=result["sms"], message=result["message"],
@@ -1372,17 +1627,22 @@ def send_unified_bulk():
     resend = data.get('resend', False)
     with get_db_session() as db:
         if resend:
-            guests = db.query(Guest).order_by(Guest.visual_id).all()
+            ev  = get_active_event(db)
+            eid = ev.id if ev else None
+            guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
         else:
+            ev  = get_active_event(db)
+            eid = ev.id if ev else None
             guests = db.query(Guest).filter(
-                ((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)) &
+                Guest.event_id == eid,
+                ((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)),
                 ((Guest.at_sms_sent   == False) | (Guest.at_sms_sent   == None))
             ).order_by(Guest.visual_id).all()
 
         totals = {"total": len(guests), "wa_sent": 0, "wa_failed": 0,
                   "sms_sent": 0, "sms_failed": 0, "errors": []}
         for guest in guests:
-            result = _send_to_guest(guest, db, send_wa=True, send_sms=True)
+            result = _send_to_guest(guest, db, send_wa=True, send_sms=True, event=ev)
             if result["wa"]  == "sent":                  totals["wa_sent"]    += 1
             elif result["wa"]  in ("failed", "invalid"): totals["wa_failed"]  += 1
             if result["sms"] == "sent":                  totals["sms_sent"]   += 1
@@ -1402,7 +1662,7 @@ def send_card_single(guest_id):
         guest = db.get(Guest, guest_id)
         if not guest:
             return jsonify(success=False, message="Guest not found.")
-        result = _send_to_guest(guest, db, send_wa=True, send_sms=False)
+        result = _send_to_guest(guest, db, send_wa=True, send_sms=False, event=ev)
         return jsonify(success=(result["wa"] == "sent"),
                        message=result["message"], guest_id=guest_id)
 
@@ -1416,16 +1676,21 @@ def send_cards_bulk():
     resend = data.get('resend', False)
     with get_db_session() as db:
         if resend:
-            guests = db.query(Guest).order_by(Guest.visual_id).all()
+            ev  = get_active_event(db)
+            eid = ev.id if ev else None
+            guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
         else:
+            ev  = get_active_event(db)
+            eid = ev.id if ev else None
             guests = db.query(Guest).filter(
+                Guest.event_id == eid,
                 (Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)
             ).order_by(Guest.visual_id).all()
 
         sent = failed = 0
         errors = []
         for guest in guests:
-            result = _send_to_guest(guest, db, send_wa=True, send_sms=False)
+            result = _send_to_guest(guest, db, send_wa=True, send_sms=False, event=ev)
             if result["wa"] == "sent":
                 sent += 1
             else:
@@ -1445,7 +1710,8 @@ def send_at_sms_single(guest_id):
         guest = db.get(Guest, guest_id)
         if not guest:
             return jsonify(success=False, message="Guest not found."), 404
-        result = _send_to_guest(guest, db, send_wa=False, send_sms=True)
+        ev     = get_active_event(db)
+        result = _send_to_guest(guest, db, send_wa=False, send_sms=True, event=ev)
         return jsonify(success=(result["sms"] == "sent"),
                        message=result["message"])
 
@@ -1459,16 +1725,21 @@ def send_at_sms_bulk():
     resend = data.get("resend", False)
     with get_db_session() as db:
         if resend:
-            guests = db.query(Guest).all()
+            ev  = get_active_event(db)
+            eid = ev.id if ev else None
+            guests = db.query(Guest).filter_by(event_id=eid).all()
         else:
+            ev  = get_active_event(db)
+            eid = ev.id if ev else None
             guests = db.query(Guest).filter(
+                Guest.event_id == eid,
                 (Guest.at_sms_sent == None) | (Guest.at_sms_sent == False)
             ).all()
 
         sent_count = failed_count = 0
         errors = []
         for guest in guests:
-            result = _send_to_guest(guest, db, send_wa=False, send_sms=True)
+            result = _send_to_guest(guest, db, send_wa=False, send_sms=True, event=ev)
             if result["sms"] == "sent":
                 sent_count += 1
             else:
@@ -1486,7 +1757,9 @@ def send_at_sms_bulk():
 @login_required
 def send_cards():
     with get_db_session() as db:
-        guests = db.query(Guest).order_by(Guest.visual_id).all()
+        ev     = get_active_event(db)
+        eid    = ev.id if ev else None
+        guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
         total         = len(guests)
         sent          = sum(1 for g in guests if g.whatsapp_sent)
         failed        = sum(1 for g in guests if g.whatsapp_error and not g.whatsapp_sent)
@@ -1558,7 +1831,9 @@ def download_client_report():
     from reportlab.lib.enums import TA_CENTER
  
     with get_db_session() as db:
-        guests = db.query(Guest).order_by(Guest.visual_id).all()
+        ev     = get_active_event(db)
+        eid    = ev.id if ev else None
+        guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
  
     total         = len(guests)
     # A guest counts as entered if ANY scan has occurred (checked_in_count >= 1)

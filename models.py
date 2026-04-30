@@ -1,33 +1,50 @@
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+from sqlalchemy.orm import sessionmaker, relationship
 from contextlib import contextmanager
 
 Base = declarative_base()
 
-_engine = None
+_engine       = None
 _SessionLocal = None
 
 
 def init_db(app_or_db_uri):
     global _engine, _SessionLocal
 
-    if isinstance(app_or_db_uri, str):
-        uri = app_or_db_uri
-    else:
-        uri = app_or_db_uri.config.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///site.db')
+    uri = (app_or_db_uri if isinstance(app_or_db_uri, str)
+           else app_or_db_uri.config.get('SQLALCHEMY_DATABASE_URI', 'sqlite:///site.db'))
 
     connect_args = {"check_same_thread": False} if uri.startswith("sqlite") else {}
 
-    _engine = create_engine(
-        uri,
-        connect_args=connect_args,
-        pool_pre_ping=True,
-        pool_recycle=300,
-    )
+    _engine = create_engine(uri, connect_args=connect_args,
+                             pool_pre_ping=True, pool_recycle=300)
     _SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=_engine)
     Base.metadata.create_all(_engine)
+
+    # ── safe migration: add new columns if they don't exist yet ──────────
+    _run_migrations(_engine)
+
+
+def _run_migrations(engine):
+    """Idempotent column additions so existing DBs are upgraded safely."""
+    from sqlalchemy import inspect, text
+    inspector = inspect(engine)
+    with engine.connect() as conn:
+
+        # ── guests table: add event_id if missing ─────────────────────────
+        guest_cols = {c['name'] for c in inspector.get_columns('guests')}
+        if 'event_id' not in guest_cols:
+            try:
+                conn.execute(text(
+                    "ALTER TABLE guests ADD COLUMN event_id INTEGER REFERENCES events(id)"
+                ))
+                conn.commit()
+            except Exception:
+                conn.rollback()
+
+        # ── events table is created by Base.metadata.create_all already ───
+        # Nothing else needed for now.
 
 
 @contextmanager
@@ -44,50 +61,97 @@ def get_db_session():
         session.close()
 
 
+# ──────────────────────────────────────────────────────────────────────────────
+# Event model
+# ──────────────────────────────────────────────────────────────────────────────
+
+class Event(Base):
+    __tablename__ = 'events'
+
+    id         = Column(Integer, primary_key=True)
+    name       = Column(String, nullable=False)          # e.g. "Paul & Grace Wedding"
+    slug       = Column(String, unique=True, nullable=False)  # e.g. "paul-grace-2026"
+
+    # Couple / event details (mirrors old .env vars — now per-event)
+    weds_names = Column(String, nullable=True)
+    event_day  = Column(String, nullable=True)           # e.g. "Jumamosi"
+    event_date = Column(String, nullable=True)           # e.g. "25 Aprili 2026"
+    event_venue= Column(String, nullable=True)
+
+    # Per-event WhatsApp config (optional overrides; falls back to global env)
+    wa_phone_number_id   = Column(String, nullable=True)
+    wa_access_token      = Column(String, nullable=True)
+    wa_template_name     = Column(String, nullable=True, default="event_invitation")
+    wa_template_language = Column(String, nullable=True, default="sw")
+
+    # Per-event Africa's Talking config (optional overrides)
+    at_username  = Column(String, nullable=True)
+    at_api_key   = Column(String, nullable=True)
+    at_sender_id = Column(String, nullable=True)
+
+    # Per-event Supabase storage prefix (keeps files separate per event)
+    storage_prefix = Column(String, nullable=True)  # e.g. "paul-grace-2026"
+
+    # Status
+    is_active   = Column(Boolean, default=True)
+    created_at  = Column(DateTime, nullable=True)
+
+    # Relationship
+    guests = relationship("Guest", back_populates="event",
+                          cascade="all, delete-orphan")
+
+    def __repr__(self):
+        return f"<Event(id={self.id}, name='{self.name}', slug='{self.slug}')>"
+
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Guest model  (unchanged columns + new event_id FK)
+# ──────────────────────────────────────────────────────────────────────────────
+
 class Guest(Base):
     __tablename__ = 'guests'
 
-    id = Column(Integer, primary_key=True)
-    name = Column(String, nullable=False, default="")
-    phone = Column(String, nullable=False, default="")
+    id         = Column(Integer, primary_key=True)
+    event_id   = Column(Integer, ForeignKey('events.id'), nullable=True, index=True)
+
+    name       = Column(String, nullable=False, default="")
+    phone      = Column(String, nullable=False, default="")
     qr_code_id = Column(String, unique=True, nullable=False)
-    qr_code_url = Column(String, nullable=True)
-    has_entered = Column(Boolean, default=False)
+    qr_code_url= Column(String, nullable=True)
+    has_entered= Column(Boolean, default=False)
     entry_time = Column(DateTime, nullable=True)
-    visual_id = Column(Integer, unique=True, nullable=True)
-    card_type = Column(String, default='single', nullable=False)
+    visual_id  = Column(Integer, nullable=True)
+    card_type  = Column(String, default='single', nullable=False)
     group_size = Column(Integer, default=1)
     checked_in_count = Column(Integer, default=0)
 
     # WhatsApp delivery tracking
-    whatsapp_sent = Column(Boolean, default=False)
-    whatsapp_sent_at = Column(DateTime, nullable=True)
-    whatsapp_error = Column(String, nullable=True)
+    whatsapp_sent      = Column(Boolean, default=False)
+    whatsapp_sent_at   = Column(DateTime, nullable=True)
+    whatsapp_error     = Column(String, nullable=True)
+    has_whatsapp       = Column(Boolean, nullable=True)
+    whatsapp_checked_at= Column(DateTime, nullable=True)
 
-    # WhatsApp number validation
-    has_whatsapp = Column(Boolean, nullable=True)       # None=unchecked, True/False=checked
-    whatsapp_checked_at = Column(DateTime, nullable=True)
+    # RSVP
+    rsvp_status = Column(String, nullable=True)
+    rsvp_at     = Column(DateTime, nullable=True)
 
-    # RSVP tracking
-    rsvp_status = Column(String, nullable=True)         # 'attending' | 'not_attending' | None
-    rsvp_at = Column(DateTime, nullable=True)
-
-    # Legacy SMS tracking (kept for backward compatibility — not actively used)
-    sms_sent = Column(Boolean, default=False)
+    # SMS (legacy)
+    sms_sent    = Column(Boolean, default=False)
     sms_sent_at = Column(DateTime, nullable=True)
-    sms_error = Column(String, nullable=True)
+    sms_error   = Column(String, nullable=True)
 
-    # Africa's Talking SMS tracking
-    at_sms_sent = Column(Boolean, default=False)
-    at_sms_error = Column(String, nullable=True)
+    # Africa's Talking SMS
+    at_sms_sent    = Column(Boolean, default=False)
+    at_sms_error   = Column(String, nullable=True)
     at_sms_sent_at = Column(DateTime, nullable=True)
 
+    # Relationship
+    event = relationship("Event", back_populates="guests")
+
     def __repr__(self):
-        return (
-            f"<Guest(id={self.id}, visual_id={self.visual_id}, name='{self.name}', "
-            f"card_type='{self.card_type}', whatsapp_sent={self.whatsapp_sent}, "
-            f"has_whatsapp={self.has_whatsapp}, rsvp={self.rsvp_status})>"
-        )
+        return (f"<Guest(id={self.id}, visual_id={self.visual_id}, "
+                f"name='{self.name}', event_id={self.event_id})>")
 
     def save(self, session):
         session.add(self)

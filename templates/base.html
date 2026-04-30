@@ -11,7 +11,64 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css">
   </head>
   <body class="bg-light">
-    <div class="container py-5">
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-success mb-4">
+      <div class="container">
+        <a class="navbar-brand fw-bold" href="/">🎉 SwiftInvite</a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('view_all') }}">Guests</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('send_cards') }}">Send Cards</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('guest_report') }}">Report</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('scan_qr') }}">Scan QR</a>
+            </li>
+          </ul>
+          <!-- Event switcher -->
+          <ul class="navbar-nav ms-auto align-items-center">
+            {% if session.get('logged_in') %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle text-warning fw-bold" href="#"
+                 data-bs-toggle="dropdown">
+                📅 {{ active_event_name | default('Select Event') }}
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item fw-bold text-success"
+                        href="{{ url_for('events_list') }}">Manage Events</a></li>
+                <li><hr class="dropdown-divider"></li>
+                {% for ev in all_events | default([]) %}
+                <li>
+                  <a class="dropdown-item {% if ev.id == session.get('active_event_id') %}fw-bold{% endif %}"
+                     href="{{ url_for('event_switch', event_id=ev.id) }}">
+                    {% if ev.id == session.get('active_event_id') %}✓ {% endif %}
+                    {{ ev.name }}
+                  </a>
+                </li>
+                {% endfor %}
+                {% if not all_events %}
+                <li><a class="dropdown-item text-muted" href="{{ url_for('event_new') }}">+ Create first event</a></li>
+                {% endif %}
+              </ul>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link text-white-50" href="{{ url_for('logout') }}">Logout</a>
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
+    <div class="container">
       {% with messages = get_flashed_messages(with_categories=true) %} {% if
       messages %} {% for category, message in messages %}
       <div

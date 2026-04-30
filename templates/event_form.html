@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+  <h2>{{ title }}</h2>
+  <a href="{{ url_for('events_list') }}" class="btn btn-outline-secondary">← Back to Events</a>
+</div>
+
+<form method="POST" class="card p-4 shadow-sm">
+  <h5 class="mb-3 text-success">Event Details</h5>
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <label class="form-label">Event Name <span class="text-danger">*</span></label>
+      <input type="text" name="name" class="form-control" required
+             value="{{ event.name if event else '' }}"
+             placeholder="e.g. Paul & Grace Wedding">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">Couple Names (for SMS/cards)</label>
+      <input type="text" name="weds_names" class="form-control"
+             value="{{ event.weds_names if event else '' }}"
+             placeholder="e.g. PAUL J. MISALABA & GRACE MAHEWA">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Day</label>
+      <input type="text" name="event_day" class="form-control"
+             value="{{ event.event_day if event else '' }}"
+             placeholder="e.g. Jumamosi">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Date</label>
+      <input type="text" name="event_date" class="form-control"
+             value="{{ event.event_date if event else '' }}"
+             placeholder="e.g. 25 Aprili 2026">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Venue</label>
+      <input type="text" name="event_venue" class="form-control"
+             value="{{ event.event_venue if event else '' }}"
+             placeholder="e.g. NEXUS HALL KIBAHA">
+    </div>
+  </div>
+
+  <h5 class="mb-3 text-primary">WhatsApp Config <small class="text-muted fs-6">(leave blank to use global .env values)</small></h5>
+  <div class="row g-3 mb-4">
+    <div class="col-md-6">
+      <label class="form-label">WhatsApp Phone Number ID</label>
+      <input type="text" name="wa_phone_number_id" class="form-control"
+             value="{{ event.wa_phone_number_id if event else '' }}"
+             placeholder="From Meta Business Dashboard">
+    </div>
+    <div class="col-md-6">
+      <label class="form-label">WhatsApp Access Token</label>
+      <input type="password" name="wa_access_token" class="form-control"
+             value="{{ event.wa_access_token if event else '' }}"
+             placeholder="Leave blank to keep existing">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Template Name</label>
+      <input type="text" name="wa_template_name" class="form-control"
+             value="{{ event.wa_template_name if event else 'event_invitation' }}">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Template Language</label>
+      <input type="text" name="wa_template_language" class="form-control"
+             value="{{ event.wa_template_language if event else 'sw' }}">
+    </div>
+  </div>
+
+  <h5 class="mb-3 text-warning">SMS Config (Africa's Talking) <small class="text-muted fs-6">(leave blank to use global .env values)</small></h5>
+  <div class="row g-3 mb-4">
+    <div class="col-md-4">
+      <label class="form-label">AT Username</label>
+      <input type="text" name="at_username" class="form-control"
+             value="{{ event.at_username if event else '' }}"
+             placeholder="Your AT username">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">AT API Key</label>
+      <input type="password" name="at_api_key" class="form-control"
+             value="{{ event.at_api_key if event else '' }}"
+             placeholder="Leave blank to keep existing">
+    </div>
+    <div class="col-md-4">
+      <label class="form-label">Sender ID</label>
+      <input type="text" name="at_sender_id" class="form-control"
+             value="{{ event.at_sender_id if event else '' }}"
+             placeholder="e.g. SwiftInvite">
+    </div>
+  </div>
+
+  <div class="d-flex gap-2">
+    <button type="submit" class="btn btn-success px-4">
+      {{ 'Save Changes' if event else 'Create Event' }}
+    </button>
+    <a href="{{ url_for('events_list') }}" class="btn btn-outline-secondary">Cancel</a>
+  </div>
+</form>
+{% endblock %}
