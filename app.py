@@ -974,14 +974,14 @@ def search_guests():
             guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
 
         return jsonify([{
-            "id": g.id,                          # ← ADD THIS
+            "id": g.id,
             "visual_id": g.visual_id,
             "name": g.name,
             "phone": g.phone,
             "qr_code_url": g.qr_code_url,
             "has_entered": g.has_entered,
-            "checked_in_count": g.checked_in_count,   # ← ADD THIS
-            "group_size": g.group_size,               # ← ADD THIS
+            "checked_in_count": g.checked_in_count,
+            "group_size": g.group_size,
             "entry_time": g.entry_time.strftime('%Y-%m-%d %H:%M:%S') if g.entry_time else 'N/A',
             "card_type": g.card_type
         } for g in guests])
@@ -1160,7 +1160,7 @@ def zip_qr_codes_web():
 def edit_guest(guest_id):
     with get_db_session() as db:
         try:
-            guest = db.query(Guest).filter(Guest.id == guest_id).first()  # ← fix here
+            guest = db.query(Guest).filter(Guest.id == guest_id).first()
             if not guest:
                 flash("Guest not found.", "danger")
                 return redirect(url_for('view_all'))
@@ -1220,7 +1220,6 @@ def scan_guests_data():
         guests = db.query(Guest).filter_by(event_id=eid).all()
         data = {}
         for g in guests:
-            # Index by qr_code_id (for QR scan) AND by visual_id (for card number)
             entry = {
                 'id':               g.id,
                 'name':             g.name or '',
@@ -1356,7 +1355,6 @@ def download_card_by_id(visual_id):
                 flash("Card template missing.", "danger")
                 return redirect(url_for('view_all'))
 
-            # Fallback to regenerating QR if name was edited and old file is gone
             try:
                 qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
             except Exception:
@@ -1381,8 +1379,8 @@ def download_card_by_id(visual_id):
 @login_required
 def download_all_cards():
     """
-    Regenerates every guest card on the fly (same as individual download)
-    and bundles them into a ZIP. Does NOT rely on Supabase storage.
+    Regenerates every guest card on the fly and bundles them into a ZIP.
+    Uses per-event card template if available.
     """
     try:
         if not os.path.exists(os.path.join("static", "Card Template.jpg")):
@@ -1407,6 +1405,8 @@ def download_all_cards():
                 }
                 for g in guests
             ]
+            # Fetch event template bytes once (outside the per-guest loop)
+            event_template_bytes = _get_event_template_bytes(ev)
 
         if not guest_snapshots:
             flash("No guests found.", "warning")
@@ -1419,7 +1419,6 @@ def download_all_cards():
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
             for snap in guest_snapshots:
                 try:
-                    # Fetch QR — fall back to regenerating if not in storage
                     try:
                         qr_data = download_from_supabase(QR_BUCKET, snap["qr_filename"])
                     except Exception:
@@ -1435,9 +1434,8 @@ def download_all_cards():
                     g.card_type  = snap["card_type"]
                     g.group_size = snap["group_size"]
 
-                    qr_img         = Image.open(BytesIO(qr_data))
-                    tmpl_bytes     = _get_event_template_bytes(ev_obj) if 'ev_obj' in dir() else None
-                    card           = _draw_card(g, qr_img, template_bytes=tmpl_bytes)
+                    qr_img = Image.open(BytesIO(qr_data))
+                    card   = _draw_card(g, qr_img, template_bytes=event_template_bytes)
                     buf    = BytesIO()
                     card.save(buf, format="JPEG", quality=92)
                     zf.writestr(snap["card_fname"], buf.getvalue())
@@ -1476,8 +1474,7 @@ def guest_report_data():
         ev     = get_active_event(db)
         eid    = ev.id if ev else None
         guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
- 
-    # ── full dict — used by internal guest_report.html (includes rsvp_status) ──
+
     def g_dict(g):
         return {
             "name":             g.name,
@@ -1488,10 +1485,8 @@ def guest_report_data():
             "rsvp_status":      g.rsvp_status,
             "entry_time":       g.entry_time.strftime('%H:%M') if g.entry_time else None,
         }
- 
+
     total       = len(guests)
-    # A guest counts as entered if ANY scan has occurred (checked_in_count >= 1)
-    # This ensures double cards scanned once still appear as checked-in
     entered     = [g for g in guests if (g.checked_in_count or 0) >= 1]
     not_entered = [g for g in guests if (g.checked_in_count or 0) == 0]
     attending   = [g for g in guests if g.rsvp_status == 'attending']
@@ -1500,7 +1495,7 @@ def guest_report_data():
     wa_sent     = [g for g in guests if g.whatsapp_sent]
     wa_pending  = [g for g in guests if not g.whatsapp_sent]
     sms_sent    = [g for g in guests if g.at_sms_sent]
- 
+
     return jsonify({
         "total_guests":       total,
         "single_cards":       sum(1 for g in guests if (g.card_type or '') == 'single'),
@@ -1514,7 +1509,6 @@ def guest_report_data():
         "wa_sent":            len(wa_sent),
         "wa_pending":         len(wa_pending),
         "sms_sent":           len(sms_sent),
-        # lists (with rsvp_status — for internal report only)
         "entered_list":       [g_dict(g) for g in entered],
         "not_entered_list":   [g_dict(g) for g in not_entered],
         "attending_list":     [g_dict(g) for g in attending],
@@ -1523,8 +1517,8 @@ def guest_report_data():
         "wa_sent_list":       [g_dict(g) for g in wa_sent],
         "wa_pending_list":    [g_dict(g) for g in wa_pending],
     })
- 
- 
+
+
 @app.route('/guest_report')
 @login_required
 def guest_report():
@@ -1630,6 +1624,7 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
     ----------
     send_wa  : bool  — attempt WhatsApp delivery
     send_sms : bool  — attempt Africa's Talking SMS delivery
+    event    : Event — active event; used for per-event WA template + SMS copy
 
     Returns
     -------
@@ -1675,7 +1670,26 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
             if not card_bytes:
                 raise ValueError("Could not retrieve or generate card image.")
 
+            # ── Resolve per-event WhatsApp credentials ────────────────────
+            # Each field falls back to the global env var if the event has no override.
+            wa_template_name     = (event.wa_template_name     if event and event.wa_template_name
+                                    else None)
+            wa_template_language = (event.wa_template_language if event and event.wa_template_language
+                                    else None)
+            wa_phone_number_id   = (event.wa_phone_number_id   if event and event.wa_phone_number_id
+                                    else None)
+            wa_access_token      = (event.wa_access_token      if event and event.wa_access_token
+                                    else None)
+
+            print(
+                f"[WA DEBUG] Using template='{wa_template_name or 'DEFAULT'}' "
+                f"lang='{wa_template_language or 'DEFAULT'}' "
+                f"phone_id='{wa_phone_number_id or 'ENV'}' "
+                f"token={'CUSTOM' if wa_access_token else 'ENV'}",
+                flush=True,
+            )
             print(f"[WA DEBUG] Calling send_guest_card...", flush=True)
+
             wa_result = send_guest_card(
                 to=phone,
                 guest_name=guest.name or "Guest",
@@ -1683,6 +1697,11 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
                 card_type=guest.card_type,
                 image_bytes=card_bytes,
                 filename=card_fname,
+                # ── per-event overrides (None = use whatsapp.py defaults) ──
+                template_name=wa_template_name,
+                template_language=wa_template_language,
+                phone_number_id=wa_phone_number_id,
+                access_token=wa_access_token,
             )
             print(f"[WA DEBUG] send_guest_card result: {wa_result}", flush=True)
 
@@ -1988,14 +2007,13 @@ def download_client_report():
     )
     from reportlab.lib.styles import ParagraphStyle
     from reportlab.lib.enums import TA_CENTER
- 
+
     with get_db_session() as db:
         ev     = get_active_event(db)
         eid    = ev.id if ev else None
         guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
- 
+
     total         = len(guests)
-    # A guest counts as entered if ANY scan has occurred (checked_in_count >= 1)
     entered       = [g for g in guests if (g.checked_in_count or 0) >= 1]
     not_entered   = [g for g in guests if (g.checked_in_count or 0) == 0]
     single_count  = sum(1 for g in guests if (g.card_type or '') == 'single')
@@ -2003,8 +2021,7 @@ def download_client_report():
     family_count  = sum(1 for g in guests if (g.card_type or '') == 'family')
     total_allowed = sum(g.group_size or 1 for g in guests)
     generated_at  = now_eat().strftime("%d %B %Y, %H:%M")
- 
-    # ── colours ──────────────────────────────────────────────────────────────
+
     C_GREEN  = colors.HexColor("#185a3f")
     C_GOLD   = colors.HexColor("#c9a84c")
     C_RED    = colors.HexColor("#dc2626")
@@ -2014,19 +2031,19 @@ def download_client_report():
     C_INK    = colors.HexColor("#1f2937")
     C_WHITE  = colors.white
     C_ROW2   = colors.HexColor("#fafafa")
- 
-    W = A4[0] - 40 * mm   # usable content width
- 
+
+    W = A4[0] - 40 * mm
+
     def ps(name, **kw):
         return ParagraphStyle(name, **kw)
- 
+
     S_TITLE  = ps('tt', fontName='Helvetica-Bold', fontSize=22, textColor=C_GREEN,  alignment=TA_CENTER, spaceAfter=3)
     S_META   = ps('me', fontName='Helvetica',      fontSize=8,  textColor=C_GREY,   alignment=TA_CENTER, spaceAfter=12)
     S_SEC    = ps('se', fontName='Helvetica-Bold', fontSize=12, textColor=C_GREEN,  spaceBefore=14, spaceAfter=5)
     S_CELL   = ps('ce', fontName='Helvetica',      fontSize=8.5, textColor=C_INK,   leading=12)
     S_CELL_B = ps('cb', fontName='Helvetica-Bold', fontSize=8.5, textColor=C_INK,   leading=12)
     S_HEAD   = ps('hd', fontName='Helvetica-Bold', fontSize=8,  textColor=C_WHITE,  alignment=TA_CENTER)
- 
+
     def stat_table(items):
         cw = W / len(items)
         data = [[
@@ -2047,7 +2064,7 @@ def download_client_report():
             ('ALIGN',         (0,0), (-1,-1), 'CENTER'),
         ]))
         return tbl
- 
+
     def guest_table(guest_list, cols, col_widths, row_fn, empty_msg="None"):
         header = [Paragraph(c, S_HEAD) for c in cols]
         rows   = [header]
@@ -2071,9 +2088,7 @@ def download_client_report():
             ('FONTSIZE',      (0,1),  (-1,-1), 8.5),
         ]))
         return tbl
- 
-    # ── row builders ─────────────────────────────────────────────────────────
- 
+
     def in_row(g, i):
         et = g.entry_time.strftime('%H:%M') if g.entry_time else '—'
         return [
@@ -2083,8 +2098,7 @@ def download_client_report():
             Paragraph(f"{g.checked_in_count or 0}/{g.group_size or 1}", S_CELL),
             Paragraph(et, S_CELL),
         ]
- 
-    # ← NO rsvp_status here — 4 columns only
+
     def nin_row(g, i):
         return [
             Paragraph(f"{g.visual_id:04d}", S_CELL_B),
@@ -2092,8 +2106,7 @@ def download_client_report():
             Paragraph((g.card_type or 'single').title(), S_CELL),
             Paragraph(str(g.group_size or 1), S_CELL),
         ]
- 
-    # ── build PDF ─────────────────────────────────────────────────────────────
+
     buf = BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -2101,7 +2114,7 @@ def download_client_report():
         topMargin=20*mm, bottomMargin=16*mm,
         title="Guest Report", author="SwiftInvite",
     )
- 
+
     def on_page(canvas, doc):
         canvas.saveState()
         w, h = A4
@@ -2117,14 +2130,13 @@ def download_client_report():
         canvas.drawString(20*mm, 3*mm, f"Generated by SwiftInvite · {generated_at}")
         canvas.drawRightString(w - 20*mm, 3*mm, f"Page {doc.page}")
         canvas.restoreState()
- 
+
     story = []
     story.append(Spacer(1, 6*mm))
     story.append(Paragraph("Guest Report", S_TITLE))
     story.append(Paragraph(f"Prepared on {generated_at}", S_META))
     story.append(HRFlowable(width="100%", thickness=1.5, color=C_GOLD, spaceAfter=10))
- 
-    # ── Summary (NO "RSVP Yes" tile) ─────────────────────────────────────────
+
     story.append(Paragraph("Summary", S_SEC))
     story.append(stat_table([
         ("Total Guests",  total,           C_GREEN),
@@ -2138,8 +2150,7 @@ def download_client_report():
         ("Double Cards", double_count, C_GOLD),
         ("Family Cards", family_count, C_GOLD),
     ]))
- 
-    # ── Checked-in table (unchanged) ─────────────────────────────────────────
+
     story.append(Paragraph(f"Checked In — {len(entered)} of {total} guests", S_SEC))
     story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER, spaceAfter=5))
     story.append(guest_table(
@@ -2149,18 +2160,17 @@ def download_client_report():
         in_row,
         "No guests have checked in yet.",
     ))
- 
-    # ── Not-checked-in table (NO RSVP column) ────────────────────────────────
+
     story.append(Paragraph(f"Not Yet Checked In — {len(not_entered)} guests", S_SEC))
     story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER, spaceAfter=5))
     story.append(guest_table(
         not_entered,
-        ["#", "Guest Name", "Card Type", "Allowed"],   # ← 4 cols, no RSVP
+        ["#", "Guest Name", "Card Type", "Allowed"],
         [14*mm, W - 14*mm - 22*mm - 18*mm, 22*mm, 18*mm],
         nin_row,
         "All guests have checked in!",
     ))
- 
+
     story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER))
     story.append(Spacer(1, 4))
@@ -2169,15 +2179,15 @@ def download_client_report():
         "All guest data is confidential.",
         ps('ft', fontName='Helvetica', fontSize=7.5,
            textColor=C_GREY, alignment=TA_CENTER)))
- 
+
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     buf.seek(0)
- 
+
     filename = f"Guest_Report_{now_eat().strftime('%Y%m%d_%H%M')}.pdf"
     return send_file(buf, as_attachment=True,
                      download_name=filename,
                      mimetype='application/pdf')
- 
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
