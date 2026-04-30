@@ -112,6 +112,8 @@
   </style>
 </head>
 <body>
+{% include "_navbar.html" %}
+
 <div class="page-wrap">
 
   <div class="page-head">
@@ -321,5 +323,7 @@ function stopScanner() {
 // Stop scanner when navigating away
 window.addEventListener('beforeunload', stopScanner);
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
