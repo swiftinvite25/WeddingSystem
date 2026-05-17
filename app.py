@@ -527,7 +527,7 @@ def build_sms_message(guest, event=None) -> str:
         f"Saa 12:00 Jioni\n"
         f"{venue.upper()}\n"
         f"\n"
-        f"Kadi No: {str(guest.visual_id or 0).zfill(4)} - {(guest.card_type or 'Single').title()}\n"
+        f"Namba ya Kadi: {str(guest.visual_id or 0).zfill(4)} - {(guest.card_type or 'Single').title()}\n"
         f"\n"
         f"Tafadhali Fika na kadi hii ukumbini.\n"
         f"Karibu sana!"
