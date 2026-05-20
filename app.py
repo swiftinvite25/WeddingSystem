@@ -719,7 +719,8 @@ def event_edit(event_id):
             ev.wa_template_name     = request.form.get('wa_template_name','event_invitation').strip() or 'event_invitation'
             ev.wa_template_language = request.form.get('wa_template_language','sw').strip() or 'sw'
             ev.wa_template_config   = request.form.get('wa_template_config','').strip() or None
-            ev.card_layout_config   = request.form.get('card_layout_config','').strip() or None
+            submitted_layout = request.form.get('card_layout_config', '').strip()
+            ev.card_layout_config = submitted_layout if submitted_layout else ev.card_layout_config
             ev.at_username    = request.form.get('at_username','').strip() or None
             ev.at_api_key     = request.form.get('at_api_key','').strip() or None
             ev.at_sender_id   = request.form.get('at_sender_id','').strip() or None
