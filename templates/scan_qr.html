@@ -18,19 +18,6 @@
                 border-radius: 8px; border: 1.5px solid #d1d5db; background: #fff;
                 color: #374151; font-size: .84rem; font-weight: 600; text-decoration: none; }
 
-    /* offline banner */
-    #offline-banner { display: none; background: #fef3c7; border: 1.5px solid #f59e0b;
-                      border-radius: 8px; padding: .6rem 1rem; margin-bottom: 1rem;
-                      font-size: .84rem; font-weight: 600; color: #92400e; }
-    #offline-banner.show { display: flex; align-items: center; gap: .5rem; }
-    #sync-banner { display: none; background: #e0f2fe; border: 1.5px solid #0284c7;
-                   border-radius: 8px; padding: .6rem 1rem; margin-bottom: 1rem;
-                   font-size: .84rem; font-weight: 600; color: #0369a1; }
-    #sync-banner.show { display: flex; align-items: center; gap: .5rem; justify-content: space-between; }
-
-    /* cache status */
-    #cache-status { font-size: .75rem; color: #9ca3af; margin-bottom: 1rem; text-align: center; }
-
     /* tabs */
     .tab-bar { display: flex; background: #e5e7eb; border-radius: 10px; padding: 4px; gap: 4px; margin-bottom: 1.5rem; }
     .tab-btn { flex: 1; padding: .55rem; border: none; border-radius: 7px; background: transparent;
@@ -64,20 +51,15 @@
     .result-card.success { background: #e8f4ef; border: 1.5px solid #185a3f22; }
     .result-card.error   { background: #fee2e2; border: 1.5px solid #dc262622; }
     .result-card.warning { background: #fef3c7; border: 1.5px solid #d9770622; }
-    .result-card.offline-ok { background: #e0f2fe; border: 1.5px solid #0284c722; }
     .result-icon { font-size: 1.5rem; margin-bottom: .4rem; }
     .result-name { font-size: 1.1rem; font-weight: 700; color: #111; margin-bottom: .15rem; }
     .result-detail { font-size: .85rem; color: #374151; }
     .result-card.success .result-name { color: #185a3f; }
     .result-card.error   .result-name { color: #dc2626; }
     .result-card.warning .result-name { color: #92400e; }
-    .result-card.offline-ok .result-name { color: #0369a1; }
     .badge-entries { display: inline-block; background: #185a3f; color: #fff;
                      font-size: .75rem; font-weight: 600; padding: .2rem .6rem;
                      border-radius: 2rem; margin-top: .4rem; }
-    .badge-offline { display: inline-block; background: #f59e0b; color: #fff;
-                     font-size: .75rem; font-weight: 600; padding: .2rem .6rem;
-                     border-radius: 2rem; margin-top: .4rem; margin-left: .3rem; }
 
     .log-title { font-size: .8rem; font-weight: 600; text-transform: uppercase;
                  letter-spacing: .05em; color: #6b7280; margin: 1.5rem 0 .5rem; }
@@ -98,17 +80,6 @@
     <h1>🎫 Guest Check-In</h1>
     <a href="/" class="btn-back">← Dashboard</a>
   </div>
-
-  <!-- Offline/sync banners -->
-  <div id="offline-banner">
-    <span>📡</span>
-    <span>Offline mode — check-ins saved locally and will sync when reconnected</span>
-  </div>
-  <div id="sync-banner">
-    <span>🔄 <span id="sync-count">0</span> pending check-in(s) to sync</span>
-    <button onclick="syncQueue()" style="border:none;background:#0284c7;color:#fff;border-radius:6px;padding:.3rem .8rem;font-weight:600;cursor:pointer;">Sync Now</button>
-  </div>
-  <div id="cache-status">Loading guest data…</div>
 
   <!-- Tabs -->
   <div class="tab-bar">
@@ -142,216 +113,22 @@
 
 <script>
 // ═══════════════════════════════════════════════════════════════════════════
-// OFFLINE GUEST CACHE
+// CHECK-IN — always live server call
 // ═══════════════════════════════════════════════════════════════════════════
-
-const CACHE_KEY   = 'swiftinvite_guests';
-const QUEUE_KEY   = 'swiftinvite_queue';
-const CACHE_TS_KEY= 'swiftinvite_cache_ts';
-
-let guestCache   = {};   // qr_code_id / VID:n → guest object
-let offlineQueue = [];   // pending check-ins to sync
-let isOnline     = navigator.onLine;
-
-// Load cache from localStorage on startup
-function loadLocalCache() {
-  try {
-    const raw = localStorage.getItem(CACHE_KEY);
-    if (raw) guestCache = JSON.parse(raw);
-    const q = localStorage.getItem(QUEUE_KEY);
-    if (q) offlineQueue = JSON.parse(q);
-  } catch(e) { guestCache = {}; offlineQueue = []; }
-}
-
-function saveLocalCache() {
-  try { localStorage.setItem(CACHE_KEY, JSON.stringify(guestCache)); } catch(e) {}
-}
-
-function saveQueue() {
-  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(offlineQueue)); } catch(e) {}
-}
-
-// Fetch fresh guest data from server and cache it
-async function refreshCache() {
-  try {
-    const res  = await fetch('/scan_guests_data');
-    if (!res.ok) throw new Error('HTTP ' + res.status);
-    const data = await res.json();
-    guestCache = data.guests || {};
-    saveLocalCache();
-    const ts = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
-    localStorage.setItem(CACHE_TS_KEY, ts);
-    const count = Object.keys(guestCache).filter(k => !k.startsWith('VID:')).length;
-    document.getElementById('cache-status').textContent =
-      `✅ ${count} guests loaded (${data.event_name || ''}) · Last synced ${ts}`;
-    return true;
-  } catch(e) {
-    const ts = localStorage.getItem(CACHE_TS_KEY);
-    const count = Object.keys(guestCache).filter(k => !k.startsWith('VID:')).length;
-    if (count > 0) {
-      document.getElementById('cache-status').textContent =
-        `⚠️ Using cached data (${count} guests) · Last synced ${ts || 'unknown'}`;
-    } else {
-      document.getElementById('cache-status').textContent =
-        `❌ No guest data available — go online to load guests`;
-    }
-    return false;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// OFFLINE QUEUE — sync pending check-ins when back online
-// ═══════════════════════════════════════════════════════════════════════════
-
-function updateSyncBanner() {
-  const banner = document.getElementById('sync-banner');
-  const count  = document.getElementById('sync-count');
-  if (offlineQueue.length > 0) {
-    banner.classList.add('show');
-    count.textContent = offlineQueue.length;
-  } else {
-    banner.classList.remove('show');
-  }
-}
-
-async function syncQueue() {
-  if (!navigator.onLine || offlineQueue.length === 0) return;
-  const toSync = [...offlineQueue];
-  let synced = 0;
-  for (const item of toSync) {
-    try {
-      const res = await fetch('/update_status', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(item),
-      });
-      if (res.ok) {
-        offlineQueue = offlineQueue.filter(q => q._id !== item._id);
-        synced++;
-      }
-    } catch(e) { break; }
-  }
-  saveQueue();
-  updateSyncBanner();
-  if (synced > 0) {
-    await refreshCache();
-    alert(`✅ Synced ${synced} check-in(s) to server.`);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// ONLINE / OFFLINE DETECTION
-// ═══════════════════════════════════════════════════════════════════════════
-
-function setOnline(online) {
-  isOnline = online;
-  const banner = document.getElementById('offline-banner');
-  if (online) {
-    banner.classList.remove('show');
-    syncQueue();
-    refreshCache();
-  } else {
-    banner.classList.add('show');
-  }
-}
-
-window.addEventListener('online',  () => setOnline(true));
-window.addEventListener('offline', () => setOnline(false));
-
-// ═══════════════════════════════════════════════════════════════════════════
-// CHECK-IN LOGIC
-// ═══════════════════════════════════════════════════════════════════════════
-
-function localLookup(key) {
-  return guestCache[key] || null;
-}
-
-function localCheckin(guest) {
-  // Apply check-in to local cache optimistically
-  const remaining = guest.group_size - guest.checked_in_count;
-  if (remaining <= 0) {
-    return { success: false, already_entered: true, guest };
-  }
-  // Update cache
-  guest.checked_in_count += 1;
-  if (guest.checked_in_count >= guest.group_size) guest.has_entered = true;
-  // Update both keys
-  if (guest.qr_code_id) guestCache[guest.qr_code_id] = guest;
-  guestCache[`VID:${guest.visual_id}`] = guest;
-  saveLocalCache();
-  return {
-    success: true,
-    offline: true,
-    guest: {
-      name:              guest.name,
-      visual_id:         guest.visual_id,
-      card_type:         guest.card_type,
-      remaining_entries: guest.group_size - guest.checked_in_count,
-    }
-  };
-}
 
 async function checkIn(key, resultElId, isVisualId = false) {
-  // key is either qr_code_id string or visual_id number
-  const cacheKey = isVisualId ? `VID:${key}` : key;
-  const guest    = localLookup(cacheKey);
-
-  if (!navigator.onLine) {
-    // ── Fully offline ──────────────────────────────────────────────────────
-    if (!guest) {
-      showResultRaw({ success: false, message: 'Guest not found in cached data.' }, resultElId);
-      return;
-    }
-    const result = localCheckin(guest);
-    showResultRaw({ ...result, offline: true }, resultElId);
-    // Queue for sync
-    const queueItem = isVisualId
-      ? { visual_id: key, _id: Date.now() }
-      : { qr_code_id: key, _id: Date.now() };
-    offlineQueue.push(queueItem);
-    saveQueue();
-    updateSyncBanner();
-    addLog(guest.name, guest.visual_id, result.success, true);
-    return;
-  }
-
-  // ── Online — try server first, fall back to local on network error ───────
+  const body = isVisualId ? { visual_id: key } : { qr_code_id: key };
   try {
-    const body = isVisualId ? { visual_id: key } : { qr_code_id: key };
     const res  = await fetch('/update_status', {
       method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     });
     const data = await res.json();
-    showResultRaw(data, resultElId);
-    // Update local cache to reflect server state
-    if (data.success && data.guest) {
-      const g = localLookup(cacheKey);
-      if (g) {
-        g.checked_in_count = g.group_size - (data.guest.remaining_entries || 0);
-        if (g.checked_in_count >= g.group_size) g.has_entered = true;
-        if (guest && guest.qr_code_id) guestCache[guest.qr_code_id] = g;
-        guestCache[`VID:${g.visual_id}`] = g;
-        saveLocalCache();
-      }
-    }
-    addLog(data.guest?.name || '?', data.guest?.visual_id || 0, data.success, false);
-  } catch(err) {
-    // Network failed mid-attempt — fall back to local
-    if (guest) {
-      const result = localCheckin(guest);
-      showResultRaw({ ...result, offline: true }, resultElId);
-      const queueItem = isVisualId
-        ? { visual_id: key, _id: Date.now() }
-        : { qr_code_id: key, _id: Date.now() };
-      offlineQueue.push(queueItem);
-      saveQueue();
-      updateSyncBanner();
-      addLog(guest.name, guest.visual_id, result.success, true);
-    } else {
-      showResultRaw({ success: false, message: 'Network error and no cached data.' }, resultElId);
-    }
+    showResult(data, resultElId);
+    addLog(data.guest?.name || '?', data.guest?.visual_id || 0, data.success);
+  } catch (err) {
+    showResult({ success: false, message: 'Network error — please check your connection.' }, resultElId);
   }
 }
 
@@ -359,23 +136,20 @@ async function checkIn(key, resultElId, isVisualId = false) {
 // UI HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-function showResultRaw(data, targetId) {
+function showResult(data, targetId) {
   const el = document.getElementById(targetId);
   if (!el) return;
-  const offlineBadge = data.offline
-    ? '<span class="badge-offline">📡 Queued offline</span>' : '';
 
   if (data.success) {
     const g = data.guest || {};
     const remaining = g.remaining_entries ?? '—';
-    el.innerHTML = `<div class="result-card ${data.offline ? 'offline-ok' : 'success'}">
-      <div class="result-icon">${data.offline ? '📡' : '✅'}</div>
+    el.innerHTML = `<div class="result-card success">
+      <div class="result-icon">✅</div>
       <div class="result-name">${g.name || 'Guest'}</div>
       <div class="result-detail">
-        Card ${(g.card_type||'').toUpperCase()} · <strong>#${String(g.visual_id||0).padStart(4,'0')}</strong>
+        Card ${(g.card_type || '').toUpperCase()} · <strong>#${String(g.visual_id || 0).padStart(4, '0')}</strong>
       </div>
       <span class="badge-entries">${remaining} ${remaining === 1 ? 'entry' : 'entries'} remaining</span>
-      ${offlineBadge}
     </div>`;
   } else if (data.already_entered) {
     const g = data.guest || {};
@@ -394,11 +168,11 @@ function showResultRaw(data, targetId) {
   setTimeout(() => { if (el) el.innerHTML = ''; }, 5000);
 }
 
-// ── log ───────────────────────────────────────────────────────────────────
+// ── Recent log ────────────────────────────────────────────────────────────
 const log = [];
-function addLog(name, cardNum, ok, offline) {
-  const now = new Date().toLocaleTimeString('en-GB', {hour:'2-digit', minute:'2-digit'});
-  log.unshift({ name, cardNum, ok, offline, time: now });
+function addLog(name, cardNum, ok) {
+  const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  log.unshift({ name, cardNum, ok, time: now });
   if (log.length > 15) log.pop();
   renderLog();
 }
@@ -413,14 +187,13 @@ function renderLog() {
       <div style="display:flex;align-items:center">
         <div class="log-dot" style="background:${l.ok ? '#185a3f' : '#dc2626'}"></div>
         <span class="log-name">${l.name}</span>
-        <span style="margin-left:.5rem;font-size:.75rem;color:#9ca3af">#${String(l.cardNum).padStart(4,'0')}</span>
-        ${l.offline ? '<span style="margin-left:.4rem;font-size:.7rem;background:#f59e0b;color:#fff;padding:.1rem .4rem;border-radius:4px">offline</span>' : ''}
+        <span style="margin-left:.5rem;font-size:.75rem;color:#9ca3af">#${String(l.cardNum).padStart(4, '0')}</span>
       </div>
       <span class="log-time">${l.time}</span>
     </div>`).join('');
 }
 
-// ── tabs ──────────────────────────────────────────────────────────────────
+// ── Tabs ──────────────────────────────────────────────────────────────────
 let scanner = null, scannerRunning = false;
 
 function switchTab(tab) {
@@ -432,7 +205,7 @@ function switchTab(tab) {
   else if (tab === 'manual' && scannerRunning) stopScanner();
 }
 
-// ── manual check-in ───────────────────────────────────────────────────────
+// ── Manual check-in ───────────────────────────────────────────────────────
 async function doManualCheckin() {
   const input = document.getElementById('card-input');
   const btn   = document.getElementById('manual-btn');
@@ -446,7 +219,7 @@ async function doManualCheckin() {
     return;
   }
   btn.disabled = true; btn.textContent = '⏳';
-  await checkIn(num, 'result-wrap', true);  // isVisualId = true
+  await checkIn(num, 'result-wrap', true);
   btn.disabled = false; btn.textContent = 'Check In';
   input.value = ''; input.focus();
 }
@@ -478,14 +251,6 @@ function stopScanner() {
   if (scanner) scanner.stop().then(() => { scannerRunning = false; scanner = null; }).catch(() => {});
 }
 window.addEventListener('beforeunload', stopScanner);
-
-// ═══════════════════════════════════════════════════════════════════════════
-// STARTUP
-// ═══════════════════════════════════════════════════════════════════════════
-loadLocalCache();
-setOnline(navigator.onLine);
-refreshCache();
-updateSyncBanner();
 </script>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>

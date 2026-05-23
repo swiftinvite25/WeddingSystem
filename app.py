@@ -22,9 +22,9 @@ def fmt_eat(dt, fmt='%H:%M') -> str:
     if not dt:
         return '—'
     if dt.tzinfo is None:
-        # Stored as naive UTC (Supabase/Postgres default) — attach UTC then convert
         dt = dt.replace(tzinfo=timezone.utc)
     return dt.astimezone(EAT).strftime(fmt)
+
 from functools import wraps
 from urllib.parse import quote as url_encode
 from whatsapp import send_guest_card
@@ -96,9 +96,9 @@ if DATABASE_URL.startswith("postgres://"):
 # Supabase Storage Configuration
 # ---------------------------------------------------------------------------
 
-SUPABASE_URL  = os.getenv("SUPABASE_URL")
-SUPABASE_KEY  = os.getenv("SUPABASE_SERVICE_KEY")
-QR_BUCKET     = os.getenv("SUPABASE_QR_BUCKET",    "qr-codes")
+SUPABASE_URL     = os.getenv("SUPABASE_URL")
+SUPABASE_KEY     = os.getenv("SUPABASE_SERVICE_KEY")
+QR_BUCKET        = os.getenv("SUPABASE_QR_BUCKET",       "qr-codes")
 CARDS_BUCKET     = os.getenv("SUPABASE_CARDS_BUCKET",    "guest-cards")
 TEMPLATES_BUCKET = os.getenv("SUPABASE_TEMPLATES_BUCKET","card-templates")
 
@@ -135,8 +135,6 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logging.info(f"Using database: {DATABASE_URL}")
 
-# Credentials — set ALL of these in Render environment variables
-# No hardcoded defaults for security — app will reject login if not set
 ADMIN_USERNAME  = os.environ.get("ADMIN_USERNAME")
 ADMIN_PASSWORD  = os.environ.get("ADMIN_PASSWORD")
 WORKER_USERNAME = os.environ.get("WORKER_USERNAME")
@@ -151,7 +149,6 @@ with app.app_context():
 
 @app.context_processor
 def inject_events():
-    """Make active_event_name and all_events available in every template."""
     if not session.get('logged_in'):
         return {}
     try:
@@ -180,24 +177,20 @@ def _bold_font_path() -> str:
             return p
     raise FileNotFoundError("No bold font found. Place Montserrat-Bold.ttf in static/fonts/.")
 
-# Name — dotted line (left half of template)
 NAME_CENTER_X  = 303
-NAME_DOTTED_Y  = 550   # tweak if name sits above/below the line
+NAME_DOTTED_Y  = 550
 NAME_MAX_WIDTH = 358
 
-# QR code — bottom-left
 QR_SIZE   = 200
 QR_MARGIN = 45
 QR_X      = QR_MARGIN
-QR_Y      = 1748 - QR_SIZE - QR_MARGIN   # 1503
+QR_Y      = 1748 - QR_SIZE - QR_MARGIN
 
-# Card number — top-left corner
 CARD_NUM_COLOR = "#185a3f"
 CARD_NUM_SIZE  = 38
 CARD_NUM_TOP_X = 45
 CARD_NUM_TOP_Y = 50
 
-# Card type — above the QR code
 CARD_TYPE_COLOR = "#185a3f"
 CARD_TYPE_SIZE  = 36
 CARD_TYPE_GAP   = 20
@@ -279,7 +272,6 @@ def _fit_name_font(draw, name: str, max_width: int):
     return font, wrapped.split("\n")
 
 
-# Default card layout — used when no per-event layout is configured
 DEFAULT_CARD_LAYOUT = {
     "card_num": {"x": 45,  "y": 50,   "size": 38, "color": "#185a3f"},
     "name":     {"cx": 303,"y": 550,  "max_width": 358, "color": "#000000"},
@@ -292,13 +284,11 @@ DEFAULT_CARD_LAYOUT = {
 }
 
 def _parse_layout(event=None) -> dict:
-    """Return layout config dict for the event, falling back to defaults."""
     import json
     base = dict(DEFAULT_CARD_LAYOUT)
     if event and getattr(event, 'card_layout_config', None):
         try:
             overrides = json.loads(event.card_layout_config)
-            # Deep merge
             for k, v in overrides.items():
                 if isinstance(v, dict) and isinstance(base.get(k), dict):
                     base[k] = {**base[k], **v}
@@ -310,12 +300,6 @@ def _parse_layout(event=None) -> dict:
 
 
 def _draw_card(guest, qr_img: Image.Image, template_bytes=None, event=None) -> Image.Image:
-    """
-    Draw a guest card using the template image and per-event layout config.
-    Element positions come from event.card_layout_config (JSON), falling back
-    to DEFAULT_CARD_LAYOUT if not set.
-    """
-    # Per-event template takes priority over the global static one
     if template_bytes:
         img = Image.open(BytesIO(template_bytes)).convert("RGB")
     else:
@@ -328,15 +312,13 @@ def _draw_card(guest, qr_img: Image.Image, template_bytes=None, event=None) -> I
     draw = ImageDraw.Draw(img)
     fp   = _bold_font_path()
 
-    # 1. Card number
     if L.get("show_card_num", True):
-        cn     = L["card_num"]
-        nfont  = ImageFont.truetype(fp, cn.get("size", CARD_NUM_SIZE))
+        cn    = L["card_num"]
+        nfont = ImageFont.truetype(fp, cn.get("size", CARD_NUM_SIZE))
         draw.text((cn.get("x", CARD_NUM_TOP_X), cn.get("y", CARD_NUM_TOP_Y)),
                   f"NO. {str(guest.visual_id or 0).zfill(4)}",
                   font=nfont, fill=cn.get("color", CARD_NUM_COLOR))
 
-    # 2. Guest name
     if L.get("show_name", True):
         nm       = L["name"]
         raw_name = (guest.name or "GUEST").upper()
@@ -354,18 +336,17 @@ def _draw_card(guest, qr_img: Image.Image, template_bytes=None, event=None) -> I
             draw.text((cx - text_w // 2, block_top_y + i * line_h),
                       line, font=name_font, fill=nm.get("color", "#000000"))
 
-    # 3. QR code
     if L.get("show_qr", True):
         qr      = L["qr"]
         qr_size = qr.get("size", QR_SIZE)
         img.paste(qr_img.resize((qr_size, qr_size), Image.LANCZOS),
                   (qr.get("x", QR_X), qr.get("y", QR_Y)))
 
-        # 4. Card type label (above QR)
         if L.get("show_card_type", True):
             ct       = L["card_type"]
             tfont    = ImageFont.truetype(fp, ct.get("size", CARD_TYPE_SIZE))
-            type_lbl = "GROUP" if (guest.card_type or "").lower() == "family"                        else (guest.card_type or "SINGLE").upper()
+            type_lbl = "GROUP" if (guest.card_type or "").lower() == "family" \
+                       else (guest.card_type or "SINGLE").upper()
             tbbox    = draw.textbbox((0, 0), type_lbl, font=tfont)
             qr_y     = qr.get("y", QR_Y)
             draw.text((qr.get("x", QR_X),
@@ -379,16 +360,12 @@ def _draw_card(guest, qr_img: Image.Image, template_bytes=None, event=None) -> I
 def _render_and_upload_card(guest, event=None) -> bool:
     """Render JPEG card for one guest and upload to Supabase. Returns True on success."""
     try:
-        # Try fetching the QR; fall back to regenerating if name was edited
-        try:
-            qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
-        except Exception:
-            qr_data = generate_qr_bytes(guest.qr_code_id)
-
+        # Generate QR locally — no Supabase download needed
+        qr_data        = generate_qr_bytes(guest.qr_code_id)
         template_bytes = _get_event_template_bytes(event)
-        qr_img = Image.open(BytesIO(qr_data))
-        img    = _draw_card(guest, qr_img, template_bytes=template_bytes, event=event)
-        buf    = BytesIO()
+        qr_img         = Image.open(BytesIO(qr_data))
+        img            = _draw_card(guest, qr_img, template_bytes=template_bytes, event=event)
+        buf            = BytesIO()
         img.save(buf, format="JPEG", quality=92)
         buf.seek(0)
         upload_to_supabase(CARDS_BUCKET, card_filename_from_guest(guest),
@@ -400,7 +377,6 @@ def _render_and_upload_card(guest, event=None) -> bool:
 
 
 def _get_event_template_bytes(event) -> bytes | None:
-    """Fetch per-event card template from Supabase, or None to use global static."""
     if not event or not event.card_template_url:
         return None
     try:
@@ -413,15 +389,12 @@ def _get_event_template_bytes(event) -> bytes | None:
 def _generate_card_bytes(guest, event=None) -> bytes | None:
     """Return raw JPEG card bytes (used as fallback in send engine)."""
     try:
-        try:
-            qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
-        except Exception:
-            qr_data = generate_qr_bytes(guest.qr_code_id)
-
+        # Generate QR locally — no Supabase download needed
+        qr_data        = generate_qr_bytes(guest.qr_code_id)
         template_bytes = _get_event_template_bytes(event)
-        qr_img = Image.open(BytesIO(qr_data))
-        img    = _draw_card(guest, qr_img, template_bytes=template_bytes, event=event)
-        buf    = BytesIO()
+        qr_img         = Image.open(BytesIO(qr_data))
+        img            = _draw_card(guest, qr_img, template_bytes=template_bytes, event=event)
+        buf            = BytesIO()
         img.save(buf, format="JPEG", quality=92)
         buf.seek(0)
         return buf.getvalue()
@@ -444,7 +417,6 @@ def to_whatsapp_number(phone):
 
 app.jinja_env.globals.update(to_whatsapp_number=to_whatsapp_number, url_encode=url_encode)
 
-# Jinja filters
 def _jinja_fmt_eat(dt, fmt='%H:%M'):
     return fmt_eat(dt, fmt) if dt else '—'
 app.jinja_env.filters['fmt_eat'] = _jinja_fmt_eat
@@ -475,23 +447,14 @@ def normalize_card_type(card_type_input, allowed_input=None):
     return "single", 1
 
 def get_next_visual_id(db_session, event_id=None):
-    """Return next unique visual_id.
-    Per-event when event_id given; falls back to global max to avoid DB collisions.
-    We offset per-event IDs by event_id * 10000 to guarantee global uniqueness
-    while still having per-event numbering that starts near 1.
-    E.g. Event 1 → 10001, 10002 ... Event 2 → 20001, 20002 ...
-    Exception: event_id=1 (default/first event) keeps original numbering (1,2,3...)
-    for backwards compatibility with existing guests."""
     if event_id is None:
         max_id = db_session.query(func.max(Guest.visual_id)).scalar()
         return 1 if max_id is None else int(max_id) + 1
     if event_id == 1:
-        # Legacy first event — keep 1-based numbering
         q = db_session.query(func.max(Guest.visual_id)).filter(
             Guest.event_id == event_id)
         max_id = q.scalar()
         return 1 if max_id is None else int(max_id) + 1
-    # Other events: base offset = event_id * 10000
     base   = event_id * 10000
     q      = db_session.query(func.max(Guest.visual_id)).filter(
         Guest.visual_id >= base,
@@ -500,7 +463,6 @@ def get_next_visual_id(db_session, event_id=None):
     max_id = q.scalar()
     return base + 1 if max_id is None else int(max_id) + 1
 
-# Swahili event type labels for SMS
 EVENT_TYPE_LABELS = {
     "Wedding":      "HARUSI",
     "Send-Off":     "SEND-OFF",
@@ -549,7 +511,6 @@ def login_required(f):
 
 
 def admin_required(f):
-    """Restrict route to admin role only."""
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if not session.get('logged_in'):
@@ -562,11 +523,10 @@ def admin_required(f):
     return decorated_function
 
 # ---------------------------------------------------------------------------
-# Event helpers — active event in session
+# Event helpers
 # ---------------------------------------------------------------------------
 
 def _seed_default_event(db):
-    """Create the default event from .env values if no events exist yet."""
     import re
     if db.query(Event).count() == 0:
         slug = re.sub(r'[^a-z0-9]+', '-',
@@ -584,7 +544,6 @@ def _seed_default_event(db):
         )
         db.add(ev)
         db.flush()
-        # Assign all existing guests to this event
         db.query(Guest).filter(Guest.event_id.is_(None)).update(
             {'event_id': ev.id}, synchronize_session=False
         )
@@ -594,8 +553,6 @@ def _seed_default_event(db):
 
 
 def get_active_event(db):
-    """Return the Event the user is currently working on.
-    Falls back to the first event if nothing is set in session."""
     _seed_default_event(db)
     eid = session.get('active_event_id')
     ev  = None
@@ -609,7 +566,6 @@ def get_active_event(db):
 
 
 def require_event(f):
-    """Decorator: ensure an active event is in session before entering route."""
     @wraps(f)
     def decorated(*args, **kwargs):
         if not session.get('logged_in'):
@@ -634,7 +590,6 @@ def events_list():
         _seed_default_event(db)
         events = db.query(Event).order_by(Event.id.desc()).all()
         active = get_active_event(db)
-        # snapshot so objects are usable outside session
         evs = [{
             'id':           e.id,
             'name':         e.name,
@@ -663,32 +618,31 @@ def event_new():
             return redirect(url_for('event_new'))
         slug_base = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
         with get_db_session() as db:
-            # Ensure slug is unique
             slug = slug_base
             counter = 1
             while db.query(Event).filter_by(slug=slug).first():
                 slug = f"{slug_base}-{counter}"
                 counter += 1
             ev = Event(
-                name           = name,
-                slug           = slug,
-                event_type     = request.form.get('event_type', 'Wedding').strip(),
-                weds_names     = request.form.get('weds_names', '').strip(),
-                event_day      = request.form.get('event_day',  '').strip(),
-                event_date     = request.form.get('event_date', '').strip(),
-                event_venue    = request.form.get('event_venue','').strip(),
+                name                 = name,
+                slug                 = slug,
+                event_type           = request.form.get('event_type', 'Wedding').strip(),
+                weds_names           = request.form.get('weds_names', '').strip(),
+                event_day            = request.form.get('event_day',  '').strip(),
+                event_date           = request.form.get('event_date', '').strip(),
+                event_venue          = request.form.get('event_venue','').strip(),
                 wa_phone_number_id   = request.form.get('wa_phone_number_id','').strip() or None,
                 wa_access_token      = request.form.get('wa_access_token','').strip() or None,
                 wa_template_name     = request.form.get('wa_template_name','event_invitation').strip() or 'event_invitation',
                 wa_template_language = request.form.get('wa_template_language','sw').strip() or 'sw',
                 wa_template_config   = request.form.get('wa_template_config','').strip() or None,
                 card_layout_config   = request.form.get('card_layout_config','').strip() or None,
-                at_username    = request.form.get('at_username','').strip() or None,
-                at_api_key     = request.form.get('at_api_key','').strip() or None,
-                at_sender_id   = request.form.get('at_sender_id','').strip() or None,
-                storage_prefix = slug,
-                is_active      = True,
-                created_at     = now_eat(),
+                at_username          = request.form.get('at_username','').strip() or None,
+                at_api_key           = request.form.get('at_api_key','').strip() or None,
+                at_sender_id         = request.form.get('at_sender_id','').strip() or None,
+                storage_prefix       = slug,
+                is_active            = True,
+                created_at           = now_eat(),
             )
             db.add(ev)
             db.commit()
@@ -708,26 +662,26 @@ def event_edit(event_id):
             flash('Event not found.', 'danger')
             return redirect(url_for('events_list'))
         if request.method == 'POST':
-            ev.name           = request.form.get('name', ev.name).strip()
-            ev.event_type     = request.form.get('event_type', ev.event_type or 'Wedding').strip()
-            ev.weds_names     = request.form.get('weds_names', '').strip()
-            ev.event_day      = request.form.get('event_day',  '').strip()
-            ev.event_date     = request.form.get('event_date', '').strip()
-            ev.event_venue    = request.form.get('event_venue','').strip()
+            ev.name                 = request.form.get('name', ev.name).strip()
+            ev.event_type           = request.form.get('event_type', ev.event_type or 'Wedding').strip()
+            ev.weds_names           = request.form.get('weds_names', '').strip()
+            ev.event_day            = request.form.get('event_day',  '').strip()
+            ev.event_date           = request.form.get('event_date', '').strip()
+            ev.event_venue          = request.form.get('event_venue','').strip()
             ev.wa_phone_number_id   = request.form.get('wa_phone_number_id','').strip() or None
             ev.wa_access_token      = request.form.get('wa_access_token','').strip() or None
             ev.wa_template_name     = request.form.get('wa_template_name','event_invitation').strip() or 'event_invitation'
             ev.wa_template_language = request.form.get('wa_template_language','sw').strip() or 'sw'
             ev.wa_template_config   = request.form.get('wa_template_config','').strip() or None
+            ev.at_username          = request.form.get('at_username','').strip() or None
+            ev.at_api_key           = request.form.get('at_api_key','').strip() or None
+            ev.at_sender_id         = request.form.get('at_sender_id','').strip() or None
+            # Only update layout if the form actually submitted one — never blank it out
             submitted_layout = request.form.get('card_layout_config', '').strip()
             ev.card_layout_config = submitted_layout if submitted_layout else ev.card_layout_config
-            ev.at_username    = request.form.get('at_username','').strip() or None
-            ev.at_api_key     = request.form.get('at_api_key','').strip() or None
-            ev.at_sender_id   = request.form.get('at_sender_id','').strip() or None
             db.commit()
             flash(f'Event "{ev.name}" updated.', 'success')
             return redirect(url_for('events_list'))
-        # Snapshot for template
         ev_data = {
             'id': ev.id, 'name': ev.name, 'slug': ev.slug,
             'event_type': ev.event_type or 'Wedding',
@@ -776,7 +730,6 @@ def event_archive(event_id):
 @app.route('/events/<int:event_id>/layout_editor')
 @admin_required
 def event_layout_editor(event_id):
-    """Visual drag-and-drop card layout editor."""
     with get_db_session() as db:
         ev = db.get(Event, event_id)
         if not ev:
@@ -794,11 +747,9 @@ def event_layout_editor(event_id):
 @app.route('/events/<int:event_id>/save_layout', methods=['POST'])
 @admin_required
 def event_save_layout(event_id):
-    """Save layout config JSON from the visual editor."""
     import json
     data = request.get_json() or {}
     layout_json = data.get('layout_config', '')
-    # Validate JSON
     try:
         json.loads(layout_json)
     except Exception as e:
@@ -815,14 +766,12 @@ def event_save_layout(event_id):
 @app.route('/events/<int:event_id>/preview_card')
 @admin_required
 def event_preview_card(event_id):
-    """Generate a sample card using the current event template + layout config."""
     with get_db_session() as db:
         ev = db.get(Event, event_id)
         if not ev:
             return "Event not found", 404
         template_bytes = _get_event_template_bytes(ev)
 
-    # Create a dummy guest for preview
     class _DummyGuest:
         visual_id = 1
         name      = "SAMPLE GUEST"
@@ -834,7 +783,6 @@ def event_preview_card(event_id):
         qr_img  = Image.open(BytesIO(qr_data))
         img     = _draw_card(_DummyGuest(), qr_img,
                              template_bytes=template_bytes, event=ev)
-        # Scale down to ~400px wide for preview
         w, h = img.size
         scale = 400 / w
         img = img.resize((400, int(h * scale)), Image.LANCZOS)
@@ -850,7 +798,6 @@ def event_preview_card(event_id):
 @app.route('/events/<int:event_id>/upload_template', methods=['POST'])
 @admin_required
 def event_upload_template(event_id):
-    """Upload a per-event card template image to Supabase."""
     file = request.files.get('template_file')
     if not file or not file.filename:
         flash('No file selected.', 'danger')
@@ -863,9 +810,8 @@ def event_upload_template(event_id):
         if not ev:
             flash('Event not found.', 'danger')
             return redirect(url_for('events_list'))
-        fname = f"template_{ev.slug}.jpg"
+        fname     = f"template_{ev.slug}.jpg"
         img_bytes = file.read()
-        # Convert PNG to JPEG if needed
         if file.filename.lower().endswith('.png'):
             from PIL import Image as PilImage
             img_obj = PilImage.open(BytesIO(img_bytes)).convert('RGB')
@@ -874,7 +820,7 @@ def event_upload_template(event_id):
             img_bytes = buf.getvalue()
         try:
             url = upload_to_supabase(TEMPLATES_BUCKET, fname, img_bytes,
-                                      content_type='image/jpeg')
+                                     content_type='image/jpeg')
             ev.card_template_url = url
             db.commit()
             flash(f'Card template uploaded for "{ev.name}".', 'success')
@@ -890,7 +836,6 @@ def event_upload_template(event_id):
                 flash(f'Upload failed: {err_msg}', 'danger')
             current_app.logger.error(f'Template upload error: {upload_err}')
     return redirect(url_for('event_edit', event_id=event_id))
-
 
 
 # ---------------------------------------------------------------------------
@@ -914,12 +859,12 @@ def view_all():
     return render_template('guests.html', guests=guests,
                            current_environment=flask_env, active_event_name=ev_name)
 
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '')
-        # Read fresh from env each login attempt
         _admin_u = os.environ.get("ADMIN_USERNAME")
         _admin_p = os.environ.get("ADMIN_PASSWORD")
         _worker_u= os.environ.get("WORKER_USERNAME")
@@ -939,6 +884,7 @@ def login():
         flash('Invalid credentials.', 'danger')
     return render_template('login.html')
 
+
 @app.route('/logout')
 @login_required
 def logout():
@@ -946,6 +892,7 @@ def logout():
     session.pop('role', None)
     flash('Logged out.', 'info')
     return redirect(url_for('login'))
+
 
 # -------------------- add_guest --------------------
 
@@ -963,8 +910,8 @@ def add_guest():
                       else default_size)
 
         with get_db_session() as db:
-            ev        = get_active_event(db)
-            eid       = ev.id if ev else None
+            ev  = get_active_event(db)
+            eid = ev.id if ev else None
             if db.query(Guest).filter_by(phone=phone, event_id=eid).first():
                 flash(f"Guest with phone {phone} already exists in this event.", "warning")
                 return redirect(url_for('add_guest'))
@@ -991,6 +938,7 @@ def add_guest():
             return redirect(url_for('view_all'))
 
     return render_template('add_guest.html')
+
 
 # -------------------- upload_csv --------------------
 
@@ -1068,6 +1016,7 @@ def upload_csv():
 
     return render_template('upload_csv.html')
 
+
 # -------------------- update_status --------------------
 
 @app.route('/update_status', methods=['POST'])
@@ -1114,6 +1063,7 @@ def update_status():
             current_app.logger.exception(f"Error updating status for {qr_code_id}: {e}")
             return jsonify(success=False, message=f"An error occurred: {e}")
 
+
 # -------------------- search_guests --------------------
 
 @app.route('/search_guests')
@@ -1131,17 +1081,18 @@ def search_guests():
             guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
 
         return jsonify([{
-            "id": g.id,                          # ← ADD THIS
-            "visual_id": g.visual_id,
-            "name": g.name,
-            "phone": g.phone,
-            "qr_code_url": g.qr_code_url,
-            "has_entered": g.has_entered,
-            "checked_in_count": g.checked_in_count,   # ← ADD THIS
-            "group_size": g.group_size,               # ← ADD THIS
-            "entry_time": fmt_eat(g.entry_time, '%Y-%m-%d %H:%M:%S') if g.entry_time else 'N/A',
-            "card_type": g.card_type
+            "id":               g.id,
+            "visual_id":        g.visual_id,
+            "name":             g.name,
+            "phone":            g.phone,
+            "qr_code_url":      g.qr_code_url,
+            "has_entered":      g.has_entered,
+            "checked_in_count": g.checked_in_count,
+            "group_size":       g.group_size,
+            "entry_time":       fmt_eat(g.entry_time, '%Y-%m-%d %H:%M:%S') if g.entry_time else 'N/A',
+            "card_type":        g.card_type
         } for g in guests])
+
 
 # -------------------- download_excel --------------------
 
@@ -1158,7 +1109,6 @@ def download_excel():
     single_cards         = sum(1 for g in guests if ct(g) == "single")
     double_cards         = sum(1 for g in guests if ct(g) == "double")
     family_cards         = sum(1 for g in guests if ct(g) == "family")
-    # People counts — the real attendance numbers
     total_people         = sum(g.group_size or 1 for g in guests)
     people_in            = sum(g.checked_in_count or 0 for g in guests)
     people_not_in        = total_people - people_in
@@ -1205,8 +1155,6 @@ def download_excel():
     fdr = table_start + 1; ldr = table_start + len(guests)
     if ldr >= fdr:
         rng = f"E{fdr}:E{ldr}"
-        # Colour cells based on whether anyone has checked in (contains "/")
-        # Green if first char is not 0, red if "0/"
         ws.conditional_formatting.add(rng, CellIsRule(
             operator="beginsWith", formula=['"0/"'],
             fill=PatternFill(start_color="FFC7CE", end_color="FFC7CE", fill_type="solid")))
@@ -1219,12 +1167,12 @@ def download_excel():
     return send_file(output, as_attachment=True, download_name="guest_report.xlsx",
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
+
 # -------------------- export_guests_simple --------------------
 
 @app.route('/export_guests_simple')
 @login_required
 def export_guests_simple():
-    """Export a simple guest list (Card No, Name, Phone, Card Type) as CSV or PDF."""
     fmt = request.args.get('format', 'pdf').lower()
     with get_db_session() as db:
         ev     = get_active_event(db)
@@ -1246,14 +1194,6 @@ def export_guests_simple():
         output.headers['Content-Disposition'] = 'attachment; filename=guests_list.csv'
         output.headers['Content-Type'] = 'text/csv'
         return output
-
-    # Default: PDF
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
-    from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.enums import TA_CENTER
 
     buf = BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4,
@@ -1296,6 +1236,7 @@ def export_guests_simple():
     return send_file(buf, as_attachment=True, download_name='guests_list.pdf',
                      mimetype='application/pdf')
 
+
 # -------------------- zip_qr_codes_web --------------------
 
 @app.route('/zip_qr_codes_web')
@@ -1318,6 +1259,7 @@ def zip_qr_codes_web():
     return send_file(buf, download_name='qr_codes.zip', as_attachment=True,
                      mimetype='application/zip')
 
+
 # -------------------- edit_guest --------------------
 
 @app.route('/edit_guest/<int:guest_id>', methods=['GET', 'POST'])
@@ -1325,18 +1267,18 @@ def zip_qr_codes_web():
 def edit_guest(guest_id):
     with get_db_session() as db:
         try:
-            guest = db.query(Guest).filter(Guest.id == guest_id).first()  # ← fix here
+            guest = db.query(Guest).filter(Guest.id == guest_id).first()
             if not guest:
                 flash("Guest not found.", "danger")
                 return redirect(url_for('view_all'))
 
             if request.method == 'POST':
-                guest.name = request.form.get('name', guest.name).strip()
-                guest.phone = to_whatsapp_number(request.form.get('phone', guest.phone))
+                guest.name        = request.form.get('name', guest.name).strip()
+                guest.phone       = to_whatsapp_number(request.form.get('phone', guest.phone))
                 guest.has_entered = 'has_entered' in request.form
                 new_card_type_raw = request.form.get('card_type', guest.card_type)
-                group_size_raw = request.form.get('group_size', '').strip()
-                new_card_type, _ = normalize_card_type(new_card_type_raw, group_size_raw or None)
+                group_size_raw    = request.form.get('group_size', '').strip()
+                new_card_type, _  = normalize_card_type(new_card_type_raw, group_size_raw or None)
 
                 if new_card_type == "family":
                     try:
@@ -1361,7 +1303,7 @@ def edit_guest(guest_id):
                     flash("Unknown card type.", "danger")
                     return redirect(request.url)
 
-                guest.card_type = new_card_type
+                guest.card_type  = new_card_type
                 guest.group_size = new_group_size
                 db.commit()
                 flash('Guest updated successfully.', 'success')
@@ -1375,17 +1317,16 @@ def edit_guest(guest_id):
             current_app.logger.error(f"Error updating guest {guest_id}: {e}", exc_info=True)
             return redirect(url_for('view_all'))
 
+
 @app.route('/scan_guests_data')
 @login_required
 def scan_guests_data():
-    """Return all guests for the active event as JSON for offline scan caching."""
     with get_db_session() as db:
         ev  = get_active_event(db)
         eid = ev.id if ev else None
         guests = db.query(Guest).filter_by(event_id=eid).all()
         data = {}
         for g in guests:
-            # Index by qr_code_id (for QR scan) AND by visual_id (for card number)
             entry = {
                 'id':               g.id,
                 'name':             g.name or '',
@@ -1408,6 +1349,7 @@ def scan_guests_data():
 def scan_qr():
     return render_template('scan_qr.html')
 
+
 # -------------------- delete_guest --------------------
 
 @app.route('/delete_guest/<int:guest_id>', methods=['GET'])
@@ -1429,6 +1371,7 @@ def delete_guest(guest_id):
             flash(f'Error deleting guest: {e}', 'danger')
             current_app.logger.error(f"Error deleting guest {guest_id}: {e}", exc_info=True)
     return redirect(url_for('view_all'))
+
 
 # -------------------- regenerate_qr_codes --------------------
 
@@ -1458,18 +1401,17 @@ def regenerate_qr_codes():
             current_app.logger.error(f"Error regenerating QR codes: {e}", exc_info=True)
     return redirect(url_for('view_all'))
 
+
 # ===========================================================================
-# CARD GENERATION — per-card API (avoids Gunicorn 30 s timeout)
+# CARD GENERATION
 # ===========================================================================
 
 @app.route('/generate_guest_cards')
 @admin_required
 def generate_guest_cards():
-    """Returns JSON list of visual_ids. Frontend calls /generate_card/<id> per guest."""
     with get_db_session() as db:
         ev  = get_active_event(db)
         eid = ev.id if ev else None
-        # Accept if either a per-event template or the global fallback exists
         has_event_template  = bool(ev and ev.card_template_url)
         has_global_template = os.path.exists(os.path.join("static", "Card Template.jpg"))
         if not has_event_template and not has_global_template:
@@ -1488,7 +1430,6 @@ def generate_guest_cards():
 @app.route('/generate_card/<int:visual_id>', methods=['POST'])
 @login_required
 def generate_card(visual_id):
-    """Generate and upload card for ONE guest. Called by frontend in a loop."""
     with get_db_session() as db:
         guest = db.query(Guest).filter_by(visual_id=visual_id).first()
         if not guest:
@@ -1508,8 +1449,8 @@ def generate_card(visual_id):
 @app.route('/generate_cards_page')
 @admin_required
 def generate_cards_page():
-    """Renders the progress-bar page that drives per-card generation."""
     return render_template('generate_cards.html')
+
 
 # -------------------- download_card_by_id --------------------
 
@@ -1522,21 +1463,13 @@ def download_card_by_id(visual_id):
             if not guest:
                 flash("Guest not found.", "danger")
                 return redirect(url_for('view_all'))
-            if not os.path.exists(os.path.join("static", "Card Template.jpg")):
-                flash("Card template missing.", "danger")
-                return redirect(url_for('view_all'))
-
-            # Fallback to regenerating QR if name was edited and old file is gone
-            try:
-                qr_data = download_from_supabase(QR_BUCKET, qr_filename_from_guest(guest))
-            except Exception:
-                qr_data = generate_qr_bytes(guest.qr_code_id)
 
             ev             = get_active_event(db)
             template_bytes = _get_event_template_bytes(ev)
-            qr_img = Image.open(BytesIO(qr_data))
-            img    = _draw_card(guest, qr_img, template_bytes=template_bytes, event=ev)
-            buf    = BytesIO()
+            qr_data        = generate_qr_bytes(guest.qr_code_id)
+            qr_img         = Image.open(BytesIO(qr_data))
+            img            = _draw_card(guest, qr_img, template_bytes=template_bytes, event=ev)
+            buf            = BytesIO()
             img.save(buf, format="JPEG", quality=92)
             buf.seek(0)
             vid = str(guest.visual_id or 0).zfill(4)
@@ -1548,35 +1481,26 @@ def download_card_by_id(visual_id):
             current_app.logger.error(f"Error downloading card: {e}", exc_info=True)
             return redirect(url_for('view_all'))
 
+
 # -------------------- download_all_cards --------------------
 
 @app.route('/download_all_cards')
 @login_required
 def download_all_cards():
-    """
-    Regenerates every guest card on the fly (same as individual download)
-    and bundles them into a ZIP. Does NOT rely on Supabase storage.
-    """
     try:
-        if not os.path.exists(os.path.join("static", "Card Template.jpg")):
-            flash("Card template missing — cannot generate cards.", "danger")
-            return redirect(url_for('view_all'))
-
         with get_db_session() as db:
             ev     = get_active_event(db)
             eid    = ev.id if ev else None
             guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
-            # Snapshot all data we need while session is open
             guest_snapshots = [
                 {
-                    "visual_id":   g.visual_id,
-                    "name":        g.name,
-                    "phone":       g.phone,
-                    "card_type":   g.card_type,
-                    "group_size":  g.group_size,
-                    "qr_code_id":  g.qr_code_id,
-                    "qr_filename": qr_filename_from_guest(g),
-                    "card_fname":  card_filename_from_guest(g),
+                    "visual_id":  g.visual_id,
+                    "name":       g.name,
+                    "phone":      g.phone,
+                    "card_type":  g.card_type,
+                    "group_size": g.group_size,
+                    "qr_code_id": g.qr_code_id,
+                    "card_fname": card_filename_from_guest(g),
                 }
                 for g in guests
             ]
@@ -1585,7 +1509,6 @@ def download_all_cards():
             flash("No guests found.", "warning")
             return redirect(url_for('view_all'))
 
-        # Fetch per-event template and layout once before the zip loop
         with get_db_session() as db2:
             active_ev = get_active_event(db2)
         active_tmpl_bytes = _get_event_template_bytes(active_ev) if active_ev else None
@@ -1597,24 +1520,19 @@ def download_all_cards():
         with zipfile.ZipFile(zip_buffer, 'w', zipfile.ZIP_DEFLATED) as zf:
             for snap in guest_snapshots:
                 try:
-                    # Fetch QR — fall back to regenerating if not in storage
-                    try:
-                        qr_data = download_from_supabase(QR_BUCKET, snap["qr_filename"])
-                    except Exception:
-                        qr_data = generate_qr_bytes(snap["qr_code_id"])
+                    qr_data = generate_qr_bytes(snap["qr_code_id"])
 
-                    # Build a lightweight guest-like object for _draw_card
                     class _G:
                         pass
-                    g = _G()
+                    g            = _G()
                     g.visual_id  = snap["visual_id"]
                     g.name       = snap["name"]
                     g.phone      = snap["phone"]
                     g.card_type  = snap["card_type"]
                     g.group_size = snap["group_size"]
 
-                    qr_img     = Image.open(BytesIO(qr_data))
-                    card       = _draw_card(g, qr_img, template_bytes=active_tmpl_bytes, event=active_ev)
+                    qr_img = Image.open(BytesIO(qr_data))
+                    card   = _draw_card(g, qr_img, template_bytes=active_tmpl_bytes, event=active_ev)
                     buf    = BytesIO()
                     card.save(buf, format="JPEG", quality=92)
                     zf.writestr(snap["card_fname"], buf.getvalue())
@@ -1644,6 +1562,7 @@ def download_all_cards():
         flash(f"Error: {e}", "danger")
         return redirect(url_for('view_all'))
 
+
 # -------------------- guest_report --------------------
 
 @app.route('/guest_report_data')
@@ -1653,8 +1572,7 @@ def guest_report_data():
         ev     = get_active_event(db)
         eid    = ev.id if ev else None
         guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
- 
-    # ── full dict — used by internal guest_report.html (includes rsvp_status) ──
+
     def g_dict(g):
         return {
             "name":             g.name,
@@ -1665,25 +1583,16 @@ def guest_report_data():
             "rsvp_status":      g.rsvp_status,
             "entry_time":       fmt_eat(g.entry_time, '%H:%M') if g.entry_time else None,
         }
- 
-    # ── Card counts (number of cards/invitations) ───────────────────────────
+
     total_cards   = len(guests)
     single_cards  = sum(1 for g in guests if (g.card_type or '') == 'single')
     double_cards  = sum(1 for g in guests if (g.card_type or '') == 'double')
     family_cards  = sum(1 for g in guests if (g.card_type or '') == 'family')
-
-    # ── People counts (actual individuals, group_size defines capacity) ──────
-    # total_people  = sum of group_size across all cards (max capacity)
-    # people_in     = sum of checked_in_count (actual people who walked in)
-    # people_not_in = total_people - people_in
     total_people  = sum(g.group_size or 1 for g in guests)
     people_in     = sum(g.checked_in_count or 0 for g in guests)
     people_not_in = total_people - people_in
-
-    # ── Card-level entered (any scan = card is "active") ─────────────────────
     entered     = [g for g in guests if (g.checked_in_count or 0) >= 1]
     not_entered = [g for g in guests if (g.checked_in_count or 0) == 0]
-
     attending   = [g for g in guests if g.rsvp_status == 'attending']
     declined    = [g for g in guests if g.rsvp_status == 'not_attending']
     no_rsvp     = [g for g in guests if not g.rsvp_status]
@@ -1692,26 +1601,22 @@ def guest_report_data():
     sms_sent    = [g for g in guests if g.at_sms_sent]
 
     return jsonify({
-        # Card-level counts
-        "total_guests":       total_cards,   # cards (invitations)
+        "total_guests":       total_cards,
         "total_cards":        total_cards,
         "single_cards":       single_cards,
         "double_cards":       double_cards,
         "family_cards":       family_cards,
         "entered_guests":     len(entered),
         "not_entered_guests": len(not_entered),
-        # People-level counts (the meaningful attendance numbers)
         "total_people":       total_people,
         "people_in":          people_in,
         "people_not_in":      people_not_in,
-        # Comms
         "attending":          len(attending),
         "not_attending":      len(declined),
         "no_rsvp":            len(no_rsvp),
         "wa_sent":            len(wa_sent),
         "wa_pending":         len(wa_pending),
         "sms_sent":           len(sms_sent),
-        # Lists for display
         "entered_list":       [g_dict(g) for g in entered],
         "not_entered_list":   [g_dict(g) for g in not_entered],
         "attending_list":     [g_dict(g) for g in attending],
@@ -1720,12 +1625,13 @@ def guest_report_data():
         "wa_sent_list":       [g_dict(g) for g in wa_sent],
         "wa_pending_list":    [g_dict(g) for g in wa_pending],
     })
- 
- 
+
+
 @app.route('/guest_report')
 @login_required
 def guest_report():
     return render_template('guest_report.html')
+
 
 # -------------------- clear_all_data --------------------
 
@@ -1748,6 +1654,7 @@ def clear_all_data():
             flash(f"An error occurred while clearing data: {e}", "danger")
             current_app.logger.error(f"Error clearing all data: {e}", exc_info=True)
     return redirect(url_for('view_all'))
+
 
 # ===========================================================================
 # WEBHOOK  (RSVP receiver)
@@ -1812,28 +1719,14 @@ def _handle_rsvp(from_number: str, button_text: str):
         guest.rsvp_status = rsvp_status
         guest.rsvp_at     = now_eat()
         db.commit()
-        current_app.logger.info(
-            f"RSVP saved: {guest.name} → {rsvp_status}")
+        current_app.logger.info(f"RSVP saved: {guest.name} → {rsvp_status}")
+
 
 # ===========================================================================
 # UNIFIED SEND ENGINE
 # ===========================================================================
 
 def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
-    """
-    Deliver invitation to one guest.
-
-    Parameters
-    ----------
-    send_wa  : bool  — attempt WhatsApp delivery
-    send_sms : bool  — attempt Africa's Talking SMS delivery
-
-    Returns
-    -------
-    dict with keys: wa, sms, overall, message
-      wa / sms values: "sent" | "skipped" | "failed" | "invalid" | "not_configured"
-      overall:         "success" | "partial" | "failed"
-    """
     now        = now_eat()
     wa_status  = "skipped"
     sms_status = "skipped"
@@ -1849,30 +1742,29 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
         logging.info(f"[WA] Starting WA send for guest: {guest.name} | phone: {phone}")
         try:
             card_fname = card_filename_from_guest(guest)
-            logging.info("[WA] Card filename: {card_fname}")
 
-            # Try fetching from Supabase first, fall back to regenerating
+            # Try fetching pre-generated card from Supabase first,
+            # fall back to generating locally (no Supabase QR download needed)
             card_bytes = None
             try:
                 card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
-                logging.info("[WA] Card fetched from Supabase: {len(card_bytes)} bytes")
+                logging.info(f"[WA] Card fetched from Supabase: {len(card_bytes)} bytes")
             except Exception as supa_err:
-                logging.info("[WA] Supabase fetch failed ({supa_err}), regenerating card...")
+                logging.info(f"[WA] Supabase fetch failed ({supa_err}), regenerating card...")
                 card_bytes = _generate_card_bytes(guest, event=event)
                 if card_bytes:
-                    logging.info("[WA] Card regenerated: {len(card_bytes)} bytes")
+                    logging.info(f"[WA] Card regenerated: {len(card_bytes)} bytes")
                     try:
                         upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes,
                                            content_type="image/jpeg")
                     except Exception as up_err:
-                        logging.info("[WA] Re-upload to Supabase failed (non-fatal): {up_err}")
+                        logging.info(f"[WA] Re-upload to Supabase failed (non-fatal): {up_err}")
                 else:
                     logging.info("[WA] Card regeneration also failed!")
 
             if not card_bytes:
                 raise ValueError("Could not retrieve or generate card image.")
 
-            logging.info("[WA] Calling send_guest_card...")
             wa_result = send_guest_card(
                 to=phone,
                 guest_name=guest.name or "Guest",
@@ -1882,7 +1774,6 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
                 filename=card_fname,
                 event=event,
             )
-            logging.info("[WA] send_guest_card result: {wa_result}")
 
             if wa_result.get("status") == "invalid_number":
                 guest.has_whatsapp        = False
@@ -1900,15 +1791,12 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
         except Exception as e:
             import traceback
             err_str = str(e)[:500]
-            tb      = traceback.format_exc()
             logging.error(f"[WA] WA send failed for {guest.name}: {err_str}")
-            logging.error(f"[WA] Traceback:\n{tb}")
+            logging.error(f"[WA] Traceback:\n{traceback.format_exc()}")
             guest.whatsapp_sent  = False
             guest.whatsapp_error = err_str
             wa_status = "failed"
             messages.append(f"WhatsApp failed: {err_str}")
-            logging.error(f"WA send failed for {guest.name}: {e}", exc_info=True)
-    # wa_status stays "skipped" if send_wa is False
 
     # ── Africa's Talking SMS ──────────────────────────────────────────────
     if send_sms:
@@ -1937,11 +1825,9 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
                 sms_status = "failed"
                 messages.append(f"SMS error: {err_str}")
                 logging.error(f"SMS send failed for {guest.name}: {e}", exc_info=True)
-    # sms_status stays "skipped" if send_sms is False
 
     db.commit()
 
-    # Overall outcome — only consider channels that were actually requested
     active = []
     if send_wa:  active.append(wa_status)
     if send_sms: active.append(sms_status)
@@ -1955,6 +1841,59 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
 
     return {"wa": wa_status, "sms": sms_status,
             "overall": overall, "message": " | ".join(messages)}
+
+
+# ── Per-guest ID list endpoint (used by frontend loop) ───────────────────────
+
+@app.route('/pending_guest_ids', methods=['GET'])
+@login_required
+def pending_guest_ids():
+    resend  = request.args.get('resend', 'false').lower() == 'true'
+    channel = request.args.get('channel', 'both')  # 'wa', 'sms', or 'both'
+    with get_db_session() as db:
+        ev  = get_active_event(db)
+        eid = ev.id if ev else None
+        if resend:
+            ids = [g.id for g in db.query(Guest)
+                   .filter_by(event_id=eid)
+                   .order_by(Guest.visual_id).all()]
+        else:
+            q = db.query(Guest).filter(Guest.event_id == eid)
+            if channel == 'wa':
+                q = q.filter((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None))
+            elif channel == 'sms':
+                q = q.filter((Guest.at_sms_sent == False) | (Guest.at_sms_sent == None))
+            else:
+                q = q.filter(
+                    ((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)),
+                    ((Guest.at_sms_sent   == False) | (Guest.at_sms_sent   == None))
+                )
+            ids = [g.id for g in q.order_by(Guest.visual_id).all()]
+    return jsonify(guest_ids=ids, total=len(ids))
+
+
+# ── Per-guest send endpoint (used by frontend loop) ──────────────────────────
+
+@app.route('/send_unified_one/<int:guest_id>', methods=['POST'])
+@login_required
+def send_unified_one(guest_id):
+    try:
+        with get_db_session() as db:
+            guest = db.get(Guest, guest_id)
+            if not guest:
+                return jsonify(success=False, guest_id=guest_id, error="Guest not found")
+            ev     = get_active_event(db)
+            result = _send_to_guest(guest, db, send_wa=True, send_sms=True, event=ev)
+        return jsonify(
+            success=(result["overall"] != "failed"),
+            guest_id=guest_id,
+            wa=result["wa"],
+            sms=result["sms"],
+            message=result["message"]
+        )
+    except Exception as e:
+        current_app.logger.exception(f"send_unified_one failed for guest {guest_id}: {e}")
+        return jsonify(success=False, guest_id=guest_id, error=str(e)), 500
 
 
 # ── Unified single — WA + SMS ─────────────────────────────────────────────────
@@ -1974,55 +1913,14 @@ def send_unified_single(guest_id):
                        guest_id=guest_id)
 
 
-# ── Unified bulk — WA + SMS ───────────────────────────────────────────────────
+# ── Unified bulk — kept for backwards compat but frontend no longer calls it ──
 
 @app.route('/send_unified_bulk', methods=['POST'])
 @login_required
 def send_unified_bulk():
-    data   = request.get_json() or {}
-    resend = data.get('resend', False)
-
-    # Fetch guest IDs and event in a short session, then close it
-    with get_db_session() as db:
-        ev  = get_active_event(db)
-        eid = ev.id if ev else None
-        if resend:
-            guest_ids = [g.id for g in
-                         db.query(Guest).filter_by(event_id=eid)
-                         .order_by(Guest.visual_id).all()]
-        else:
-            guest_ids = [g.id for g in
-                         db.query(Guest).filter(
-                             Guest.event_id == eid,
-                             ((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)),
-                             ((Guest.at_sms_sent   == False) | (Guest.at_sms_sent   == None))
-                         ).order_by(Guest.visual_id).all()]
-        # Snapshot event for SMS/WA config (detached from session)
-        ev_id = ev.id if ev else None
-
-    totals = {"total": len(guest_ids), "wa_sent": 0, "wa_failed": 0,
-              "sms_sent": 0, "sms_failed": 0, "errors": []}
-
-    for gid in guest_ids:
-        try:
-            with get_db_session() as db:
-                guest = db.get(Guest, gid)
-                if not guest:
-                    continue
-                ev = db.get(Event, ev_id) if ev_id else None
-                result = _send_to_guest(guest, db, send_wa=True, send_sms=True, event=ev)
-            if result["wa"]  == "sent":                  totals["wa_sent"]    += 1
-            elif result["wa"]  in ("failed", "invalid"): totals["wa_failed"]  += 1
-            if result["sms"] == "sent":                  totals["sms_sent"]   += 1
-            elif result["sms"] == "failed":              totals["sms_failed"] += 1
-            if result["overall"] == "failed":
-                totals["errors"].append({"name": guest.name, "error": result["message"]})
-        except Exception as e:
-            totals["wa_failed"] += 1
-            totals["errors"].append({"name": f"ID {gid}", "error": str(e)})
-        time.sleep(0.15)
-
-    return jsonify(totals)
+    """Legacy endpoint — frontend now uses /pending_guest_ids + /send_unified_one."""
+    return jsonify(total=0, wa_sent=0, wa_failed=0, sms_sent=0, sms_failed=0,
+                   errors=[{"name": "Info", "error": "Please use the per-guest send flow."}])
 
 
 # ── WhatsApp only — single ────────────────────────────────────────────────────
@@ -2040,51 +1938,13 @@ def send_card_single(guest_id):
                        message=result["message"], guest_id=guest_id)
 
 
-# ── WhatsApp only — bulk ──────────────────────────────────────────────────────
+# ── WhatsApp only — bulk (legacy, kept for compat) ────────────────────────────
 
 @app.route('/send_cards_bulk', methods=['POST'])
 @login_required
 def send_cards_bulk():
-    data   = request.get_json() or {}
-    resend = data.get('resend', False)
-
-    with get_db_session() as db:
-        ev  = get_active_event(db)
-        eid = ev.id if ev else None
-        if resend:
-            guest_ids = [g.id for g in
-                         db.query(Guest).filter_by(event_id=eid)
-                         .order_by(Guest.visual_id).all()]
-        else:
-            guest_ids = [g.id for g in
-                         db.query(Guest).filter(
-                             Guest.event_id == eid,
-                             (Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)
-                         ).order_by(Guest.visual_id).all()]
-        ev_id = ev.id if ev else None
-
-    sent = failed = 0
-    errors = []
-    for gid in guest_ids:
-        try:
-            with get_db_session() as db:
-                guest = db.get(Guest, gid)
-                if not guest:
-                    continue
-                ev = db.get(Event, ev_id) if ev_id else None
-                result = _send_to_guest(guest, db, send_wa=True, send_sms=False, event=ev)
-            if result["wa"] == "sent":
-                sent += 1
-            else:
-                failed += 1
-                if result["overall"] == "failed":
-                    errors.append({"name": guest.name, "error": result["message"]})
-        except Exception as e:
-            failed += 1
-            errors.append({"name": f"ID {gid}", "error": str(e)})
-        time.sleep(0.15)
-
-    return jsonify(total=len(guest_ids), sent=sent, failed=failed, errors=errors)
+    """Legacy endpoint — frontend now uses per-guest loop."""
+    return jsonify(total=0, sent=0, failed=0, errors=[])
 
 
 # ── SMS only — single ─────────────────────────────────────────────────────────
@@ -2102,51 +1962,13 @@ def send_at_sms_single(guest_id):
                        message=result["message"])
 
 
-# ── SMS only — bulk ───────────────────────────────────────────────────────────
+# ── SMS only — bulk (legacy, kept for compat) ─────────────────────────────────
 
 @app.route('/send_at_sms_bulk', methods=['POST'])
 @login_required
 def send_at_sms_bulk():
-    data   = request.get_json() or {}
-    resend = data.get("resend", False)
-
-    with get_db_session() as db:
-        ev  = get_active_event(db)
-        eid = ev.id if ev else None
-        if resend:
-            guest_ids = [g.id for g in
-                         db.query(Guest).filter_by(event_id=eid).all()]
-        else:
-            guest_ids = [g.id for g in
-                         db.query(Guest).filter(
-                             Guest.event_id == eid,
-                             (Guest.at_sms_sent == None) | (Guest.at_sms_sent == False)
-                         ).all()]
-        ev_id = ev.id if ev else None
-
-    sent_count = failed_count = 0
-    errors = []
-    for gid in guest_ids:
-        try:
-            with get_db_session() as db:
-                guest = db.get(Guest, gid)
-                if not guest:
-                    continue
-                ev = db.get(Event, ev_id) if ev_id else None
-                result = _send_to_guest(guest, db, send_wa=False, send_sms=True, event=ev)
-            if result["sms"] == "sent":
-                sent_count += 1
-            else:
-                failed_count += 1
-                if result["overall"] == "failed":
-                    errors.append({"name": guest.name, "error": result["message"]})
-        except Exception as e:
-            failed_count += 1
-            errors.append({"name": f"ID {gid}", "error": str(e)})
-        time.sleep(0.15)
-
-    return jsonify(total=len(guest_ids), sent=sent_count,
-                   failed=failed_count, errors=errors)
+    """Legacy endpoint — frontend now uses per-guest loop."""
+    return jsonify(total=0, sent=0, failed=0, errors=[])
 
 
 # -------------------- send_cards page --------------------
@@ -2183,6 +2005,7 @@ def send_cards():
             sms_sent_count=at_sms_sent_count,
         )
 
+
 # ===========================================================================
 # Misc / public routes
 # ===========================================================================
@@ -2211,43 +2034,26 @@ def data_deletion():
     </html>
     """
 
+
 @app.route('/download_client_report')
 @login_required
 def download_client_report():
-    """
-    Client-facing PDF: stat summary + two clean tables
-    (checked-in guests and not-checked-in guests).
-    NO RSVP data anywhere in this document.
-    """
-    from reportlab.lib.pagesizes import A4
-    from reportlab.lib import colors
-    from reportlab.lib.units import mm
-    from reportlab.platypus import (
-        SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable
-    )
-    from reportlab.lib.styles import ParagraphStyle
-    from reportlab.lib.enums import TA_CENTER
- 
     with get_db_session() as db:
         ev     = get_active_event(db)
         eid    = ev.id if ev else None
         guests = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
- 
-    # Card counts
+
     total_cards   = len(guests)
     single_count  = sum(1 for g in guests if (g.card_type or '') == 'single')
     double_count  = sum(1 for g in guests if (g.card_type or '') == 'double')
     family_count  = sum(1 for g in guests if (g.card_type or '') == 'family')
-    # People counts — the real attendance numbers
     total_people  = sum(g.group_size or 1 for g in guests)
     people_in     = sum(g.checked_in_count or 0 for g in guests)
     people_not_in = total_people - people_in
-    # Card-level entered (for the table lists)
     entered       = [g for g in guests if (g.checked_in_count or 0) >= 1]
     not_entered   = [g for g in guests if (g.checked_in_count or 0) == 0]
     generated_at  = now_eat().strftime("%d %B %Y, %H:%M")
- 
-    # ── colours ──────────────────────────────────────────────────────────────
+
     C_GREEN  = colors.HexColor("#185a3f")
     C_GOLD   = colors.HexColor("#c9a84c")
     C_RED    = colors.HexColor("#dc2626")
@@ -2257,19 +2063,19 @@ def download_client_report():
     C_INK    = colors.HexColor("#1f2937")
     C_WHITE  = colors.white
     C_ROW2   = colors.HexColor("#fafafa")
- 
-    W = A4[0] - 40 * mm   # usable content width
- 
+
+    W = A4[0] - 40 * mm
+
     def ps(name, **kw):
         return ParagraphStyle(name, **kw)
- 
+
     S_TITLE  = ps('tt', fontName='Helvetica-Bold', fontSize=22, textColor=C_GREEN,  alignment=TA_CENTER, spaceAfter=3)
     S_META   = ps('me', fontName='Helvetica',      fontSize=8,  textColor=C_GREY,   alignment=TA_CENTER, spaceAfter=12)
     S_SEC    = ps('se', fontName='Helvetica-Bold', fontSize=12, textColor=C_GREEN,  spaceBefore=14, spaceAfter=5)
     S_CELL   = ps('ce', fontName='Helvetica',      fontSize=8.5, textColor=C_INK,   leading=12)
     S_CELL_B = ps('cb', fontName='Helvetica-Bold', fontSize=8.5, textColor=C_INK,   leading=12)
     S_HEAD   = ps('hd', fontName='Helvetica-Bold', fontSize=8,  textColor=C_WHITE,  alignment=TA_CENTER)
- 
+
     def stat_table(items):
         cw = W / len(items)
         data = [[
@@ -2290,7 +2096,7 @@ def download_client_report():
             ('ALIGN',         (0,0), (-1,-1), 'CENTER'),
         ]))
         return tbl
- 
+
     def guest_table(guest_list, cols, col_widths, row_fn, empty_msg="None"):
         header = [Paragraph(c, S_HEAD) for c in cols]
         rows   = [header]
@@ -2314,9 +2120,7 @@ def download_client_report():
             ('FONTSIZE',      (0,1),  (-1,-1), 8.5),
         ]))
         return tbl
- 
-    # ── row builders ─────────────────────────────────────────────────────────
- 
+
     def in_row(g, i):
         et = fmt_eat(g.entry_time)
         return [
@@ -2326,8 +2130,7 @@ def download_client_report():
             Paragraph(f"{g.checked_in_count or 0}/{g.group_size or 1}", S_CELL),
             Paragraph(et, S_CELL),
         ]
- 
-    # ← NO rsvp_status here — 4 columns only
+
     def nin_row(g, i):
         return [
             Paragraph(f"{g.visual_id:04d}", S_CELL_B),
@@ -2335,8 +2138,7 @@ def download_client_report():
             Paragraph((g.card_type or 'single').title(), S_CELL),
             Paragraph(str(g.group_size or 1), S_CELL),
         ]
- 
-    # ── build PDF ─────────────────────────────────────────────────────────────
+
     buf = BytesIO()
     doc = SimpleDocTemplate(
         buf, pagesize=A4,
@@ -2344,7 +2146,7 @@ def download_client_report():
         topMargin=20*mm, bottomMargin=16*mm,
         title="Guest Report", author="SwiftInvite",
     )
- 
+
     def on_page(canvas, doc):
         canvas.saveState()
         w, h = A4
@@ -2360,14 +2162,13 @@ def download_client_report():
         canvas.drawString(20*mm, 3*mm, f"Generated by SwiftInvite · {generated_at}")
         canvas.drawRightString(w - 20*mm, 3*mm, f"Page {doc.page}")
         canvas.restoreState()
- 
+
     story = []
     story.append(Spacer(1, 6*mm))
     story.append(Paragraph("Guest Report", S_TITLE))
     story.append(Paragraph(f"Prepared on {generated_at}", S_META))
     story.append(HRFlowable(width="100%", thickness=1.5, color=C_GOLD, spaceAfter=10))
- 
-    # ── Summary (NO "RSVP Yes" tile) ─────────────────────────────────────────
+
     story.append(Paragraph("Summary", S_SEC))
     story.append(stat_table([
         ("Total Cards",    total_cards,   C_GREEN),
@@ -2381,8 +2182,7 @@ def download_client_report():
         ("Double Cards", double_count, C_GOLD),
         ("Family Cards", family_count, C_GOLD),
     ]))
- 
-    # ── Checked-in table (unchanged) ─────────────────────────────────────────
+
     story.append(Paragraph(
         f"Checked In — {len(entered)} card(s) · {people_in} of {total_people} people", S_SEC))
     story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER, spaceAfter=5))
@@ -2393,19 +2193,18 @@ def download_client_report():
         in_row,
         "No guests have checked in yet.",
     ))
- 
-    # ── Not-checked-in table (NO RSVP column) ────────────────────────────────
+
     story.append(Paragraph(
         f"Not Yet Checked In — {len(not_entered)} card(s) · {people_not_in} people remaining", S_SEC))
     story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER, spaceAfter=5))
     story.append(guest_table(
         not_entered,
-        ["#", "Guest Name", "Card Type", "Allowed"],   # ← 4 cols, no RSVP
+        ["#", "Guest Name", "Card Type", "Allowed"],
         [14*mm, W - 14*mm - 22*mm - 18*mm, 22*mm, 18*mm],
         nin_row,
         "All guests have checked in!",
     ))
- 
+
     story.append(Spacer(1, 10))
     story.append(HRFlowable(width="100%", thickness=0.4, color=C_BORDER))
     story.append(Spacer(1, 4))
@@ -2414,15 +2213,15 @@ def download_client_report():
         "All guest data is confidential.",
         ps('ft', fontName='Helvetica', fontSize=7.5,
            textColor=C_GREY, alignment=TA_CENTER)))
- 
+
     doc.build(story, onFirstPage=on_page, onLaterPages=on_page)
     buf.seek(0)
- 
+
     filename = f"Guest_Report_{now_eat().strftime('%Y%m%d_%H%M')}.pdf"
     return send_file(buf, as_attachment=True,
                      download_name=filename,
                      mimetype='application/pdf')
- 
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)
