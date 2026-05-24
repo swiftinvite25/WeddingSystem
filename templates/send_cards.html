@@ -287,6 +287,12 @@
                           onclick="sendAtSms({{ guest.id }})">
                     {% if guest.at_sms_sent %}↺ SMS{% else %}▶ SMS{% endif %}
                   </button>
+                  <!-- Thank-you SMS single -->
+                  <button class="btn btn-sm btn-warning" id="ty-btn-{{ guest.id }}"
+                          onclick="sendThankYouSingle({{ guest.id }})"
+                          title="Send Thank-You SMS">
+                    🙏
+                  </button>
                   {% endif %}
                 </div>
               </td>
@@ -558,6 +564,22 @@ async function sendAtSms(guestId) {
   } catch (err) {
     statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
     btn.textContent    = '▶ SMS';
+  }
+  btn.disabled = false;
+}
+
+// ── Single Thank-You SMS ──────────────────────────────────────────────────
+async function sendThankYouSingle(guestId) {
+  const btn = document.getElementById(`ty-btn-${guestId}`);
+  btn.disabled = true; btn.textContent = '⏳';
+  try {
+    const res  = await fetch(`/send_thankyou_sms_one/${guestId}`, { method: 'POST' });
+    const data = await res.json();
+    btn.textContent = data.success ? '✓' : '✗';
+    setTimeout(() => { btn.textContent = '🙏'; }, 3000);
+  } catch (err) {
+    btn.textContent = '✗';
+    setTimeout(() => { btn.textContent = '🙏'; }, 3000);
   }
   btn.disabled = false;
 }
