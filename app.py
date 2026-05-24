@@ -505,7 +505,7 @@ def build_thank_you_sms(event=None) -> str:
         f"katika kufanikisha tukio letu la {day.upper()} {date.upper()}.\n\n"
         f"Hakika shughuli ilipendeza kwa sababu ya ushirikiano wako. "
         f"Ahsanteni sana na Mungu awabariki.\n\n"
-        f"Kwa huduma zetu, wasiliana nasi: +255674114407"
+        f"Kwa huduma zetu za kadi za kidigitali, wasiliana nasi: +255674114407"
     )
 
 # ---------------------------------------------------------------------------
