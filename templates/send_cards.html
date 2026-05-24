@@ -213,6 +213,7 @@
               <th>WhatsApp</th>
               <th>SMS</th>
               <th>RSVP</th>
+              <th>Thank-You</th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -265,6 +266,15 @@
                   <span class="badge bg-secondary">❌ Declined</span>
                 {% else %}
                   <span class="badge bg-light text-muted">—</span>
+                {% endif %}
+              </td>
+              
+              <!-- Thank-You SMS -->
+              <td id="ty-status-{{ guest.id }}">
+                {% if guest.thank_you_sms_sent %}
+                  <span class="badge bg-warning text-dark">Sent</span>
+                {% else %}
+                  <span class="badge bg-light text-muted">Pending</span>
                 {% endif %}
               </td>
 
@@ -570,16 +580,20 @@ async function sendAtSms(guestId) {
 
 // ── Single Thank-You SMS ──────────────────────────────────────────────────
 async function sendThankYouSingle(guestId) {
-  const btn = document.getElementById(`ty-btn-${guestId}`);
+  const btn      = document.getElementById(`ty-btn-${guestId}`);
+  const statusEl = document.getElementById(`ty-status-${guestId}`);
   btn.disabled = true; btn.textContent = '⏳';
+  if (statusEl) statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
   try {
     const res  = await fetch(`/send_thankyou_sms_one/${guestId}`, { method: 'POST' });
     const data = await res.json();
-    btn.textContent = data.success ? '✓' : '✗';
-    setTimeout(() => { btn.textContent = '🙏'; }, 3000);
+    btn.textContent = data.success ? '🙏' : '✗';
+    if (statusEl) statusEl.innerHTML = data.success
+      ? '<span class="badge bg-warning text-dark">Sent ✓</span>'
+      : `<span class="badge bg-danger" title="${data.error || ''}">Failed</span>`;
   } catch (err) {
     btn.textContent = '✗';
-    setTimeout(() => { btn.textContent = '🙏'; }, 3000);
+    if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
   }
   btn.disabled = false;
 }
@@ -684,6 +698,25 @@ async function bulkThankYou() {
   let guestIds = [], evId = null;
   try {
     const res  = await fetch(`/send_thankyou_sms_bulk`, { method: 'POST' });
+    const statusEl = document.getElementById(`ty-status-${gid}`);
+      if (statusEl) statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
+
+      try {
+        const res  = await fetch(`/send_thankyou_sms_one/${gid}`, { method: 'POST' });
+        const data = await res.json();
+        if (data.success) {
+          sent++;
+          if (statusEl) statusEl.innerHTML = '<span class="badge bg-warning text-dark">Sent ✓</span>';
+        } else {
+          failed++;
+          errors.push({ name: data.name || `ID ${gid}`, error: data.error || 'Failed' });
+          if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Failed</span>';
+        }
+      } catch (err) {
+        failed++;
+        errors.push({ name: `ID ${gid}`, error: String(err) });
+        if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
+      }
     const data = await res.json();
     guestIds   = data.guest_ids;
     evId       = data.ev_id;
