@@ -91,7 +91,7 @@
   <div class="card shadow-sm mb-4">
     <div class="card-body d-flex flex-wrap gap-2 align-items-center">
 
-      <!-- ★ UNIFIED: WhatsApp + SMS together -->
+      <!-- UNIFIED: WhatsApp + SMS together -->
       <button class="btn btn-dark fw-semibold" id="btn-unified-pending" onclick="bulkUnified(false)">
         🚀 Send All (WA + SMS) Pending
       </button>
@@ -119,6 +119,13 @@
       <button class="btn btn-outline-info" id="btn-sms-all" onclick="bulkAtSms(true)">
         🔄 SMS Resend All
       </button>
+
+      <div class="vr mx-1"></div>
+
+      <!-- Thank-you SMS -->
+      <button class="btn btn-warning fw-semibold" id="btn-thankyou" onclick="bulkThankYou()">
+        🙏 Send Thank-You SMS to All
+      </button>
       {% else %}
       <span class="text-muted small"
             title="Set AT_API_KEY, AT_USERNAME, and AT_SENDER_ID in your .env to enable">
@@ -133,7 +140,7 @@
   <!-- Unified progress bar -->
   <div id="unified-progress-wrap" class="mb-4" style="display:none;">
     <div class="d-flex justify-content-between mb-1">
-      <small id="unified-progress-label">Sending WhatsApp + SMS — please wait…</small>
+      <small id="unified-progress-label">Sending WhatsApp + SMS…</small>
       <small id="unified-progress-count"></small>
     </div>
     <div class="progress mb-2" style="height:20px;">
@@ -167,6 +174,19 @@
            id="sms-progress-bar" role="progressbar" style="width:0%"></div>
     </div>
     <div id="sms-bulk-result" class="mt-2"></div>
+  </div>
+
+  <!-- Thank-you SMS progress bar -->
+  <div id="thankyou-progress-wrap" class="mb-4" style="display:none;">
+    <div class="d-flex justify-content-between mb-1">
+      <small id="thankyou-progress-label">Sending Thank-You SMS…</small>
+      <small id="thankyou-progress-count"></small>
+    </div>
+    <div class="progress" style="height:20px;">
+      <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
+           id="thankyou-progress-bar" role="progressbar" style="width:0%"></div>
+    </div>
+    <div id="thankyou-bulk-result" class="mt-2"></div>
   </div>
 
   <!-- Filter tabs -->
@@ -251,7 +271,7 @@
               <!-- Actions -->
               <td>
                 <div class="d-flex gap-1 flex-wrap">
-                  <!-- ★ Unified single -->
+                  <!-- Unified single -->
                   <button class="btn btn-sm btn-dark" id="unified-btn-{{ guest.id }}"
                           onclick="sendUnified({{ guest.id }})">
                     🚀
@@ -281,7 +301,7 @@
 </div>
 
 <script>
-// ── helpers ──────────────────────────────────────────────────────────────────
+// ── helpers ───────────────────────────────────────────────────────────────
 function waBadge(wa) {
   if (wa === 'sent')    return '<span class="badge bg-success">Sent ✓</span>';
   if (wa === 'invalid') return '<span class="badge bg-warning text-dark">Not on WA</span>';
@@ -294,7 +314,14 @@ function smsBadge(sms) {
   return                               '<span class="badge bg-danger">Failed</span>';
 }
 
-// ── ★ Single unified (WA + SMS) ───────────────────────────────────────────
+function disableAllBulkBtns(disabled) {
+  ['btn-unified-pending','btn-unified-all','btn-send-pending','btn-send-all',
+   'btn-sms-pending','btn-sms-all','btn-thankyou'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.disabled = disabled;
+  });
+}
+
+// ── Single unified (WA + SMS) ─────────────────────────────────────────────
 async function sendUnified(guestId) {
   const uBtn  = document.getElementById(`unified-btn-${guestId}`);
   const waEl  = document.getElementById(`wa-status-${guestId}`);
@@ -307,14 +334,12 @@ async function sendUnified(guestId) {
   try {
     const res  = await fetch(`/send_unified_single/${guestId}`, { method: 'POST' });
     const data = await res.json();
-
-    waEl.innerHTML  = waBadge(data.wa);
-    smsEl.innerHTML = smsBadge(data.sms);
+    waEl.innerHTML   = waBadge(data.wa);
+    smsEl.innerHTML  = smsBadge(data.sms);
     uBtn.textContent = data.overall !== 'failed' ? '✓' : '✗';
-
     const row = document.getElementById(`row-${guestId}`);
     if (row) {
-      row.dataset.waSent  = data.wa  === 'sent' ? 'sent' : (data.wa === 'skipped' ? 'pending' : 'failed');
+      row.dataset.waSent  = data.wa  === 'sent' ? 'sent' : (data.wa  === 'skipped' ? 'pending' : 'failed');
       row.dataset.smsSent = data.sms === 'sent' ? 'sent' : (data.sms === 'skipped' ? 'pending' : 'failed');
     }
   } catch (err) {
@@ -325,7 +350,7 @@ async function sendUnified(guestId) {
   uBtn.disabled = false;
 }
 
-// ── ★ Bulk unified ────────────────────────────────────────────────────────
+// ── Bulk unified (WA + SMS) — per-guest loop ──────────────────────────────
 async function bulkUnified(resend) {
   const wrap  = document.getElementById('unified-progress-wrap');
   const bar   = document.getElementById('unified-progress-bar');
@@ -333,63 +358,88 @@ async function bulkUnified(resend) {
   const count = document.getElementById('unified-progress-count');
   const result= document.getElementById('unified-bulk-result');
 
-  ['btn-unified-pending','btn-unified-all',
-   'btn-send-pending','btn-send-all',
-   'btn-sms-pending','btn-sms-all'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.disabled = true;
-  });
-
+  disableAllBulkBtns(true);
   wrap.style.display = 'block';
   bar.style.width    = '5%';
-  label.textContent  = 'Sending WhatsApp + SMS — please wait, do not close this page…';
+  label.textContent  = 'Loading guest list…';
   result.innerHTML   = '';
 
+  let guestIds = [];
   try {
-    const res  = await fetch('/send_unified_bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resend }),
-    });
+    const res  = await fetch(`/pending_guest_ids?resend=${resend}&channel=both`);
     const data = await res.json();
-    const pct  = data.total > 0 ? Math.round(((data.wa_sent + data.sms_sent) / (data.total * 2)) * 100) : 100;
-
-    bar.style.width   = `${pct}%`;
-    count.textContent = `WA ${data.wa_sent}/${data.total} · SMS ${data.sms_sent}/${data.total}`;
-    label.textContent = 'Done!';
-
-    const hasErrors = data.errors?.length > 0;
-    let html = `<div class="alert alert-${hasErrors ? 'warning' : 'success'} mt-2">
-      📤 WhatsApp sent: <strong>${data.wa_sent}</strong> &nbsp; failed: <strong>${data.wa_failed}</strong><br>
-      📱 SMS sent: <strong>${data.sms_sent}</strong> &nbsp; failed: <strong>${data.sms_failed}</strong>
-    </div>`;
-    if (hasErrors) {
-      html += `<ul class="list-group mt-2">`;
-      data.errors.forEach(e => {
-        html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`;
-      });
-      html += `</ul>`;
-    }
-    result.innerHTML = html;
-    setTimeout(() => location.reload(), 3500);
+    guestIds   = data.guest_ids;
   } catch (err) {
-    result.innerHTML = `<div class="alert alert-danger">Request failed: ${err}</div>`;
+    result.innerHTML = `<div class="alert alert-danger">Failed to load guest list: ${err}</div>`;
+    disableAllBulkBtns(false);
+    return;
   }
 
-  ['btn-unified-pending','btn-unified-all',
-   'btn-send-pending','btn-send-all',
-   'btn-sms-pending','btn-sms-all'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.disabled = false;
-  });
+  if (guestIds.length === 0) {
+    result.innerHTML = `<div class="alert alert-info">No pending guests to send to.</div>`;
+    wrap.style.display = 'none';
+    disableAllBulkBtns(false);
+    return;
+  }
+
+  const total = guestIds.length;
+  let waSent = 0, waFailed = 0, smsSent = 0, smsFailed = 0;
+  const errors = [];
+
+  for (let i = 0; i < total; i++) {
+    const gid = guestIds[i];
+    label.textContent  = `Sending ${i + 1} of ${total}…`;
+    count.textContent  = `WA ${waSent}/${total} · SMS ${smsSent}/${total}`;
+    bar.style.width    = `${Math.round(((i + 1) / total) * 100)}%`;
+
+    const waEl  = document.getElementById(`wa-status-${gid}`);
+    const smsEl = document.getElementById(`sms-status-${gid}`);
+    if (waEl)  waEl.innerHTML  = '<span class="badge bg-info">Sending…</span>';
+    if (smsEl) smsEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
+
+    try {
+      const res  = await fetch(`/send_unified_one/${gid}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.wa  === 'sent')                              waSent++;
+      else if (data.wa  === 'failed' || data.wa === 'invalid') waFailed++;
+      if (data.sms === 'sent')                              smsSent++;
+      else if (data.sms === 'failed')                       smsFailed++;
+      if (data.overall === 'failed') errors.push({ name: `ID ${gid}`, error: data.error || data.message || 'Failed' });
+      if (waEl)  waEl.innerHTML  = waBadge(data.wa);
+      if (smsEl) smsEl.innerHTML = smsBadge(data.sms);
+    } catch (err) {
+      waFailed++;
+      errors.push({ name: `ID ${gid}`, error: String(err) });
+      if (waEl)  waEl.innerHTML  = '<span class="badge bg-danger">Error</span>';
+      if (smsEl) smsEl.innerHTML = '<span class="badge bg-danger">Error</span>';
+    }
+  }
+
+  bar.style.width   = '100%';
+  count.textContent = `WA ${waSent}/${total} · SMS ${smsSent}/${total}`;
+  label.textContent = 'Done!';
+
+  const hasErrors = errors.length > 0;
+  let html = `<div class="alert alert-${hasErrors ? 'warning' : 'success'} mt-2">
+    📤 WhatsApp sent: <strong>${waSent}</strong> &nbsp; failed: <strong>${waFailed}</strong><br>
+    📱 SMS sent: <strong>${smsSent}</strong> &nbsp; failed: <strong>${smsFailed}</strong>
+  </div>`;
+  if (hasErrors) {
+    html += `<ul class="list-group mt-2">`;
+    errors.forEach(e => { html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`; });
+    html += `</ul>`;
+  }
+  result.innerHTML = html;
+  disableAllBulkBtns(false);
+  setTimeout(() => location.reload(), 3500);
 }
 
-// ── Single WhatsApp send (legacy) ─────────────────────────────────────────
+// ── Single WhatsApp ───────────────────────────────────────────────────────
 async function sendSingle(guestId) {
   const btn      = document.getElementById(`wa-btn-${guestId}`);
   const statusEl = document.getElementById(`wa-status-${guestId}`);
-
   btn.disabled = true; btn.textContent = '⏳';
   statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-
   try {
     const res  = await fetch(`/send_card_single/${guestId}`, { method: 'POST' });
     const data = await res.json();
@@ -407,63 +457,94 @@ async function sendSingle(guestId) {
   btn.disabled = false;
 }
 
-// ── Bulk WhatsApp send (legacy) ───────────────────────────────────────────
+// ── Bulk WhatsApp — per-guest loop ────────────────────────────────────────
 async function bulkSend(resend) {
-  const progressWrap  = document.getElementById('progress-wrap');
-  const progressBar   = document.getElementById('progress-bar');
-  const progressLabel = document.getElementById('progress-label');
-  const progressCount = document.getElementById('progress-count');
-  const bulkResult    = document.getElementById('bulk-result');
-  const btnPending    = document.getElementById('btn-send-pending');
-  const btnAll        = document.getElementById('btn-send-all');
+  const wrap  = document.getElementById('progress-wrap');
+  const bar   = document.getElementById('progress-bar');
+  const label = document.getElementById('progress-label');
+  const count = document.getElementById('progress-count');
+  const result= document.getElementById('bulk-result');
+  const btnP  = document.getElementById('btn-send-pending');
+  const btnA  = document.getElementById('btn-send-all');
 
-  progressWrap.style.display = 'block';
-  progressBar.style.width    = '5%';
-  progressLabel.textContent  = 'Sending WhatsApp — please wait…';
-  bulkResult.innerHTML       = '';
-  btnPending.disabled = btnAll.disabled = true;
+  disableAllBulkBtns(true);
+  wrap.style.display = 'block';
+  bar.style.width    = '5%';
+  label.textContent  = 'Loading guest list…';
+  result.innerHTML   = '';
 
+  let guestIds = [];
   try {
-    const res  = await fetch('/send_cards_bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resend }),
-    });
+    const res  = await fetch(`/pending_guest_ids?resend=${resend}&channel=wa`);
     const data = await res.json();
-    const pct  = data.total > 0 ? Math.round((data.sent / data.total) * 100) : 100;
-
-    progressBar.style.width   = `${pct}%`;
-    progressCount.textContent = `${data.sent} / ${data.total}`;
-    progressLabel.textContent = 'Done!';
-
-    let html = `<div class="alert alert-${data.failed > 0 ? 'warning' : 'success'} mt-2">
-      ✅ WhatsApp Sent: <strong>${data.sent}</strong> &nbsp;
-      ❌ Failed: <strong>${data.failed}</strong>
-    </div>`;
-    if (data.errors?.length) {
-      html += `<ul class="list-group mt-2">`;
-      data.errors.forEach(e => {
-        html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`;
-      });
-      html += `</ul>`;
-    }
-    bulkResult.innerHTML = html;
-    setTimeout(() => location.reload(), 3000);
+    guestIds   = data.guest_ids;
   } catch (err) {
-    document.getElementById('bulk-result').innerHTML =
-      `<div class="alert alert-danger">Request failed: ${err}</div>`;
+    result.innerHTML = `<div class="alert alert-danger">Failed to load guest list: ${err}</div>`;
+    disableAllBulkBtns(false);
+    return;
   }
-  btnPending.disabled = btnAll.disabled = false;
+
+  if (guestIds.length === 0) {
+    result.innerHTML = `<div class="alert alert-info">No pending guests.</div>`;
+    wrap.style.display = 'none';
+    disableAllBulkBtns(false);
+    return;
+  }
+
+  const total = guestIds.length;
+  let sent = 0, failed = 0;
+  const errors = [];
+
+  for (let i = 0; i < total; i++) {
+    const gid = guestIds[i];
+    label.textContent = `Sending ${i + 1} of ${total}…`;
+    count.textContent = `${sent} / ${total}`;
+    bar.style.width   = `${Math.round(((i + 1) / total) * 100)}%`;
+
+    const statusEl = document.getElementById(`wa-status-${gid}`);
+    if (statusEl) statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
+
+    try {
+      const res  = await fetch(`/send_card_single/${gid}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        sent++;
+        if (statusEl) statusEl.innerHTML = '<span class="badge bg-success">Sent ✓</span>';
+      } else {
+        failed++;
+        errors.push({ name: `ID ${gid}`, error: data.message || 'Failed' });
+        if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Failed</span>';
+      }
+    } catch (err) {
+      failed++;
+      errors.push({ name: `ID ${gid}`, error: String(err) });
+      if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
+    }
+  }
+
+  bar.style.width   = '100%';
+  count.textContent = `${sent} / ${total}`;
+  label.textContent = 'Done!';
+
+  let html = `<div class="alert alert-${failed > 0 ? 'warning' : 'success'} mt-2">
+    ✅ WhatsApp Sent: <strong>${sent}</strong> &nbsp; ❌ Failed: <strong>${failed}</strong>
+  </div>`;
+  if (errors.length) {
+    html += `<ul class="list-group mt-2">`;
+    errors.forEach(e => { html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`; });
+    html += `</ul>`;
+  }
+  result.innerHTML = html;
+  disableAllBulkBtns(false);
+  setTimeout(() => location.reload(), 3000);
 }
 
-// ── Single Africa's Talking SMS ───────────────────────────────────────────
+// ── Single SMS ────────────────────────────────────────────────────────────
 async function sendAtSms(guestId) {
   const btn      = document.getElementById(`sms-btn-${guestId}`);
   const statusEl = document.getElementById(`sms-status-${guestId}`);
-
   btn.disabled = true; btn.textContent = '⏳';
   statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-
   try {
     const res  = await fetch(`/send_at_sms_single/${guestId}`, { method: 'POST' });
     const data = await res.json();
@@ -481,62 +562,167 @@ async function sendAtSms(guestId) {
   btn.disabled = false;
 }
 
-// ── Bulk Africa's Talking SMS ─────────────────────────────────────────────
+// ── Bulk SMS — per-guest loop ─────────────────────────────────────────────
 async function bulkAtSms(resend) {
-  const wrap   = document.getElementById('sms-progress-wrap');
-  const bar    = document.getElementById('sms-progress-bar');
-  const label  = document.getElementById('sms-progress-label');
-  const count  = document.getElementById('sms-progress-count');
-  const result = document.getElementById('sms-bulk-result');
-  const btnP   = document.getElementById('btn-sms-pending');
-  const btnA   = document.getElementById('btn-sms-all');
+  const wrap  = document.getElementById('sms-progress-wrap');
+  const bar   = document.getElementById('sms-progress-bar');
+  const label = document.getElementById('sms-progress-label');
+  const count = document.getElementById('sms-progress-count');
+  const result= document.getElementById('sms-bulk-result');
 
+  disableAllBulkBtns(true);
   wrap.style.display = 'block';
   bar.style.width    = '5%';
-  label.textContent  = "Sending SMS via Africa's Talking — please wait…";
+  label.textContent  = 'Loading guest list…';
   result.innerHTML   = '';
-  if (btnP) btnP.disabled = true;
-  if (btnA) btnA.disabled = true;
 
+  let guestIds = [];
   try {
-    const res  = await fetch('/send_at_sms_bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resend }),
-    });
+    const res  = await fetch(`/pending_guest_ids?resend=${resend}&channel=sms`);
     const data = await res.json();
-    const pct  = data.total > 0 ? Math.round((data.sent / data.total) * 100) : 100;
-
-    bar.style.width   = `${pct}%`;
-    count.textContent = `${data.sent} / ${data.total}`;
-    label.textContent = 'Done!';
-
-    let html = `<div class="alert alert-${data.failed > 0 ? 'warning' : 'success'} mt-2">
-      📱 SMS Sent: <strong>${data.sent}</strong> &nbsp;
-      ❌ Failed: <strong>${data.failed}</strong>
-    </div>`;
-    if (data.errors?.length) {
-      html += `<ul class="list-group mt-2">`;
-      data.errors.forEach(e => {
-        html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`;
-      });
-      html += `</ul>`;
-    }
-    result.innerHTML = html;
-    setTimeout(() => location.reload(), 3000);
+    guestIds   = data.guest_ids;
   } catch (err) {
-    document.getElementById('sms-bulk-result').innerHTML =
-      `<div class="alert alert-danger">Request failed: ${err}</div>`;
+    result.innerHTML = `<div class="alert alert-danger">Failed to load guest list: ${err}</div>`;
+    disableAllBulkBtns(false);
+    return;
   }
-  if (btnP) btnP.disabled = false;
-  if (btnA) btnA.disabled = false;
+
+  if (guestIds.length === 0) {
+    result.innerHTML = `<div class="alert alert-info">No pending guests.</div>`;
+    wrap.style.display = 'none';
+    disableAllBulkBtns(false);
+    return;
+  }
+
+  const total = guestIds.length;
+  let sent = 0, failed = 0;
+  const errors = [];
+
+  for (let i = 0; i < total; i++) {
+    const gid = guestIds[i];
+    label.textContent = `Sending ${i + 1} of ${total}…`;
+    count.textContent = `${sent} / ${total}`;
+    bar.style.width   = `${Math.round(((i + 1) / total) * 100)}%`;
+
+    const statusEl = document.getElementById(`sms-status-${gid}`);
+    if (statusEl) statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
+
+    try {
+      const res  = await fetch(`/send_at_sms_single/${gid}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        sent++;
+        if (statusEl) statusEl.innerHTML = '<span class="badge bg-info text-white">Sent ✓</span>';
+      } else {
+        failed++;
+        errors.push({ name: `ID ${gid}`, error: data.message || 'Failed' });
+        if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Failed</span>';
+      }
+    } catch (err) {
+      failed++;
+      errors.push({ name: `ID ${gid}`, error: String(err) });
+      if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
+    }
+  }
+
+  bar.style.width   = '100%';
+  count.textContent = `${sent} / ${total}`;
+  label.textContent = 'Done!';
+
+  let html = `<div class="alert alert-${failed > 0 ? 'warning' : 'success'} mt-2">
+    📱 SMS Sent: <strong>${sent}</strong> &nbsp; ❌ Failed: <strong>${failed}</strong>
+  </div>`;
+  if (errors.length) {
+    html += `<ul class="list-group mt-2">`;
+    errors.forEach(e => { html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`; });
+    html += `</ul>`;
+  }
+  result.innerHTML = html;
+  disableAllBulkBtns(false);
+  setTimeout(() => location.reload(), 3000);
+}
+
+// ── Bulk Thank-You SMS — per-guest loop ───────────────────────────────────
+async function bulkThankYou() {
+  const wrap  = document.getElementById('thankyou-progress-wrap');
+  const bar   = document.getElementById('thankyou-progress-bar');
+  const label = document.getElementById('thankyou-progress-label');
+  const count = document.getElementById('thankyou-progress-count');
+  const result= document.getElementById('thankyou-bulk-result');
+
+  if (!confirm('Send Thank-You SMS to ALL guests? This will send to everyone regardless of previous SMS status.')) return;
+
+  disableAllBulkBtns(true);
+  wrap.style.display = 'block';
+  bar.style.width    = '5%';
+  label.textContent  = 'Loading guest list…';
+  result.innerHTML   = '';
+
+  // Get all guest IDs (resend=true so it sends to everyone)
+  let guestIds = [], evId = null;
+  try {
+    const res  = await fetch(`/send_thankyou_sms_bulk`, { method: 'POST' });
+    const data = await res.json();
+    guestIds   = data.guest_ids;
+    evId       = data.ev_id;
+  } catch (err) {
+    result.innerHTML = `<div class="alert alert-danger">Failed to load guest list: ${err}</div>`;
+    disableAllBulkBtns(false);
+    return;
+  }
+
+  if (guestIds.length === 0) {
+    result.innerHTML = `<div class="alert alert-info">No guests found.</div>`;
+    wrap.style.display = 'none';
+    disableAllBulkBtns(false);
+    return;
+  }
+
+  const total = guestIds.length;
+  let sent = 0, failed = 0;
+  const errors = [];
+
+  for (let i = 0; i < total; i++) {
+    const gid = guestIds[i];
+    label.textContent = `Sending ${i + 1} of ${total}…`;
+    count.textContent = `${sent} / ${total}`;
+    bar.style.width   = `${Math.round(((i + 1) / total) * 100)}%`;
+
+    try {
+      const res  = await fetch(`/send_thankyou_sms_one/${gid}`, { method: 'POST' });
+      const data = await res.json();
+      if (data.success) {
+        sent++;
+      } else {
+        failed++;
+        errors.push({ name: data.name || `ID ${gid}`, error: data.error || 'Failed' });
+      }
+    } catch (err) {
+      failed++;
+      errors.push({ name: `ID ${gid}`, error: String(err) });
+    }
+  }
+
+  bar.style.width   = '100%';
+  count.textContent = `${sent} / ${total}`;
+  label.textContent = 'Done!';
+
+  let html = `<div class="alert alert-${failed > 0 ? 'warning' : 'success'} mt-2">
+    🙏 Thank-You SMS Sent: <strong>${sent}</strong> &nbsp; ❌ Failed: <strong>${failed}</strong>
+  </div>`;
+  if (errors.length) {
+    html += `<ul class="list-group mt-2">`;
+    errors.forEach(e => { html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`; });
+    html += `</ul>`;
+  }
+  result.innerHTML = html;
+  disableAllBulkBtns(false);
 }
 
 // ── Table filter ──────────────────────────────────────────────────────────
 function filterTable(filter, btn) {
   document.querySelectorAll('.btn[onclick^="filterTable"]').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-
   document.querySelectorAll('#guest-table tbody tr').forEach(row => {
     let show = true;
     if      (filter === 'wa-failed')  show = row.dataset.waSent  === 'failed';
