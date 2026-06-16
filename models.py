@@ -60,6 +60,23 @@ def _run_migrations(engine):
                 except Exception:
                     conn.rollback()
 
+        # ── guests table: add thank-you SMS tracking columns ──────────────
+        guest_cols = {c['name'] for c in inspector.get_columns('guests')}
+        for col_def in [
+            ("thankyou_sms_sent",    "BOOLEAN DEFAULT FALSE"),
+            ("thankyou_sms_sent_at", "TIMESTAMP"),
+            ("thankyou_sms_error",   "VARCHAR"),
+        ]:
+            if col_def[0] not in guest_cols:
+                try:
+                    conn.execute(text(
+                        f"ALTER TABLE guests ADD COLUMN {col_def[0]} {col_def[1]}"
+                    ))
+                    conn.commit()
+                except Exception:
+                    conn.rollback()
+
+
 
 @contextmanager
 def get_db_session():
@@ -163,6 +180,11 @@ class Guest(Base):
     at_sms_sent    = Column(Boolean, default=False)
     at_sms_error   = Column(String, nullable=True)
     at_sms_sent_at = Column(DateTime, nullable=True)
+
+    # Thank-you SMS tracking
+    thankyou_sms_sent    = Column(Boolean, default=False)
+    thankyou_sms_sent_at = Column(DateTime, nullable=True)
+    thankyou_sms_error   = Column(String, nullable=True)
 
     # Relationship
     event = relationship("Event", back_populates="guests")

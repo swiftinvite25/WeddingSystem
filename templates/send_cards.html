@@ -123,14 +123,12 @@
       <div class="vr mx-1"></div>
 
       <!-- Thank-you SMS -->
-      <button class="btn btn-warning fw-semibold" id="btn-thankyou" onclick="bulkThankYou()">
-        🙏 Send Thank-You SMS to All
+      <button class="btn btn-warning fw-semibold" id="btn-thankyou" onclick="bulkThankYou(false)">
+        🙏 Thank-You SMS Pending
       </button>
-      {% else %}
-      <span class="text-muted small"
-            title="Set AT_API_KEY, AT_USERNAME, and AT_SENDER_ID in your .env to enable">
-        📱 Africa's Talking SMS: not configured
-      </span>
+      <button class="btn btn-outline-warning" id="btn-thankyou-all" onclick="bulkThankYou(true)">
+        🔄 Thank-You Resend All
+      </button>
       {% endif %}
 
       <a href="{{ url_for('view_all') }}" class="btn btn-outline-secondary ms-auto">← Back</a>
@@ -332,7 +330,7 @@ function smsBadge(sms) {
 
 function disableAllBulkBtns(disabled) {
   ['btn-unified-pending','btn-unified-all','btn-send-pending','btn-send-all',
-   'btn-sms-pending','btn-sms-all','btn-thankyou'].forEach(id => {
+   'btn-sms-pending','btn-sms-all','btn-thankyou','btn-thankyou-all'].forEach(id => {
     const el = document.getElementById(id); if (el) el.disabled = disabled;
   });
 }
@@ -697,7 +695,11 @@ async function bulkThankYou() {
   // Get all guest IDs (resend=true so it sends to everyone)
   let guestIds = [], evId = null;
   try {
-    const res  = await fetch(`/send_thankyou_sms_bulk`, { method: 'POST' });
+    const res  = await fetch('/send_thankyou_sms_bulk', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resend }),
+      });
     const statusEl = document.getElementById(`ty-status-${gid}`);
       if (statusEl) statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
 

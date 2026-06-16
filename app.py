@@ -495,18 +495,19 @@ def build_sms_message(guest, event=None) -> str:
         f"Karibu sana!"
     )
 
-def build_thank_you_sms(event=None) -> str:
+def build_thank_you_sms(guest, event=None) -> str:
     weds  = (event.weds_names  if event and event.weds_names  else DEFAULT_WEDS_NAMES) or ""
     day   = (event.event_day   if event and event.event_day   else DEFAULT_EVENT_DAY)  or ""
     date  = (event.event_date  if event and event.event_date  else DEFAULT_EVENT_DATE) or ""
     return (
+        f"Habari {guest.name},\n\n"
         f"Familia ya {weds} pamoja na kamati ya maandalizi, "
-        f"tunapenda kutoa shukrani zetu za dhati kwa kuwa pamoja nasi kufanikisha tukio letu la {day.upper()} {date.upper()}.\n\n"
+        f"tunapenda kutoa shukrani zetu za dhati kwa kuwa pamoja nasi "
+        f"kufanikisha tukio letu la {day.upper()} {date.upper()}.\n\n"
         f"Hakika shughuli ilipendeza kwa sababu ya ushirikiano wako. "
         f"Ahsanteni sana na Mungu awabariki.\n\n"
         f"Kwa huduma zetu za kadi za kidigitali, wasiliana nasi: +255674114407"
     )
-
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
@@ -2027,24 +2028,25 @@ def send_cards():
 @app.route('/send_thankyou_sms_bulk', methods=['POST'])
 @login_required
 def send_thankyou_sms_bulk():
-    """Send thank-you SMS to all guests of the active event."""
     if not at_configured():
         return jsonify(success=False, error="Africa's Talking not configured."), 400
-
+    resend = (request.get_json() or {}).get('resend', False)
     with get_db_session() as db:
         ev  = get_active_event(db)
         eid = ev.id if ev else None
-        ids = [g.id for g in db.query(Guest).filter_by(event_id=eid)
-               .order_by(Guest.visual_id).all()]
+        q   = db.query(Guest).filter_by(event_id=eid)
+        if not resend:
+            q = q.filter(
+                (Guest.thankyou_sms_sent == False) | (Guest.thankyou_sms_sent == None)
+            )
+        ids   = [g.id for g in q.order_by(Guest.visual_id).all()]
         ev_id = ev.id if ev else None
-
     return jsonify(guest_ids=ids, total=len(ids), ev_id=ev_id)
 
 
 @app.route('/send_thankyou_sms_one/<int:guest_id>', methods=['POST'])
 @login_required
 def send_thankyou_sms_one(guest_id):
-    """Send thank-you SMS to one guest."""
     try:
         with get_db_session() as db:
             guest = db.get(Guest, guest_id)
@@ -2052,12 +2054,21 @@ def send_thankyou_sms_one(guest_id):
                 return jsonify(success=False, error="Guest not found"), 404
             ev      = get_active_event(db)
             phone   = to_whatsapp_number(guest.phone)
-            message = build_thank_you_sms(event=ev)
+            message = build_thank_you_sms(guest, event=ev)
             result  = at_send_sms(phone, message)
             if result.get("success"):
+                guest.thankyou_sms_sent    = True
+                guest.thankyou_sms_error   = None
+                guest.thankyou_sms_sent_at = now_eat()
+                db.commit()
                 return jsonify(success=True, guest_id=guest_id, name=guest.name)
-            return jsonify(success=False, guest_id=guest_id,
-                           error=result.get("error", "SMS failed"))
+            else:
+                err = result.get("error", "SMS failed")[:500]
+                guest.thankyou_sms_sent  = False
+                guest.thankyou_sms_error = err
+                db.commit()
+                return jsonify(success=False, guest_id=guest_id,
+                               name=guest.name, error=err)
     except Exception as e:
         current_app.logger.exception(f"send_thankyou_sms_one failed for {guest_id}: {e}")
         return jsonify(success=False, guest_id=guest_id, error=str(e)), 500
