@@ -87,14 +87,15 @@
     <button class="tab-btn" id="tab-scan" onclick="switchTab('scan')">📷 Scan QR Code</button>
   </div>
 
+  
   <!-- Manual entry -->
   <div class="panel active" id="panel-manual">
     <div class="manual-label">Enter Guest Card Number</div>
     <div class="num-input-wrap">
       <input class="num-input" id="card-input" type="number"
-             placeholder="e.g. 0042" min="1" max="9999"
-             onkeydown="if(event.key==='Enter') doManualCheckin()" autofocus/>
-      <button class="btn-checkin" id="manual-btn" onclick="doManualCheckin()">Check In</button>
+             placeholder="e.g. 0042" min="1" max="99999"
+             onkeydown="if(event.key==='Enter') doSearch()" autofocus/>
+      <button class="btn-checkin" id="search-btn" onclick="doSearch()">🔍 Search</button>
     </div>
     <div id="result-wrap"></div>
   </div>
@@ -205,10 +206,11 @@ function switchTab(tab) {
   else if (tab === 'manual' && scannerRunning) stopScanner();
 }
 
-// ── Manual check-in ───────────────────────────────────────────────────────
-async function doManualCheckin() {
+// ── Manual search (shows guest before checking in) ────────────────────────
+let pendingVisualId = null;
+
+async function doSearch() {
   const input = document.getElementById('card-input');
-  const btn   = document.getElementById('manual-btn');
   const raw   = input.value.trim();
   if (!raw) { input.focus(); return; }
   const num = parseInt(raw, 10);
@@ -218,10 +220,65 @@ async function doManualCheckin() {
        <div class="result-detail">Please enter a valid card number</div></div>`;
     return;
   }
+
+  const btn = document.getElementById('search-btn');
   btn.disabled = true; btn.textContent = '⏳';
-  await checkIn(num, 'result-wrap', true);
-  btn.disabled = false; btn.textContent = 'Check In';
-  input.value = ''; input.focus();
+
+  try {
+    const res  = await fetch(`/lookup_guest?visual_id=${num}`);
+    const data = await res.json();
+
+    if (data.found) {
+      pendingVisualId = data.visual_id;  // use the actual full visual_id returned
+      document.getElementById('result-wrap').innerHTML = `
+        <div class="result-card success" style="margin-top:1rem;">
+          <div class="result-icon">👤</div>
+          <div class="result-name">${data.name}</div>
+          <div class="result-detail">
+            Card ${(data.card_type || '').toUpperCase()} · 
+            <strong>#${String(data.visual_id).padStart(4, '0')}</strong>
+          </div>
+          <div class="result-detail" style="margin-top:.3rem;">
+            ${data.checked_in_count}/${data.group_size} entries used · 
+            <strong>${data.remaining} remaining</strong>
+          </div>
+          ${data.remaining <= 0 
+            ? `<div style="margin-top:.6rem;color:#92400e;font-weight:600;">⚠️ All entries already used</div>`
+            : `<button class="btn-checkin" style="margin-top:.8rem;width:100%;" 
+                       onclick="confirmCheckin()">✅ Confirm Check-In</button>`
+          }
+        </div>`;
+    } else {
+      pendingVisualId = null;
+      document.getElementById('result-wrap').innerHTML =
+        `<div class="result-card error">
+          <div class="result-icon">❌</div>
+          <div class="result-name">Guest Not Found</div>
+          <div class="result-detail">No guest with card number ${num}</div>
+        </div>`;
+    }
+  } catch (err) {
+    document.getElementById('result-wrap').innerHTML =
+      `<div class="result-card error"><div class="result-name">Network Error</div>
+       <div class="result-detail">Could not reach server</div></div>`;
+  }
+
+  btn.disabled = false; btn.textContent = '🔍 Search';
+}
+
+async function confirmCheckin() {
+  if (!pendingVisualId) return;
+  const res  = await fetch('/update_status', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ visual_id: pendingVisualId }),
+  });
+  const data = await res.json();
+  showResult(data, 'result-wrap');
+  addLog(data.guest?.name || '?', data.guest?.visual_id || 0, data.success);
+  pendingVisualId = null;
+  document.getElementById('card-input').value = '';
+  document.getElementById('card-input').focus();
 }
 
 // ── QR scanner ────────────────────────────────────────────────────────────

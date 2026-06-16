@@ -501,8 +501,7 @@ def build_thank_you_sms(event=None) -> str:
     date  = (event.event_date  if event and event.event_date  else DEFAULT_EVENT_DATE) or ""
     return (
         f"Familia ya {weds} pamoja na kamati ya maandalizi, "
-        f"tunapenda kutoa shukrani zetu za dhati kwa kuwa pamoja nasi "
-        f"katika kufanikisha tukio letu la {day.upper()} {date.upper()}.\n\n"
+        f"tunapenda kutoa shukrani zetu za dhati kwa kuwa pamoja nasi kufanikisha tukio letu la {day.upper()} {date.upper()}.\n\n"
         f"Hakika shughuli ilipendeza kwa sababu ya ushirikiano wako. "
         f"Ahsanteni sana na Mungu awabariki.\n\n"
         f"Kwa huduma zetu za kadi za kidigitali, wasiliana nasi: +255674114407"
@@ -570,8 +569,13 @@ def get_active_event(db):
     ev  = None
     if eid:
         ev = db.get(Event, eid)
+        # If the session points to an archived event, clear it
+        if ev and not ev.is_active:
+            ev = None
+            session.pop('active_event_id', None)
     if not ev:
-        ev = db.query(Event).order_by(Event.id).first()
+        # Pick the newest active event (highest ID)
+        ev = db.query(Event).filter_by(is_active=True).order_by(Event.id.desc()).first()
         if ev:
             session['active_event_id'] = ev.id
     return ev
@@ -1330,32 +1334,6 @@ def edit_guest(guest_id):
             return redirect(url_for('view_all'))
 
 
-@app.route('/scan_guests_data')
-@login_required
-def scan_guests_data():
-    with get_db_session() as db:
-        ev  = get_active_event(db)
-        eid = ev.id if ev else None
-        guests = db.query(Guest).filter_by(event_id=eid).all()
-        data = {}
-        for g in guests:
-            entry = {
-                'id':               g.id,
-                'name':             g.name or '',
-                'visual_id':        g.visual_id or 0,
-                'card_type':        g.card_type or 'single',
-                'group_size':       g.group_size or 1,
-                'checked_in_count': g.checked_in_count or 0,
-                'has_entered':      bool(g.has_entered),
-                'qr_code_id':       g.qr_code_id or '',
-            }
-            if g.qr_code_id:
-                data[g.qr_code_id] = entry
-            if g.visual_id:
-                data[f'VID:{g.visual_id}'] = entry
-    return jsonify(guests=data, event_name=ev.name if ev else '')
-
-
 @app.route('/scan_qr')
 @login_required
 def scan_qr():
@@ -1638,6 +1616,35 @@ def guest_report_data():
         "wa_pending_list":    [g_dict(g) for g in wa_pending],
     })
 
+
+@app.route('/lookup_guest')
+@login_required
+def lookup_guest():
+    """Look up a guest by visual_id without checking them in."""
+    visual_id = request.args.get('visual_id', '').strip()
+    if not visual_id:
+        return jsonify(found=False)
+    with get_db_session() as db:
+        ev  = get_active_event(db)
+        eid = ev.id if ev else None
+        vid = int(visual_id)
+        # Try exact match first
+        guest = db.query(Guest).filter_by(visual_id=vid, event_id=eid).first()
+        # If not found and short number, try with event offset
+        if not guest and ev and vid <= 9999:
+            offset_vid = ev.id * 10000 + vid
+            guest = db.query(Guest).filter_by(visual_id=offset_vid, event_id=eid).first()
+        if not guest:
+            return jsonify(found=False)
+        return jsonify(
+            found=True,
+            visual_id=guest.visual_id,
+            name=guest.name,
+            card_type=guest.card_type or 'single',
+            group_size=guest.group_size or 1,
+            checked_in_count=guest.checked_in_count or 0,
+            remaining=(guest.group_size or 1) - (guest.checked_in_count or 0),
+        )
 
 @app.route('/guest_report')
 @login_required
