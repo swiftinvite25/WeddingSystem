@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reminders — {{ event_name }}</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;color:#1f2937}
+  .wrap{max-width:720px;margin:0 auto;padding:1rem}
+  .box{background:#fff;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #e5e7eb}
+  h1{font-size:1.3rem;color:#185a3f;margin:.2rem 0 .6rem}
+  label{display:block;margin:.5rem 0;font-size:.95rem}
+  input[type=text]{width:100%;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem}
+  .btn{background:#185a3f;color:#fff;border:0;padding:.7rem 1.3rem;border-radius:8px;font-size:1rem;cursor:pointer;margin-right:.4rem}
+  .btn.grey{background:#6b7280}.btn.red{background:#dc2626}.btn:disabled{opacity:.5}
+  pre{background:#f9fafb;border:1px dashed #d1d5db;padding:.8rem;border-radius:8px;white-space:pre-wrap;font-family:inherit}
+  .bar{height:12px;background:#e5e7eb;border-radius:6px;overflow:hidden}
+  .bar>div{height:100%;width:0;background:#185a3f;transition:width .2s}
+  .hint{color:#6b7280;font-size:.82rem}
+  #log{max-height:220px;overflow:auto;font-size:.82rem;margin-top:.6rem}
+  .ok{color:#15803d}.bad{color:#dc2626}
+  .warn{background:#fef9c3;padding:.7rem;border-radius:8px}
+</style>
+</head>
+<body><div class="wrap">
+  <p><a href="{{ url_for('view_all') }}">← Back</a></p>
+  <div class="box">
+    <h1>Send Reminders — {{ event_name }}</h1>
+    <div class="hint">{{ with_phone }} guests with phone numbers · {{ declined }} declined · {{ entered }} already checked in</div>
+    {% if not sms_enabled %}<p class="warn">Africa's Talking SMS is not configured, so reminders cannot be sent.</p>{% endif %}
+    {% if not site_url %}<p class="hint">Tip: turn on the Event Page (Events → Event Page) to include a link in reminders.</p>{% endif %}
+
+    <label><input type="radio" name="kind" value="event" checked> 📅 Event reminder (date, time, venue, card number)</label>
+    <label><input type="radio" name="kind" value="michango"> 💰 Michango / ahadi reminder</label>
+
+    <label id="whenWrap">Headline (optional) — e.g. “KESHO”, “LEO”, “JUMAMOSI HII”
+      <input type="text" id="when" placeholder="KESHO"></label>
+
+    <label><input type="checkbox" id="skipDeclined" checked> Skip guests who declined the invitation</label>
+    <label><input type="checkbox" id="skipEntered"> Skip guests already checked in</label>
+    <label><input type="checkbox" id="force"> Re-send even if reminded in the last 6 hours</label>
+  </div>
+
+  <div class="box">
+    <b>Preview</b> <span class="hint" id="len"></span>
+    <pre id="preview">Loading…</pre>
+    <button class="btn grey" id="btnPrev">Refresh preview</button>
+  </div>
+
+  <div class="box">
+    <button class="btn" id="btnSend" {% if not sms_enabled %}disabled{% endif %}>Send reminders</button>
+    <button class="btn red" id="btnStop" style="display:none">Stop</button>
+    <div class="bar" style="margin-top:.8rem"><div id="fill"></div></div>
+    <div class="hint" id="status"></div>
+    <div id="log"></div>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const kind = () => document.querySelector('input[name=kind]:checked').value;
+let stop = false;
+
+async function post(url, body){
+  const r = await fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)});
+  return r.json();
+}
+async function preview(){
+  const d = await post('/reminder_preview', {kind:kind(), when_text:$('when').value});
+  $('preview').textContent = d.success ? d.text : (d.error || 'Error');
+  $('len').textContent = d.success ? `· ${d.length} chars · ~${d.segments} SMS part(s)` : '';
+}
+document.querySelectorAll('input[name=kind]').forEach(r => r.addEventListener('change', () => {
+  $('skipDeclined').checked = kind() === 'event';
+  $('whenWrap').style.display = kind() === 'event' ? '' : 'none';
+  preview();
+}));
+$('btnPrev').onclick = preview;
+$('when').addEventListener('change', preview);
+
+$('btnSend').onclick = async () => {
+  const body = {kind:kind(), when_text:$('when').value, force:$('force').checked,
+                skip_declined:$('skipDeclined').checked, skip_entered:$('skipEntered').checked};
+  const list = await post('/reminder_ids', body);
+  if (!list.success || !list.total){ $('status').textContent = 'No guests to remind right now.'; return; }
+  if (!confirm(`Send this reminder to ${list.total} guest(s)?`)) return;
+  stop = false; $('btnSend').disabled = true; $('btnStop').style.display = ''; $('log').innerHTML = '';
+  let done = 0, ok = 0, fail = 0;
+  for (const id of list.guest_ids){
+    if (stop) break;
+    try {
+      const r = await post('/send_reminder_one/' + id, body);
+      if (r.success){ ok++; $('log').insertAdjacentHTML('afterbegin', `<div class="ok">✓ ${r.name||id}</div>`); }
+      else { fail++; $('log').insertAdjacentHTML('afterbegin', `<div class="bad">✗ ${r.name||id}: ${r.error||'failed'}</div>`); }
+    } catch(e){ fail++; $('log').insertAdjacentHTML('afterbegin', `<div class="bad">✗ ${id}: network error</div>`); }
+    done++;
+    $('fill').style.width = (done/list.total*100) + '%';
+    $('status').textContent = `${done}/${list.total} — sent ${ok}, failed ${fail}`;
+    await new Promise(res => setTimeout(res, 300));
+  }
+  $('btnSend').disabled = false; $('btnStop').style.display = 'none';
+  $('status').textContent += stop ? ' (stopped)' : ' — done';
+};
+$('btnStop').onclick = () => { stop = true; };
+preview();
+</script>
+</body>
+</html>

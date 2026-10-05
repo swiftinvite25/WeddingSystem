@@ -5,12 +5,20 @@
 # {
 #   "has_image_header": true,        -- whether template header is an image
 #   "body_vars": ["guest_name", "card_number"],  -- ordered list of body variables
-#                                       supported vars: guest_name, card_number, event_name
-#   "has_buttons": true              -- whether template has quick-reply buttons
+#                                       supported vars: guest_name, card_number,
+#                                       event_name, site_link
+#   "has_buttons": true,             -- whether template has quick-reply buttons
+#   "url_button_index": 2            -- OPTIONAL: position (0-based) of a dynamic
+#                                       URL button whose variable is the event slug,
+#                                       e.g. https://yourapp.com/e/{{1}}
 # }
 #
 # Default (backwards compatible with event_invitation template):
 # { "has_image_header": true, "body_vars": ["guest_name", "card_number"], "has_buttons": true }
+#
+# NOTE: "site_link" and "url_button_index" only take effect if you add them to an
+# event's config AFTER Meta has approved a template that contains those variables.
+# Existing events/templates are unaffected.
 
 import os
 import json
@@ -107,7 +115,8 @@ def upload_media(image_bytes: bytes, filename: str,
 
 def _build_components(config: dict, media_id: str | None,
                        guest_name: str, card_number: str,
-                       event_name: str = "") -> list:
+                       event_name: str = "",
+                       site_url: str = "", site_slug: str = "") -> list:
     """Build the template components list from config."""
     components = []
 
@@ -125,15 +134,27 @@ def _build_components(config: dict, media_id: str | None,
         "guest_name":   guest_name,
         "card_number":  card_number,
         "event_name":   event_name,
+        # Meta rejects empty parameters, so never send ""
+        "site_link":    site_url or "-",
     }
     body_vars = config.get("body_vars", ["guest_name", "card_number"])
     if body_vars:
         components.append({
             "type": "body",
             "parameters": [
-                {"type": "text", "text": var_map.get(v, "")}
+                {"type": "text", "text": var_map.get(v, "") or "-"}
                 for v in body_vars
             ],
+        })
+
+    # Optional dynamic URL button (variable = event slug)
+    btn_idx = config.get("url_button_index")
+    if btn_idx is not None and site_slug:
+        components.append({
+            "type":     "button",
+            "sub_type": "url",
+            "index":    str(btn_idx),
+            "parameters": [{"type": "text", "text": site_slug}],
         })
 
     return components
@@ -141,7 +162,8 @@ def _build_components(config: dict, media_id: str | None,
 
 def send_template_message(to: str, guest_name: str, card_number: str,
                            media_id: str | None, event=None,
-                           event_name: str = "") -> dict:
+                           event_name: str = "",
+                           site_url: str = "", site_slug: str = "") -> dict:
     """
     Send a WhatsApp template message.
     Uses per-event config to build the correct component structure.
@@ -154,7 +176,8 @@ def send_template_message(to: str, guest_name: str, card_number: str,
     config   = _template_config(event)
     tmpl     = _template_name(event)
     lang     = _template_language(event)
-    comps    = _build_components(config, media_id, guest_name, card_number, event_name)
+    comps    = _build_components(config, media_id, guest_name, card_number,
+                                 event_name, site_url, site_slug)
 
     url = f"{WHATSAPP_API_BASE}/{phone_id}/messages"
     payload = {
@@ -192,7 +215,8 @@ def send_template_message(to: str, guest_name: str, card_number: str,
 
 def send_guest_card(to: str, guest_name: str, visual_id: int,
                     card_type: str, image_bytes: bytes,
-                    filename: str, event=None) -> dict:
+                    filename: str, event=None,
+                    site_url: str = "", site_slug: str = "") -> dict:
     """Upload card image then send template. Returns API response."""
     logging.info(f"send_guest_card — to: {to}, guest: {guest_name}, id: {visual_id}")
     config   = _template_config(event)
@@ -210,4 +234,6 @@ def send_guest_card(to: str, guest_name: str, visual_id: int,
         media_id=media_id,
         event=event,
         event_name=ev_name,
+        site_url=site_url,
+        site_slug=site_slug,
     )

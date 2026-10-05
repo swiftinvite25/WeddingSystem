@@ -50,6 +50,16 @@ def _run_migrations(engine):
             ("card_template_url", "VARCHAR"),
             ("wa_template_config","TEXT"),
             ("card_layout_config","TEXT"),
+            # ── event mini-site (public invitation page) ──
+            ("site_enabled",      "BOOLEAN DEFAULT FALSE"),
+            ("site_event_time",   "VARCHAR"),
+            ("site_story",        "TEXT"),
+            ("site_hero_url",     "VARCHAR"),
+            ("site_gallery",      "TEXT"),
+            ("site_map_url",      "VARCHAR"),
+            ("site_contact",      "TEXT"),
+            ("site_dress_code",   "VARCHAR"),
+            ("contribution_info", "TEXT"),
         ]:
             if col_def[0] not in ev_cols:
                 try:
@@ -60,12 +70,16 @@ def _run_migrations(engine):
                 except Exception:
                     conn.rollback()
 
-        # ── guests table: add thank-you SMS tracking columns ──────────────
+        # ── guests table: add SMS tracking columns ────────────────────────
         guest_cols = {c['name'] for c in inspector.get_columns('guests')}
         for col_def in [
             ("thankyou_sms_sent",    "BOOLEAN DEFAULT FALSE"),
             ("thankyou_sms_sent_at", "TIMESTAMP"),
             ("thankyou_sms_error",   "VARCHAR"),
+            # ── reminder SMS tracking ──
+            ("reminder_sms_sent_at", "TIMESTAMP"),
+            ("reminder_sms_count",   "INTEGER DEFAULT 0"),
+            ("reminder_sms_error",   "VARCHAR"),
         ]:
             if col_def[0] not in guest_cols:
                 try:
@@ -127,6 +141,17 @@ class Event(Base):
     wa_template_config = Column(Text,   nullable=True)  # JSON: template component structure
     card_layout_config = Column(Text,   nullable=True)  # JSON: card element positions
 
+    # Event mini-site (public page linked from invitations / reminders)
+    site_enabled      = Column(Boolean, default=False)
+    site_event_time   = Column(String, nullable=True)   # e.g. "12:00 Jioni"
+    site_story        = Column(Text,   nullable=True)
+    site_hero_url     = Column(String, nullable=True)
+    site_gallery      = Column(Text,   nullable=True)   # JSON list of image URLs
+    site_map_url      = Column(String, nullable=True)
+    site_contact      = Column(Text,   nullable=True)
+    site_dress_code   = Column(String, nullable=True)
+    contribution_info = Column(Text,   nullable=True)   # michango / how to contribute
+
     # Status
     is_active   = Column(Boolean, default=True)
     created_at  = Column(DateTime, nullable=True)
@@ -185,6 +210,11 @@ class Guest(Base):
     thankyou_sms_sent    = Column(Boolean, default=False)
     thankyou_sms_sent_at = Column(DateTime, nullable=True)
     thankyou_sms_error   = Column(String, nullable=True)
+
+    # Reminder SMS tracking
+    reminder_sms_sent_at = Column(DateTime, nullable=True)
+    reminder_sms_count   = Column(Integer, default=0)
+    reminder_sms_error   = Column(String, nullable=True)
 
     # Relationship
     event = relationship("Event", back_populates="guests")

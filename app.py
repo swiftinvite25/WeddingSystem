@@ -28,6 +28,7 @@ def fmt_eat(dt, fmt='%H:%M') -> str:
 from functools import wraps
 from urllib.parse import quote as url_encode
 from whatsapp import send_guest_card
+from extras import register_extras, event_site_url
 from sms_africastalking import send_sms as at_send_sms, is_configured as at_configured
 import time
 
@@ -480,18 +481,22 @@ def build_sms_message(guest, event=None) -> str:
     venue      = (event.event_venue if event and event.event_venue else DEFAULT_EVENT_VENUE)or ""
     ev_type    = (event.event_type  if event and event.event_type  else "Wedding")
     type_label = EVENT_TYPE_LABELS.get(ev_type, ev_type.upper())
+    ev_time    = (getattr(event, 'site_event_time', None) or "12:00 Jioni") if event else "12:00 Jioni"
+    site_url   = event_site_url(event)
+    link_line  = f"Maelezo & picha: {site_url}\n" if site_url else ""
     return (
         f"MWALIKO\n"
         f"Habari {guest.name},\n"
         f"Tafadhali pokea mwaliko wa {type_label} ya:\n"
         f"{weds.upper()}\n"
         f"{day.upper()}, {date.upper()}\n"
-        f"Saa 12:00 Jioni\n"
+        f"Saa {ev_time}\n"
         f"{venue.upper()}\n"
         f"\n"
         f"Namba ya Kadi: {str(guest.visual_id or 0).zfill(4)} - {(guest.card_type or 'Single').title()}\n"
         f"\n"
         f"Tafadhali Fika na kadi hii ukumbini.\n"
+        f"{link_line}"
         f"Karibu sana!"
     )
 
@@ -1700,12 +1705,12 @@ def whatsapp_webhook():
                     from_number = msg.get('from')
                     if msg.get('type') == 'button':
                         _handle_rsvp(from_number,
-                                     msg.get('button', {}).get('text', '').strip())
+                                    msg.get('button', {}).get('text', '').strip())
                     elif msg.get('type') == 'interactive':
                         inter = msg.get('interactive', {})
                         if inter.get('type') == 'button_reply':
                             _handle_rsvp(from_number,
-                                         inter.get('button_reply', {}).get('title', '').strip())
+                                        inter.get('button_reply', {}).get('title', '').strip())
     except Exception as e:
         current_app.logger.error(f"Webhook error: {e}", exc_info=True)
     return "OK", 200
@@ -1776,7 +1781,7 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
                     logging.info(f"[WA] Card regenerated: {len(card_bytes)} bytes")
                     try:
                         upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes,
-                                           content_type="image/jpeg")
+                                        content_type="image/jpeg")
                     except Exception as up_err:
                         logging.info(f"[WA] Re-upload to Supabase failed (non-fatal): {up_err}")
                 else:
@@ -1793,7 +1798,10 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
                 image_bytes=card_bytes,
                 filename=card_fname,
                 event=event,
+                site_url=event_site_url(event),
+                site_slug=(getattr(event, 'slug', '') or '') if event else '',
             )
+            
 
             if wa_result.get("status") == "invalid_number":
                 guest.has_whatsapp        = False
@@ -1875,8 +1883,8 @@ def pending_guest_ids():
         eid = ev.id if ev else None
         if resend:
             ids = [g.id for g in db.query(Guest)
-                   .filter_by(event_id=eid)
-                   .order_by(Guest.visual_id).all()]
+                .filter_by(event_id=eid)
+                .order_by(Guest.visual_id).all()]
         else:
             q = db.query(Guest).filter(Guest.event_id == eid)
             if channel == 'wa':
@@ -2289,6 +2297,18 @@ def download_client_report():
                      download_name=filename,
                      mimetype='application/pdf')
 
+register_extras(
+    app,
+    get_active_event=get_active_event,
+    now_eat=now_eat,
+    to_whatsapp_number=to_whatsapp_number,
+    upload_to_supabase=upload_to_supabase,
+    delete_from_supabase=delete_from_supabase,
+    login_required=login_required,
+    admin_required=admin_required,
+    at_send_sms=at_send_sms,
+    at_configured=at_configured,
+)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000, debug=True)

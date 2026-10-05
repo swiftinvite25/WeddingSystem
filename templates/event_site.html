@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="sw">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ e.weds or e.name }} — {{ e.label }}</title>
+<meta property="og:title" content="{{ e.label }} ya {{ e.weds }}">
+<meta property="og:description" content="{{ e.day }}, {{ e.date }} · {{ e.venue }}">
+{% if e.hero %}<meta property="og:image" content="{{ e.hero }}">{% endif %}
+<style>
+  :root{--green:#185a3f;--gold:#c9a84c;--bg:#faf8f3;--ink:#1f2937;--grey:#6b7280}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:Georgia,'Times New Roman',serif;background:var(--bg);color:var(--ink);line-height:1.6}
+  .hero{position:relative;min-height:62vh;display:flex;align-items:flex-end;justify-content:center;text-align:center;
+        background:var(--green) center/cover no-repeat;color:#fff}
+  .hero::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 30%,rgba(0,0,0,.65))}
+  .hero .in{position:relative;z-index:1;padding:2rem 1.2rem 2.5rem}
+  .label{letter-spacing:.25em;font-size:.8rem;color:var(--gold);font-family:Arial,sans-serif;font-weight:bold}
+  h1{margin:.4rem 0;font-size:2.2rem;font-weight:normal}
+  main{max-width:640px;margin:0 auto;padding:1.5rem 1.2rem 3rem}
+  .card{background:#fff;border:1px solid #e8e2d0;border-radius:14px;padding:1.2rem;margin-bottom:1.1rem;box-shadow:0 1px 4px rgba(0,0,0,.04)}
+  .card h2{margin:0 0 .6rem;font-size:.85rem;letter-spacing:.15em;color:var(--green);font-family:Arial,sans-serif;text-transform:uppercase}
+  .row{display:flex;gap:.7rem;align-items:flex-start;margin:.45rem 0}
+  .row b{min-width:5.2rem;font-family:Arial,sans-serif;font-size:.8rem;color:var(--grey);text-transform:uppercase;padding-top:.2rem}
+  .pre{white-space:pre-line}
+  .btn{display:inline-block;margin-top:.6rem;padding:.7rem 1.2rem;border-radius:999px;background:var(--green);color:#fff;
+       text-decoration:none;font-family:Arial,sans-serif;font-size:.9rem}
+  .btn.alt{background:#fff;color:var(--green);border:1px solid var(--green)}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:.5rem}
+  .grid img{width:100%;aspect-ratio:1;object-fit:cover;border-radius:10px;cursor:pointer;display:block}
+  #lb{position:fixed;inset:0;background:rgba(0,0,0,.92);display:none;align-items:center;justify-content:center;z-index:9}
+  #lb img{max-width:96vw;max-height:92vh;border-radius:6px}
+  footer{text-align:center;color:var(--grey);font-size:.75rem;font-family:Arial,sans-serif;padding-bottom:2rem}
+</style>
+</head>
+<body>
+<header class="hero" {% if e.hero %}style="background-image:url('{{ e.hero }}')"{% endif %}>
+  <div class="in">
+    <div class="label">{{ e.label }}</div>
+    <h1>{{ e.weds or e.name }}</h1>
+    <div>{{ e.day }}{% if e.day and e.date %}, {% endif %}{{ e.date }}</div>
+  </div>
+</header>
+
+<main>
+  <section class="card">
+    <h2>Taarifa za Tukio</h2>
+    {% if e.day or e.date %}<div class="row"><b>Tarehe</b><span>{{ e.day }}{% if e.day and e.date %}, {% endif %}{{ e.date }}</span></div>{% endif %}
+    {% if e.time %}<div class="row"><b>Saa</b><span>{{ e.time }}</span></div>{% endif %}
+    {% if e.venue %}<div class="row"><b>Ukumbi</b><span>{{ e.venue }}</span></div>{% endif %}
+    {% if e.dress %}<div class="row"><b>Mavazi</b><span>{{ e.dress }}</span></div>{% endif %}
+    {% if e.map_url %}<a class="btn" href="{{ e.map_url }}" target="_blank" rel="noopener">📍 Fungua Ramani</a>{% endif %}
+  </section>
+
+  {% if e.story %}
+  <section class="card"><h2>Karibu</h2><div class="pre">{{ e.story }}</div></section>
+  {% endif %}
+
+  {% if e.gallery %}
+  <section class="card">
+    <h2>Picha</h2>
+    <div class="grid">
+      {% for u in e.gallery %}<img src="{{ u }}" alt="Picha {{ loop.index }}" loading="lazy" onclick="openLb(this.src)">{% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  {% if e.contribute %}
+  <section class="card"><h2>Michango</h2><div class="pre">{{ e.contribute }}</div></section>
+  {% endif %}
+
+  {% if e.contact %}
+  <section class="card">
+    <h2>Mawasiliano</h2>
+    <div class="pre">{{ e.contact }}</div>
+  </section>
+  {% endif %}
+
+  <p style="text-align:center;font-style:italic;color:var(--grey)">Tafadhali fika na kadi yako ukumbini. Karibu sana!</p>
+</main>
+
+<div id="lb" onclick="this.style.display='none'"><img id="lbi" alt=""></div>
+<footer>SwiftInvite</footer>
+<script>
+  function openLb(src){document.getElementById('lbi').src=src;document.getElementById('lb').style.display='flex'}
+</script>
+</body>
+</html>

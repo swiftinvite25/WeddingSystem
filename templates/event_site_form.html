@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Event Page — {{ event.name }}</title>
+<style>
+  body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;color:#1f2937}
+  .wrap{max-width:720px;margin:0 auto;padding:1rem}
+  .box{background:#fff;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #e5e7eb}
+  h1{font-size:1.3rem;color:#185a3f;margin:.2rem 0 1rem}
+  label{display:block;font-weight:bold;font-size:.85rem;margin:.9rem 0 .3rem}
+  input[type=text],input[type=url],textarea{width:100%;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem;font-family:inherit}
+  textarea{min-height:90px}
+  .btn{background:#185a3f;color:#fff;border:0;padding:.7rem 1.3rem;border-radius:8px;font-size:1rem;cursor:pointer;text-decoration:none;display:inline-block}
+  .btn.sm{padding:.3rem .7rem;font-size:.8rem;background:#dc2626}
+  .flash{padding:.7rem 1rem;border-radius:8px;margin-bottom:.8rem;background:#e0f2fe}
+  .flash.success{background:#dcfce7}.flash.danger{background:#fee2e2}.flash.warning{background:#fef9c3}
+  .thumbs{display:flex;flex-wrap:wrap;gap:.7rem}
+  .thumb{width:104px;text-align:center}
+  .thumb img{width:104px;height:104px;object-fit:cover;border-radius:8px;display:block;margin-bottom:.3rem}
+  .hint{color:#6b7280;font-size:.8rem}
+  code{background:#f3f4f6;padding:.15rem .4rem;border-radius:4px;word-break:break-all}
+</style>
+</head>
+<body><div class="wrap">
+  <p><a href="{{ url_for('events_list') }}">← Back to events</a></p>
+  {% with msgs = get_flashed_messages(with_categories=true) %}
+    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
+  {% endwith %}
+
+  <div class="box">
+    <h1>Event Page — {{ event.name }}</h1>
+    <div class="hint">Guests open this page from the link in their invitation SMS.</div>
+    <p>Link: <code>{{ public_url }}</code>
+       {% if event.site_enabled %}· <a href="{{ public_url }}" target="_blank">Open page ↗</a>{% endif %}</p>
+
+    <form method="post" enctype="multipart/form-data">
+      <label><input type="checkbox" name="site_enabled" {% if event.site_enabled %}checked{% endif %}>
+        Page is ON (link is added to invitations &amp; reminders)</label>
+
+      <label>Event time (shown as “Saa …”)</label>
+      <input type="text" name="site_event_time" value="{{ event.site_event_time }}" placeholder="12:00 Jioni">
+
+      <label>Welcome message / story</label>
+      <textarea name="site_story" placeholder="Karibu katika harusi yetu...">{{ event.site_story }}</textarea>
+
+      <label>Dress code (optional)</label>
+      <input type="text" name="site_dress_code" value="{{ event.site_dress_code }}" placeholder="Kijani na dhahabu">
+
+      <label>Google Maps link (optional)</label>
+      <input type="url" name="site_map_url" value="{{ event.site_map_url }}" placeholder="https://maps.app.goo.gl/...">
+
+      <label>Contact details (optional)</label>
+      <textarea name="site_contact" placeholder="Mwenyekiti: 07xx xxx xxx">{{ event.site_contact }}</textarea>
+
+      <label>Michango / how to contribute (optional — also used in michango reminders)</label>
+      <textarea name="contribution_info" placeholder="M-Pesa: 0712 345 678 (Jina la Akaunti)&#10;Tigo Pesa: ...">{{ event.contribution_info }}</textarea>
+
+      <label>Cover photo (replaces current)</label>
+      <input type="file" name="hero" accept="image/*">
+
+      <label>Add gallery photos (up to 12 total)</label>
+      <input type="file" name="images" accept="image/*" multiple>
+      <div class="hint">Photos are resized automatically, so phone pictures are fine.</div>
+
+      <p><button class="btn" type="submit">Save</button></p>
+    </form>
+  </div>
+
+  {% if event.hero or event.gallery %}
+  <div class="box">
+    <h1>Current photos</h1>
+    <div class="thumbs">
+      {% if event.hero %}
+      <div class="thumb"><img src="{{ event.hero }}" alt="">
+        <div class="hint">Cover</div>
+        <form method="post" action="{{ url_for('event_site_remove_image', event_id=event.id) }}">
+          <input type="hidden" name="url" value="{{ event.hero }}"><button class="btn sm">Remove</button></form></div>
+      {% endif %}
+      {% for u in event.gallery %}
+      <div class="thumb"><img src="{{ u }}" alt="">
+        <form method="post" action="{{ url_for('event_site_remove_image', event_id=event.id) }}">
+          <input type="hidden" name="url" value="{{ u }}"><button class="btn sm">Remove</button></form></div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div></body>
+</html>
