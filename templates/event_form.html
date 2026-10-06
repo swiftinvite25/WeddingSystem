@@ -81,7 +81,7 @@
         <small class="text-muted ms-1">— defines your template's variable structure</small>
       </label>
       <textarea name="wa_template_config" class="form-control font-monospace"
-                rows="4" placeholder='{"has_image_header": true, "body_vars": ["guest_name", "card_number"], "has_buttons": true}'>{{ event.wa_template_config if event else '' }}</textarea>
+                rows="4" placeholder='{"has_image_header": true, "body_vars": ["guest_name","card_number"], "has_buttons": true, "url_button_index": 2}'>{{ event.wa_template_config if event else '' }}</textarea>
       <div class="form-text">
         <strong>has_image_header</strong>: true/false — does your template have an image in the header?<br>
         <strong>body_vars</strong>: ordered list of your template's variables —
