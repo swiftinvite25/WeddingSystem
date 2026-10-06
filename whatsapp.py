@@ -14,7 +14,7 @@
 # }
 #
 # Default (backwards compatible with event_invitation template):
-# { "has_image_header": true, "body_vars": ["guest_name", "card_number"], "has_buttons": true }
+# {"has_image_header": true, "body_vars": ["guest_name","card_number"], "has_buttons": true, "url_button_index": 2}
 #
 # NOTE: "site_link" and "url_button_index" only take effect if you add them to an
 # event's config AFTER Meta has approved a template that contains those variables.
