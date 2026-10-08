@@ -471,7 +471,7 @@ EVENT_TYPE_LABELS = {
     "Conference":   "MKUTANO",
     "Confirmation": "IBADA YA KIPAIMARA",
     "Corporate":    "TUKIO LA KAMPUNI",
-    "Other":        "TUKIO",
+    "Other":        "SHEREHE",
 }
 
 def build_sms_message(guest, event=None) -> str:
@@ -489,8 +489,8 @@ def build_sms_message(guest, event=None) -> str:
         f"Habari {guest.name},\n"
         f"Tafadhali pokea mwaliko wa {type_label} ya:\n"
         f"{weds.upper()}\n"
-        f"Itakayofanyika {day.upper()}, {date.upper()}\n"
-        f"Saa {ev_time}\n"
+        f"Itakayofanyika: {day.upper()}, {date.upper()}\n"
+        f"Saa: {ev_time}\n"
         f"UKUMBI: {venue.upper()}\n"
         f"\n"
         f"Namba ya Kadi: {str(guest.visual_id or 0).zfill(4)} - {(guest.card_type or 'Single').title()}\n"
