@@ -6,6 +6,8 @@
 import os
 import json
 import time
+import hmac
+import hashlib
 import logging
 from io import BytesIO
 from datetime import datetime, timezone, timedelta
@@ -27,10 +29,11 @@ EVENT_TYPE_LABELS = {
     "Birthday":     "SIKUKUU YA KUZALIWA",
     "Conference":   "MKUTANO",
     "Confirmation": "IBADA YA KIPAIMARA",
-    "Corporate":    "TUKIO LA KAMPUNI",
-    "Other":        "TUKIO",
+    "Corporate":    "SHUGHULI YA KAMPUNI",
+    "Other":        "SHUGHULI",
 }
 
+SITE_THEMES = ("emerald", "burgundy", "navy", "rose")
 REMINDER_KINDS = ("event", "michango")
 REMINDER_COOLDOWN_HOURS = 6   # don't re-remind the same guest within this window
 
@@ -47,9 +50,24 @@ def _site_gallery(ev) -> list:
         return []
 
 
-def event_site_url(event) -> str:
-    """Public mini-site URL for an event, or '' if the site is off / not configurable.
-    Never raises, so it can never break invitation sending."""
+def _guest_sig(qr_code_id: str) -> str:
+    """Short signature so a guest link can't be guessed/enumerated."""
+    key = (os.getenv("SECRET_KEY") or "swiftinvite").encode()
+    return hmac.new(key, (qr_code_id or "").encode(), hashlib.sha256).hexdigest()[:10]
+
+
+def event_site_path(event, guest=None) -> str:
+    """'<slug>' or '<slug>?g=<qr_id>&s=<sig>' — also used as the WhatsApp URL-button variable."""
+    slug = (getattr(event, "slug", "") or "") if event else ""
+    qr = getattr(guest, "qr_code_id", None) if guest is not None else None
+    if slug and qr:
+        return f"{slug}?g={qr}&s={_guest_sig(qr)}"
+    return slug
+
+
+def event_site_url(event, guest=None) -> str:
+    """Public mini-site URL for an event (personalised when a guest is given),
+    or '' if the site is off / not configurable. Never raises."""
     try:
         if not event or not getattr(event, "site_enabled", False) or not event.slug:
             return ""
@@ -59,7 +77,7 @@ def event_site_url(event) -> str:
                 base = request.host_url.rstrip("/")
             except RuntimeError:
                 return ""
-        return f"{base}/e/{event.slug}"
+        return f"{base}/e/{event_site_path(event, guest)}"
     except Exception:
         return ""
 
@@ -77,7 +95,7 @@ def _ev_fields(event):
 def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
     weds, day, date, venue, etype, etime = _ev_fields(event)
     label    = EVENT_TYPE_LABELS.get(etype, etype.upper())
-    site_url = event_site_url(event)
+    site_url = event_site_url(event, guest)
     when_text = (when_text or "").strip()
 
     if kind == "michango":
@@ -156,7 +174,14 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                 return ("<h2 style='font-family:sans-serif;text-align:center;margin-top:20vh'>"
                         "Ukurasa haupatikani.</h2>"), 404
             weds, day, date, venue, etype, etime = _ev_fields(ev)
+            gname = ""
+            _g, _s = request.args.get("g", ""), request.args.get("s", "")
+            if _g and _s and hmac.compare_digest(_s, _guest_sig(_g)):
+                _guest = db.query(Guest).filter_by(qr_code_id=_g, event_id=ev.id).first()
+                if _guest and _guest.name:
+                    gname = _guest.name.strip()
             data = {
+                "guest":     gname,
                 "name":      ev.name,
                 "label":     EVENT_TYPE_LABELS.get(etype, etype.upper()),
                 "weds":      weds,
@@ -171,9 +196,10 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                 "contact":   getattr(ev, "site_contact", None) or "",
                 "dress":     getattr(ev, "site_dress_code", None) or "",
                 "contribute": getattr(ev, "contribution_info", None) or "",
+                "theme":     (getattr(ev, "site_theme", None) if getattr(ev, "site_theme", None) in SITE_THEMES else "emerald"),
             }
         resp = app.make_response(render_template("event_site.html", e=data))
-        resp.headers["Cache-Control"] = "public, max-age=60"
+        resp.headers["Cache-Control"] = ("private, max-age=60" if data["guest"] else "public, max-age=60")
         return resp
 
     # ── Admin: edit mini-site ───────────────────────────────────────────
@@ -193,6 +219,8 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                 ev.site_contact      = _clean(request.form.get("site_contact")) or None
                 ev.site_dress_code   = _clean(request.form.get("site_dress_code")) or None
                 ev.contribution_info = _clean(request.form.get("contribution_info")) or None
+                theme = _clean(request.form.get("site_theme"))
+                ev.site_theme = theme if theme in SITE_THEMES else "emerald"
 
                 map_url = _clean(request.form.get("site_map_url"))
                 if map_url and not map_url.lower().startswith(("http://", "https://")):
@@ -238,6 +266,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                 "site_dress_code":   getattr(ev, "site_dress_code", None) or "",
                 "site_map_url":      getattr(ev, "site_map_url", None) or "",
                 "contribution_info": getattr(ev, "contribution_info", None) or "",
+                "site_theme":        getattr(ev, "site_theme", None) or "emerald",
                 "hero":              getattr(ev, "site_hero_url", None) or "",
                 "gallery":           _site_gallery(ev),
             }

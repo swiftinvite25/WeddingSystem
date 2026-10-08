@@ -13,11 +13,15 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400;1,600&family=Great+Vibes&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
 <style>
+@font-face{font-family:'Malibu';font-display:swap;
+  src:url("{{ url_for('static', filename='fonts/Malibu.woff2') }}") format('woff2'),
+      url("{{ url_for('static', filename='fonts/Malibu.woff') }}") format('woff'),
+      url("{{ url_for('static', filename='fonts/Malibu.ttf') }}") format('truetype')}
 :root{
   --emerald:#0f3d2b; --emerald-2:#185a3f; --gold:#c9a84c; --gold-lt:#ecd9a0;
   --ivory:#fbf8f1; --paper:#ffffff; --ink:#22302a; --muted:#6b7a72;
   --hero-a:#1f6b4b; --hero-b:#7a6428; --deep:#0a2a1e; --shade:8,30,21;
-  --serif:'Cormorant Garamond',Georgia,serif; --sans:'Jost',system-ui,sans-serif; --script:'Great Vibes',cursive;
+  --serif:'Cormorant Garamond',Georgia,serif; --sans:'Jost',system-ui,sans-serif; --script:'Malibu','Great Vibes',cursive;
 }
 .theme-burgundy{--emerald:#4a0f1e;--emerald-2:#7a1f33;--hero-a:#8a2a40;--hero-b:#7a6428;--deep:#2e0914;--shade:36,6,16;--ivory:#fcf8f4}
 .theme-navy{--emerald:#0f2744;--emerald-2:#1d4170;--hero-a:#2a5a96;--hero-b:#7a6428;--deep:#09182b;--shade:6,16,32;--ivory:#f8f9fc}
@@ -38,7 +42,8 @@ img{display:block;max-width:100%}
 .eyebrow{display:flex;align-items:center;justify-content:center;gap:.9rem;color:var(--gold-lt);letter-spacing:.42em;font-size:.72rem;font-weight:500;text-transform:uppercase}
 .eyebrow::before,.eyebrow::after{content:"";height:1px;width:clamp(28px,9vw,64px);background:linear-gradient(90deg,transparent,var(--gold))}
 .eyebrow::after{transform:scaleX(-1)}
-.invite{font-family:var(--serif);font-style:italic;font-size:1.25rem;margin-top:1.6rem;opacity:.9}
+.invite{font-family:var(--serif);font-style:italic;font-size:clamp(1.15rem,4.4vw,1.45rem);line-height:1.6;max-width:30rem;margin:1.6rem auto 0;opacity:.95}
+.invite b{font-style:normal;font-weight:600;color:var(--gold-lt);letter-spacing:.02em}
 .names{font-family:var(--script);font-weight:400;font-size:clamp(3.2rem,15vw,7rem);line-height:1.1;margin:.4rem 0 .8rem;
   text-shadow:0 4px 30px rgba(0,0,0,.45)}
 .when{font-family:var(--serif);font-size:clamp(1.15rem,4.2vw,1.55rem);letter-spacing:.12em;text-transform:uppercase}
@@ -122,6 +127,9 @@ section{padding:3.2rem 0}
   position:relative;overflow:hidden;border:1px solid rgba(201,168,76,.5)}
 .mich::before{content:"";position:absolute;inset:8px;border:1px solid rgba(201,168,76,.25);border-radius:16px;pointer-events:none}
 .mich .h2{color:#fff}.mich .kicker{color:var(--gold-lt)}
+.lead{font-family:var(--serif);font-size:1.2rem;line-height:1.75;max-width:34rem;margin:.8rem auto 0;color:#e9efe9}
+.lead.small{font-size:1.05rem;font-style:italic;margin-top:1.1rem;color:var(--gold-lt)}
+.lead.dark{color:#33433b;text-align:center;margin:0 auto 1.3rem}
 .mich pre{font:400 1.05rem/1.9 var(--sans);white-space:pre-wrap;margin:1rem 0 1.2rem;color:#e9efe9}
 .mich .btn{background:var(--gold);border-color:var(--gold);color:#1b2a22}
 
@@ -173,7 +181,7 @@ footer small{opacity:.55;letter-spacing:.2em;font-size:.65rem;text-transform:upp
   <div class="hero-in">
     {% if not e.hero and _parts %}<div class="crest" aria-hidden="true">{{ _parts[0][0]|upper }}{% if _parts|length > 1 %}<span style="font-size:1.1rem;margin:0 .25rem">{{ '&' if _pair else '·' }}</span>{{ _parts[-1][0]|upper }}{% endif %}</div>{% endif %}
     <div class="eyebrow">{{ e.label }}</div>
-    <div class="invite">Tunakualika kwa furaha</div>
+    <div class="invite">Kwa furaha kubwa tunapenda kukualika <b>{{ e.guest or 'mgeni wetu mpendwa' }}</b> kwenye <b>{{ e.label|lower }}</b> ya</div>
     <h1 class="names">{{ e.weds or e.name }}</h1>
     <div class="when">{{ e.day }}{% if e.day and e.date %} · {% endif %}{{ e.date }}</div>
     {% if e.venue %}<div class="where">{{ e.venue }}</div>{% endif %}
@@ -193,7 +201,7 @@ footer small{opacity:.55;letter-spacing:.2em;font-size:.65rem;text-transform:upp
 <main class="wrap">
   <section class="rv" id="details" data-date="{{ e.date }}" data-time="{{ e.time }}">
     <span class="kicker">Taarifa</span>
-    <h2 class="h2">Siku Kubwa</h2>
+    <h2 class="h2">Siku ya Kupendeza</h2>
     <div class="orn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg></div>
 
     <div class="cards">
@@ -215,7 +223,6 @@ footer small{opacity:.55;letter-spacing:.2em;font-size:.65rem;text-transform:upp
 
     <div class="actions">
       {% if e.map_url %}<a class="btn" href="{{ e.map_url }}" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>Ramani</a>{% endif %}
-      <button class="btn ghost" id="btn-cal" type="button" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18M12 13v5M9.5 15.5h5"/></svg>Kalenda</button>
       <button class="btn ghost" id="btn-share" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="M8.6 10.5l6.8-4M8.6 13.5l6.8 4"/></svg>Shiriki</button>
     </div>
   </section>
@@ -250,10 +257,14 @@ footer small{opacity:.55;letter-spacing:.2em;font-size:.65rem;text-transform:upp
   {% if e.contribute %}
   <section class="rv">
     <div class="mich">
-      <span class="kicker">Mchango Wako</span>
-      <h2 class="h2">Michango</h2>
+      <span class="kicker">Ushirikiano Wako</span>
+      <h2 class="h2">Mchango Wako, Baraka Yetu</h2>
+      <p class="lead">Kwa moyo wa upendo na umoja, tunakukaribisha kushirikiana nasi kufanikisha shughuli hii.
+        Tafadhali tuma mchango wako kupitia namba zilizopo hapo chini, kisha utoe taarifa kwa mratibu au kupitia namba za mawasiliano ili tuweze kuthibitisha na kukushukuru ipasavyo.
+        Mchango wowote, mdogo au mkubwa, ni baraka kwetu.</p>
       <pre id="mich-txt">{{ e.contribute }}</pre>
       <button class="btn" type="button" id="btn-copy">Nakili maelezo</button>
+      <p class="lead small">Mungu akubariki sana kwa moyo wako wa ukarimu. 🙏</p>
     </div>
   </section>
   {% endif %}
@@ -263,6 +274,7 @@ footer small{opacity:.55;letter-spacing:.2em;font-size:.65rem;text-transform:upp
     <span class="kicker">Msaada</span>
     <h2 class="h2">Mawasiliano</h2>
     <div class="orn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg></div>
+    <p class="lead dark">Kwa mawasiliano zaidi, maswali au msaada kuhusu shughuli hii, tafadhali wasiliana na wahusika walioorodheshwa hapo chini. Tupo tayari kukusaidia na kukukaribisha.</p>
     <div class="contact" id="contact">{{ e.contact }}</div>
   </section>
   {% endif %}
@@ -323,18 +335,6 @@ footer small{opacity:.55;letter-spacing:.2em;font-size:.65rem;text-transform:upp
     };
     if(tick()){const iv=setInterval(()=>{if(!tick())clearInterval(iv)},1000)}
 
-    /* add to calendar (.ics) */
-    const bc=$('#btn-cal');bc.hidden=false;
-    bc.onclick=()=>{
-      const f=d=>d.toISOString().replace(/[-:]/g,'').replace(/\.\d+/,'');
-      const end=new Date(+when+5*36e5),esc=x=>(x||'').replace(/[,;]/g,'\\$&').replace(/\n/g,'\\n');
-      const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//SwiftInvite//EN','BEGIN:VEVENT','UID:'+Date.now()+'@swiftinvite',
-        'DTSTAMP:'+f(new Date()),'DTSTART:'+f(when),'DTEND:'+f(end),
-        'SUMMARY:'+esc({{ (e.label ~ ' - ' ~ (e.weds or e.name))|tojson }}),'LOCATION:'+esc({{ (e.venue or '')|tojson }}),
-        'URL:'+location.href,'END:VEVENT','END:VCALENDAR'].join('\r\n');
-      const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([ics],{type:'text/calendar'}));
-      a.download='mwaliko.ics';document.body.appendChild(a);a.click();a.remove();
-    };
   }
 
   /* share */

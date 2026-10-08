@@ -28,7 +28,7 @@ def fmt_eat(dt, fmt='%H:%M') -> str:
 from functools import wraps
 from urllib.parse import quote as url_encode
 from whatsapp import send_guest_card
-from extras import register_extras, event_site_url
+from extras import register_extras, event_site_url, event_site_path
 from sms_africastalking import send_sms as at_send_sms, is_configured as at_configured
 import time
 
@@ -482,7 +482,7 @@ def build_sms_message(guest, event=None) -> str:
     ev_type    = (event.event_type  if event and event.event_type  else "Wedding")
     type_label = EVENT_TYPE_LABELS.get(ev_type, ev_type.upper())
     ev_time    = (getattr(event, 'site_event_time', None) or "12:00 Jioni") if event else "12:00 Jioni"
-    site_url   = event_site_url(event)
+    site_url   = event_site_url(event, guest)
     link_line  = f"Maelezo & picha: {site_url}\n" if site_url else ""
     return (
         f"MWALIKO\n"
@@ -1839,8 +1839,8 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
                 image_bytes=card_bytes,
                 filename=card_fname,
                 event=event,
-                site_url=event_site_url(event),
-                site_slug=(getattr(event, 'slug', '') or '') if event else '',
+                site_url=event_site_url(event, guest),
+                site_slug=event_site_path(event, guest),
             )
             
 
