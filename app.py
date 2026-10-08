@@ -605,6 +605,29 @@ def require_event(f):
 # Event management routes
 # ---------------------------------------------------------------------------
 
+def _apply_template_upload(ev, file):
+    """Convert an uploaded JPG/PNG to JPEG, store it in Supabase and set ev.card_template_url.
+    Returns (status, message): status is None (no file chosen), True (ok) or False (failed)."""
+    if not file or not file.filename:
+        return None, ""
+    if not file.filename.lower().endswith(('.jpg', '.jpeg', '.png')):
+        return False, "Card template must be a JPG or PNG file."
+    try:
+        img = Image.open(BytesIO(file.read())).convert('RGB')
+        buf = BytesIO()
+        img.save(buf, format='JPEG', quality=95)
+        url = upload_to_supabase(TEMPLATES_BUCKET, f"template_{ev.slug}.jpg",
+                                 buf.getvalue(), content_type='image/jpeg')
+        ev.card_template_url = url
+        return True, "Card template uploaded."
+    except Exception as e:
+        msg = str(e)
+        if 'Bucket not found' in msg or '404' in msg:
+            return False, (f'Storage bucket "{TEMPLATES_BUCKET}" not found. Create it in '
+                           f'Supabase (Storage -> New bucket, Public).')
+        current_app.logger.error(f"Template upload error: {e}", exc_info=True)
+        return False, f"Template upload failed: {msg}"
+
 @app.route('/events')
 @login_required
 def events_list():
@@ -634,11 +657,12 @@ def events_list():
 def event_new():
     if request.method == 'POST':
         import re
-        name   = request.form.get('name', '').strip()
+        name = request.form.get('name', '').strip()
         if not name:
             flash('Event name is required.', 'danger')
             return redirect(url_for('event_new'))
         slug_base = re.sub(r'[^a-z0-9]+', '-', name.lower()).strip('-')
+        template_ok = None
         with get_db_session() as db:
             slug = slug_base
             counter = 1
@@ -666,11 +690,21 @@ def event_new():
                 is_active            = True,
                 created_at           = now_eat(),
             )
+            template_ok, template_msg = _apply_template_upload(ev, request.files.get('template_file'))
             db.add(ev)
             db.commit()
             db.refresh(ev)
             session['active_event_id'] = ev.id
+            new_id = ev.id
             flash(f'Event "{name}" created and set as active.', 'success')
+            if template_ok is True:
+                flash(template_msg + " Now position the name, number and QR on the card.", 'success')
+            elif template_ok is False:
+                flash(template_msg + " The event was saved; upload the template from Edit Event.", 'warning')
+        if template_ok is True:
+            return redirect(url_for('event_layout_editor', event_id=new_id))
+        if template_ok is False:
+            return redirect(url_for('event_edit', event_id=new_id))
         return redirect(url_for('events_list'))
     return render_template('event_form.html', event=None, title='New Event')
 
@@ -701,6 +735,13 @@ def event_edit(event_id):
             # Only update layout if the form actually submitted one — never blank it out
             submitted_layout = request.form.get('card_layout_config', '').strip()
             ev.card_layout_config = submitted_layout if submitted_layout else ev.card_layout_config
+
+            t_ok, t_msg = _apply_template_upload(ev, request.files.get('template_file'))
+            if t_ok is True:
+                flash(t_msg, 'success')
+            elif t_ok is False:
+                flash(t_msg, 'warning')
+
             db.commit()
             flash(f'Event "{ev.name}" updated.', 'success')
             return redirect(url_for('events_list'))

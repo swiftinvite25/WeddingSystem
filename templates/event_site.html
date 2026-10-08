@@ -16,8 +16,12 @@
 :root{
   --emerald:#0f3d2b; --emerald-2:#185a3f; --gold:#c9a84c; --gold-lt:#ecd9a0;
   --ivory:#fbf8f1; --paper:#ffffff; --ink:#22302a; --muted:#6b7a72;
+  --hero-a:#1f6b4b; --hero-b:#7a6428; --deep:#0a2a1e; --shade:8,30,21;
   --serif:'Cormorant Garamond',Georgia,serif; --sans:'Jost',system-ui,sans-serif; --script:'Great Vibes',cursive;
 }
+.theme-burgundy{--emerald:#4a0f1e;--emerald-2:#7a1f33;--hero-a:#8a2a40;--hero-b:#7a6428;--deep:#2e0914;--shade:36,6,16;--ivory:#fcf8f4}
+.theme-navy{--emerald:#0f2744;--emerald-2:#1d4170;--hero-a:#2a5a96;--hero-b:#7a6428;--deep:#09182b;--shade:6,16,32;--ivory:#f8f9fc}
+.theme-rose{--emerald:#5e2a3d;--emerald-2:#9a4a63;--gold:#cf9f7a;--gold-lt:#f5dccb;--hero-a:#b0627c;--hero-b:#c98f6a;--deep:#3d1a28;--shade:44,14,26;--ivory:#fdf7f5}
 *{box-sizing:border-box;margin:0}
 html{scroll-behavior:smooth}
 body{font-family:var(--sans);background:var(--ivory);color:var(--ink);line-height:1.65;-webkit-font-smoothing:antialiased}
@@ -25,9 +29,9 @@ img{display:block;max-width:100%}
 
 /* ── Hero ───────────────────────────── */
 .hero{position:relative;min-height:100svh;display:grid;place-items:center;text-align:center;color:#fff;overflow:hidden;
-  background:radial-gradient(circle at 20% 15%,#1f6b4b 0,transparent 45%),radial-gradient(circle at 85% 85%,#7a6428 0,transparent 40%),var(--emerald)}
+  background:radial-gradient(circle at 20% 15%,var(--hero-a) 0,transparent 45%),radial-gradient(circle at 85% 85%,var(--hero-b) 0,transparent 40%),var(--emerald)}
 .hero>img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;animation:kenburns 22s ease-in-out infinite alternate}
-.hero::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(8,30,21,.55) 0%,rgba(8,30,21,.25) 40%,rgba(8,30,21,.8) 100%)}
+.hero::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(var(--shade),.55) 0%,rgba(var(--shade),.25) 40%,rgba(var(--shade),.8) 100%)}
 .hero .frame{position:absolute;inset:max(14px,env(safe-area-inset-top)) 14px 14px;z-index:2;border:1px solid rgba(236,217,160,.55);pointer-events:none}
 .hero .frame::after{content:"";position:absolute;inset:6px;border:1px solid rgba(236,217,160,.25)}
 .hero-in{position:relative;z-index:3;padding:5.5rem 1.6rem 6rem;max-width:760px}
@@ -43,6 +47,21 @@ img{display:block;max-width:100%}
 .cue::after{content:"";position:absolute;left:50%;top:8px;width:4px;height:8px;margin-left:-2px;border-radius:2px;background:var(--gold-lt);animation:cue 1.8s infinite}
 @keyframes cue{0%{opacity:0;transform:translateY(0)}30%{opacity:1}100%{opacity:0;transform:translateY(14px)}}
 @keyframes kenburns{from{transform:scale(1)}to{transform:scale(1.08)}}
+
+/* default artwork (no cover photo) */
+.art{position:absolute;z-index:2;width:min(54vw,340px);color:var(--gold-lt);opacity:.55;pointer-events:none}
+.art.tl{top:0;left:0}.art.br{bottom:0;right:0;transform:rotate(180deg)}
+.stars{position:absolute;inset:0;z-index:2;pointer-events:none;animation:tw 4s ease-in-out infinite alternate;
+  background-image:radial-gradient(1.6px 1.6px at 12% 24%,var(--gold-lt),transparent),radial-gradient(1.4px 1.4px at 78% 16%,var(--gold-lt),transparent),
+  radial-gradient(1.8px 1.8px at 88% 52%,var(--gold-lt),transparent),radial-gradient(1.4px 1.4px at 20% 70%,var(--gold-lt),transparent),
+  radial-gradient(1.6px 1.6px at 64% 82%,var(--gold-lt),transparent),radial-gradient(1.2px 1.2px at 40% 12%,var(--gold-lt),transparent),
+  radial-gradient(1.2px 1.2px at 52% 62%,var(--gold-lt),transparent)}
+@keyframes tw{from{opacity:.25}to{opacity:.95}}
+.crest{width:96px;height:96px;margin:0 auto 1.3rem;border-radius:50%;border:1px solid var(--gold);display:grid;place-items:center;
+  font-family:var(--script);font-size:2.3rem;line-height:1;color:var(--gold-lt);box-shadow:0 0 0 7px rgba(236,217,160,.14);background:rgba(255,255,255,.04)}
+.soon{background:var(--paper);border:1px dashed var(--gold);border-radius:18px;padding:2rem 1.2rem;text-align:center;
+  font-family:var(--serif);font-style:italic;font-size:1.3rem;color:var(--emerald)}
+.soon svg{width:34px;height:34px;color:var(--gold);display:block;margin:0 auto .6rem}
 
 /* ── Layout ─────────────────────────── */
 .wrap{max-width:880px;margin:0 auto;padding:0 1.25rem}
@@ -99,7 +118,7 @@ section{padding:3.2rem 0}
 #lb .c{position:absolute;bottom:18px;color:#cbd5cf;font-size:.8rem;letter-spacing:.2em}
 
 /* ── Michango ───────────────────────── */
-.mich{background:linear-gradient(160deg,var(--emerald) 0,#0a2a1e 100%);color:#fff;border-radius:22px;padding:2.2rem 1.5rem;text-align:center;
+.mich{background:linear-gradient(160deg,var(--emerald) 0,var(--deep) 100%);color:#fff;border-radius:22px;padding:2.2rem 1.5rem;text-align:center;
   position:relative;overflow:hidden;border:1px solid rgba(201,168,76,.5)}
 .mich::before{content:"";position:absolute;inset:8px;border:1px solid rgba(201,168,76,.25);border-radius:16px;pointer-events:none}
 .mich .h2{color:#fff}.mich .kicker{color:var(--gold-lt)}
@@ -117,16 +136,42 @@ footer small{opacity:.55;letter-spacing:.2em;font-size:.65rem;text-transform:upp
 /* ── Reveal on scroll ───────────────── */
 .js .rv{opacity:0;transform:translateY(26px);transition:opacity .9s ease,transform .9s ease}
 .js .rv.in{opacity:1;transform:none}
-@media(prefers-reduced-motion:reduce){.hero>img,.cue::after{animation:none}.js .rv{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
+@media(prefers-reduced-motion:reduce){.hero>img,.cue::after,.stars{animation:none}.js .rv{opacity:1;transform:none;transition:none}html{scroll-behavior:auto}}
 </style>
 </head>
-<body>
+<body class="theme-{{ e.theme }}">
 <script>document.documentElement.classList.add('js')</script>
 
+{% set _w = (e.weds or e.name or '') %}
+{% set _parts = _w.replace('&',' ').replace(' na ',' ').replace(' and ',' ').split() %}
+{% set _pair = ('&' in _w) or (' na ' in _w.lower()) or (' and ' in _w.lower()) %}
 <header class="hero">
-  {% if e.hero %}<img src="{{ e.hero }}" alt="" fetchpriority="high">{% endif %}
+  {% if e.hero %}<img src="{{ e.hero }}" alt="" fetchpriority="high">
+  {% else %}
+  <svg class="art tl" viewBox="0 0 200 200" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" aria-hidden="true">
+    <path d="M6 194C48 124 100 72 194 6"/>
+    <g fill="currentColor" fill-opacity=".18">
+      <ellipse cx="34" cy="150" rx="17" ry="6.5" transform="rotate(-62 34 150)"/><ellipse cx="52" cy="128" rx="17" ry="6.5" transform="rotate(8 52 128)"/>
+      <ellipse cx="72" cy="112" rx="17" ry="6.5" transform="rotate(-58 72 112)"/><ellipse cx="92" cy="92" rx="17" ry="6.5" transform="rotate(14 92 92)"/>
+      <ellipse cx="112" cy="78" rx="16" ry="6" transform="rotate(-54 112 78)"/><ellipse cx="132" cy="60" rx="16" ry="6" transform="rotate(20 132 60)"/>
+      <ellipse cx="152" cy="46" rx="15" ry="5.5" transform="rotate(-50 152 46)"/><ellipse cx="170" cy="28" rx="14" ry="5" transform="rotate(26 170 28)"/>
+    </g>
+    <circle cx="28" cy="170" r="3.2" fill="currentColor"/><circle cx="62" cy="144" r="2.2" fill="currentColor"/><circle cx="186" cy="14" r="2.6" fill="currentColor"/>
+  </svg>
+  <svg class="art br" viewBox="0 0 200 200" fill="none" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" aria-hidden="true">
+    <path d="M6 194C48 124 100 72 194 6"/>
+    <g fill="currentColor" fill-opacity=".18">
+      <ellipse cx="34" cy="150" rx="17" ry="6.5" transform="rotate(-62 34 150)"/><ellipse cx="52" cy="128" rx="17" ry="6.5" transform="rotate(8 52 128)"/>
+      <ellipse cx="72" cy="112" rx="17" ry="6.5" transform="rotate(-58 72 112)"/><ellipse cx="92" cy="92" rx="17" ry="6.5" transform="rotate(14 92 92)"/>
+      <ellipse cx="112" cy="78" rx="16" ry="6" transform="rotate(-54 112 78)"/><ellipse cx="132" cy="60" rx="16" ry="6" transform="rotate(20 132 60)"/>
+    </g>
+    <circle cx="28" cy="170" r="3.2" fill="currentColor"/><circle cx="62" cy="144" r="2.2" fill="currentColor"/>
+  </svg>
+  <div class="stars" aria-hidden="true"></div>
+  {% endif %}
   <div class="frame"></div>
   <div class="hero-in">
+    {% if not e.hero and _parts %}<div class="crest" aria-hidden="true">{{ _parts[0][0]|upper }}{% if _parts|length > 1 %}<span style="font-size:1.1rem;margin:0 .25rem">{{ '&' if _pair else '·' }}</span>{{ _parts[-1][0]|upper }}{% endif %}</div>{% endif %}
     <div class="eyebrow">{{ e.label }}</div>
     <div class="invite">Tunakualika kwa furaha</div>
     <h1 class="names">{{ e.weds or e.name }}</h1>
@@ -175,14 +220,13 @@ footer small{opacity:.55;letter-spacing:.2em;font-size:.65rem;text-transform:upp
     </div>
   </section>
 
-  {% if e.story %}
+  {% set story_txt = e.story or 'Kwa upendo na furaha, tunakualika kushiriki nasi siku hii maalum. Uwepo wako utaongeza baraka na furaha katika tukio letu. Karibu sana!' %}
   <section class="rv">
     <span class="kicker">Karibu</span>
     <h2 class="h2">Ujumbe Wetu</h2>
     <div class="orn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-8-5.4-8-11a4.5 4.5 0 0 1 8-2.8A4.5 4.5 0 0 1 20 10c0 5.600-8 11-8 11z"/></svg></div>
-    <p class="story">{{ e.story }}</p>
+    <p class="story">{{ story_txt }}</p>
   </section>
-  {% endif %}
 
   {% if e.gallery %}
   <section class="rv">
@@ -192,6 +236,14 @@ footer small{opacity:.55;letter-spacing:.2em;font-size:.65rem;text-transform:upp
     <div class="gal" id="gal">
       {% for u in e.gallery %}<figure><img src="{{ u }}" alt="Picha {{ loop.index }}" loading="lazy"></figure>{% endfor %}
     </div>
+  </section>
+  {% else %}
+  <section class="rv">
+    <span class="kicker">Kumbukumbu</span>
+    <h2 class="h2">Picha</h2>
+    <div class="orn"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l2.4 7.6L22 12l-7.6 2.4L12 22l-2.4-7.6L2 12l7.6-2.4z"/></svg></div>
+    <div class="soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      Picha za maandalizi zitaongezwa hivi karibuni.</div>
   </section>
   {% endif %}
 

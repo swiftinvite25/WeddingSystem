@@ -57,6 +57,15 @@
       <label>Michango / how to contribute (optional — also used in michango reminders)</label>
       <textarea name="contribution_info" placeholder="M-Pesa: 0712 345 678 (Jina la Akaunti)&#10;Tigo Pesa: ...">{{ event.contribution_info }}</textarea>
 
+      <label>Colour theme (used when there are no photos, and for all accents)</label>
+      <select name="site_theme" style="width:100%;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem">
+        <option value="emerald" {% if event.site_theme=='emerald' %}selected{% endif %}>Emerald &amp; Gold (default)</option>
+        <option value="burgundy" {% if event.site_theme=='burgundy' %}selected{% endif %}>Burgundy &amp; Gold</option>
+        <option value="navy" {% if event.site_theme=='navy' %}selected{% endif %}>Royal Navy &amp; Gold</option>
+        <option value="rose" {% if event.site_theme=='rose' %}selected{% endif %}>Rose Gold &amp; Plum</option>
+      </select>
+      <div class="hint">No photos yet? The page shows an elegant default design with the couple's initials. Add the pre-wedding photos later, any time, and they appear automatically.</div>
+
       <label>Cover photo (replaces current)</label>
       <input type="file" name="hero" accept="image/*">
 

@@ -60,6 +60,7 @@ def _run_migrations(engine):
             ("site_contact",      "TEXT"),
             ("site_dress_code",   "VARCHAR"),
             ("contribution_info", "TEXT"),
+            ("site_theme",        "VARCHAR"),
         ]:
             if col_def[0] not in ev_cols:
                 try:
@@ -151,6 +152,7 @@ class Event(Base):
     site_contact      = Column(Text,   nullable=True)
     site_dress_code   = Column(String, nullable=True)
     contribution_info = Column(Text,   nullable=True)   # michango / how to contribute
+    site_theme        = Column(String, nullable=True)   # emerald | burgundy | navy | rose
 
     # Status
     is_active   = Column(Boolean, default=True)
