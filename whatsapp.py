@@ -14,13 +14,14 @@
 # }
 #
 # Default (backwards compatible with event_invitation template):
-# {"has_image_header": true, "body_vars": ["guest_name","card_number"], "has_buttons": true, "url_button_index": 2}
+# { "has_image_header": true, "body_vars": ["guest_name", "card_number"], "has_buttons": true }
 #
 # NOTE: "site_link" and "url_button_index" only take effect if you add them to an
 # event's config AFTER Meta has approved a template that contains those variables.
 # Existing events/templates are unaffected.
 
 import os
+import re
 import json
 import requests
 import logging
@@ -192,9 +193,28 @@ def send_template_message(to: str, guest_name: str, card_number: str,
         },
     }
 
+    site_slug = site_slug or ((getattr(event, "slug", "") or "") if event else "")
     logging.info(f"Sending WA template '{tmpl}' to {to} — guest: {guest_name}, card: {card_number}")
+    logging.info(f"WA components: {json.dumps(comps)}")
     response = requests.post(url, headers=_headers(event), json=payload)
     logging.info(f"Meta response: {response.status_code} — {response.text}")
+
+    # Self-heal: Meta says the template has a dynamic URL button but the event's
+    # template config did not include url_button_index -> add it once and retry.
+    if not response.ok and site_slug and not any(c.get("type") == "button" for c in comps):
+        try:
+            err = response.json().get("error", {})
+            details = (err.get("error_data") or {}).get("details", "")
+            m = re.search(r"index (\d+) of type Url", details, re.I)
+            if err.get("code") == 131008 and m:
+                comps.append({"type": "button", "sub_type": "url", "index": m.group(1),
+                              "parameters": [{"type": "text", "text": site_slug}]})
+                logging.warning(f"Auto-adding URL button index {m.group(1)}. Add "
+                                f"\"url_button_index\": {m.group(1)} to this event's template config.")
+                response = requests.post(url, headers=_headers(event), json=payload)
+                logging.info(f"Meta response (retry): {response.status_code} — {response.text}")
+        except Exception as e:
+            logging.warning(f"URL-button auto-fix failed: {e}")
 
     if not response.ok:
         error_data = response.json() if response.content else {}
