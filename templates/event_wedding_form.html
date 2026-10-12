@@ -4,8 +4,8 @@ label{display:block;font-weight:bold;font-size:.85rem;margin:.9rem 0 .3rem}input
 button{background:#0B0B0B;color:#C9A45C;border:0;padding:.8rem 1.6rem;border-radius:8px;font-size:1rem;cursor:pointer}.f{padding:.7rem 1rem;border-radius:8px;margin-bottom:.8rem;background:#dcfce7}.h{color:#6b7280;font-size:.85rem}.warn{background:#fef9c3;padding:.7rem;border-radius:8px}</style></head>
 <body><div class="w"><p><a href="{{ url_for('event_site_edit', event_id=event.id) }}">← Event Page</a></p>
 {% for m in get_flashed_messages() %}<div class="f">{{ m }}</div>{% endfor %}
-<div class="b"><h2 style="margin-top:0">Black, White &amp; Gold wedding website — {{ event.name }}</h2>
-<p class="h">Public link: <code>/w/{{ event.slug }}</code> (also <code>/e/{{ event.slug }}</code> when the style is set to Black, White &amp; Gold). Ceremony defaults, story, dress code, photos and contacts come from the Event Page and event details; fill in only what you want to override or add.</p>
+<div class="b"><h2 style="margin-top:0">Premium wedding website — {{ event.name }}</h2>
+<p class="h">Public link: <code>/w/{{ event.slug }}</code> (also <code>/e/{{ event.slug }}</code> when the style is set to Elegant Rose &amp; Sage). Ceremony defaults, story, dress code, photos and contacts come from the Event Page and event details; fill in only what you want to override or add.</p>
 {% if not event.enabled %}<p class="warn">The Event Page is switched OFF — turn it on in Event Page settings or the public link will show “not found”.</p>{% endif %}
 <form method="post">{% for key, label, kind in fields %}<label for="{{ key }}">{{ label }}</label>
 {% if kind == 'area' %}<textarea id="{{ key }}" name="{{ key }}">{{ x.get(key, '') }}</textarea>

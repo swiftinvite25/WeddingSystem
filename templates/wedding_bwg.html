@@ -2,194 +2,123 @@
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 {% set ini = w.initials %}{% set desc = w.names ~ ' — ' ~ w.date_long ~ (' · ' ~ w.place if w.place else '') %}
-<title>{{ w.names }} — Wedding</title>
+<title>{{ w.names }} | A Celebration of Love</title>
 <meta name="description" content="You are invited to the wedding of {{ desc }}.">
 <meta property="og:type" content="website"><meta property="og:title" content="The Wedding of {{ w.names }}"><meta property="og:description" content="{{ desc }}"><meta property="og:url" content="{{ w.url }}">
 {% if w.hero or w.portrait %}<meta property="og:image" content="{{ w.hero or w.portrait }}">{% endif %}
-<meta name="theme-color" content="#0B0B0B">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230B0B0B' stroke='%23C9A45C' stroke-width='3'/%3E%3Ctext x='32' y='40' font-size='22' text-anchor='middle' fill='%23C9A45C' font-family='serif'%3E{{ ini|urlencode }}%3C/text%3E%3C/svg%3E">
+<meta name="theme-color" content="#faf6f0">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%23b77e78'/%3E%3Ctext x='32' y='41' font-size='24' text-anchor='middle' fill='%23fff' font-family='serif'%3E{{ ini|urlencode }}%3C/text%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=Pinyon+Script&family=Allura&family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
 <style>
-:root{--ink:#0B0B0B;--iv:#FAF8F4;--gold:#C9A45C;--gray:#D8D5CF;--serif:'Playfair Display',Georgia,serif;--scr:'Allura','Pinyon Script',cursive;--sans:'Montserrat',system-ui,sans-serif}
-*{box-sizing:border-box;margin:0}html{scroll-behavior:smooth;scroll-padding-top:70px}
-body{font:300 .95rem/1.7 var(--sans);background:var(--iv);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden}
-img{display:block;max-width:100%}a{color:inherit;text-decoration:none}svg{fill:none;stroke:currentColor;stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round}
-:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
-.skip{position:absolute;left:-999px;top:0;background:var(--gold);padding:.6rem 1rem;z-index:99}.skip:focus{left:0}
-.c{max-width:1240px;margin:0 auto;padding:0 clamp(1.2rem,4vw,4rem)}
-.k{display:flex;align-items:center;gap:.7rem;font:500 .66rem var(--sans);letter-spacing:.26em;text-transform:uppercase;color:#9a7b32}.k::before{content:"";width:16px;height:1px;background:var(--gold)}
-h2{font:400 clamp(1.7rem,3vw,2.3rem)/1.2 var(--serif)}
-.pill{display:inline-flex;align-items:center;gap:.7rem;padding:.8rem 1.6rem;border:1px solid var(--gold);border-radius:99px;font:500 .64rem var(--sans);letter-spacing:.2em;text-transform:uppercase;cursor:pointer;background:none;color:inherit;transition:.25s}
-.pill:hover{background:var(--gold);color:#0B0B0B}.pill svg{width:15px;height:15px}.pill.f{background:var(--gold);color:#0B0B0B}.pill.f:hover{background:#d9b872}
-.ico{width:16px;height:16px;flex:none}
-/* header */
-.hd{position:sticky;top:0;z-index:40;background:var(--iv);border-bottom:1px solid rgba(0,0,0,.05)}.hr{display:flex;align-items:center;justify-content:space-between;gap:1rem;height:62px}
-.logo{font:italic 400 2rem/1 var(--serif)}.logo i{color:var(--gold);font-style:italic;margin:0 -.05em}
-.nav{display:flex;gap:2.2rem}.nav a{font:500 .64rem var(--sans);letter-spacing:.18em;text-transform:uppercase;padding:.4rem 0;border-bottom:1px solid transparent}.nav a.on,.nav a:hover{border-color:var(--gold)}
-.rb{display:inline-flex;align-items:center;gap:.6rem;background:var(--ink);color:#fff;border-radius:99px;padding:.7rem 1.6rem;font:600 .62rem var(--sans);letter-spacing:.2em}.rb svg{width:16px;height:16px}
-.bg{display:none;background:none;border:1px solid var(--gray);width:42px;height:42px;cursor:pointer}.bg span,.bg span::before,.bg span::after{display:block;width:18px;height:1.5px;background:var(--ink);margin:auto;position:relative}.bg span::before,.bg span::after{content:"";position:absolute;left:0}.bg span::before{top:-6px}.bg span::after{top:6px}
-/* hero */
-.hero{position:relative;background:#0B0B0B;color:#fff;min-height:clamp(430px,38vw,600px);display:flex;align-items:center;overflow:hidden}
-.hero .hi{position:absolute;right:0;top:0;width:68%;height:100%;object-fit:cover;object-position:60% 25%}
-.hero::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(90deg,#0B0B0B 0%,#0B0B0B 30%,rgba(11,11,11,.55) 52%,rgba(11,11,11,0) 78%)}
-.hero .sp{position:absolute;left:-30px;bottom:-20px;width:300px;color:var(--gold);opacity:.3;z-index:1}
-.hc{position:relative;z-index:2;width:100%;padding-block:3rem}.wo{font:400 .72rem var(--sans);letter-spacing:.3em;text-transform:uppercase;opacity:.95}
-.nm{font:400 clamp(2.6rem,6.4vw,5rem)/1.05 var(--serif);margin:.6rem 0 .3rem}.amp{font:400 1.15em var(--scr);color:var(--gold);padding:0 .05em}
-.gl{display:block;width:24px;height:1px;background:var(--gold);margin:.7rem 0}.tg{font-size:.95rem;margin-bottom:1.4rem}
-.dt{display:flex;align-items:center;gap:.9rem;margin:.5rem 0}.dt svg{width:26px;height:26px;color:var(--gold)}.dt b{font:500 .78rem var(--sans);letter-spacing:.14em}.dt span{display:block;font-size:.78rem}
-.hero .pill{margin-top:1.4rem;color:#fff}.hn{position:absolute;right:6%;top:24%;z-index:2;font:400 1.5rem/1.3 var(--scr);color:#e7d9bb;transform:rotate(-6deg);text-align:right;max-width:9rem}.hn::after{content:"";display:block;width:34px;height:1px;background:var(--gold);margin:.6rem 0 0 auto}
-/* row 1 */
-.r1{display:grid;grid-template-columns:1fr 1fr;position:relative}.r1>div{padding:3.4rem clamp(1.2rem,4vw,4rem)}
-.r1>.wd{border-left:1px solid var(--gray)}
-.st{display:grid;grid-template-columns:1fr 250px;gap:1.6rem;align-items:center;margin-left:auto;max-width:640px}.st h2{margin:.9rem 0 .8rem}.st p{font-size:.88rem;color:#3a3732}.st .pill{margin-top:1.3rem}
-.cl{display:-webkit-box;-webkit-line-clamp:5;-webkit-box-orient:vertical;overflow:hidden}.cl.open{display:block}
-.pol{position:relative;background:#fff;padding:.7rem .7rem 2.4rem;box-shadow:0 14px 30px -14px rgba(0,0,0,.35);transform:rotate(4deg)}.pol img{width:100%;aspect-ratio:4/5;object-fit:cover;filter:grayscale(1)}
-.pol figcaption{position:absolute;left:0;right:0;bottom:.5rem;text-align:center;font:400 1.4rem var(--scr)}.pol figcaption svg{width:15px;height:15px;vertical-align:-2px;margin-left:.3rem}
-.pol .lf{position:absolute;right:-34px;top:-36px;width:90px;color:#5d6e48;opacity:.9}
-.wd h2{margin-bottom:1.8rem}.gr{display:grid;grid-template-columns:1fr 1fr;gap:2rem 1.6rem;max-width:560px}
-.it{display:flex;gap:1rem}.it>span{flex:none;width:56px;height:56px;border:1px solid var(--gold);border-radius:50%;display:grid;place-items:center;color:var(--gold)}.it>span svg{width:26px;height:26px}
-.it small{display:block;font:500 .6rem var(--sans);letter-spacing:.24em;text-transform:uppercase;margin-bottom:.3rem}.it p{font-size:.84rem;line-height:1.55}.it em{display:block;font-size:.72rem;color:#6b665e;font-style:normal;margin-top:.2rem}
-/* row 2 */
-.r2{display:grid;grid-template-columns:.94fr 1.06fr}
-.cdp{position:relative;background:var(--ink);color:#fff;padding:3rem clamp(1.2rem,4vw,3rem);text-align:center;overflow:hidden;display:flex;flex-direction:column;justify-content:center}
-.cdp .sp{position:absolute;width:210px;color:var(--gold);opacity:.35}.cdp .s1{right:-30px;top:-10px}.cdp .s2{left:-40px;bottom:-30px;transform:rotate(180deg)}
-.cdp h3{font:500 .78rem var(--sans);letter-spacing:.26em;text-transform:uppercase;color:var(--gold);margin-bottom:1.6rem;position:relative}
-.cd{display:grid;grid-template-columns:repeat(4,1fr);max-width:480px;margin:0 auto;position:relative}.cd div+div{border-left:1px solid rgba(201,164,92,.7)}
-.cd b{display:block;font:400 clamp(2rem,4vw,3rem)/1 var(--serif)}.cd span{font-size:.58rem;letter-spacing:.2em;text-transform:uppercase}
-.cdp q{display:block;margin-top:2rem;font:400 1.9rem/1.2 var(--scr);color:var(--gold);quotes:none;position:relative}.cdp q::after{content:"";display:block;width:28px;height:1px;background:var(--gold);margin:1rem auto 0}
-.vn{display:grid;grid-template-columns:150px 1fr 190px;gap:1.4rem;padding:2.4rem clamp(1.2rem,3vw,3rem);align-items:center}.vn>.t{grid-column:2}
-.vn img.cv{grid-row:1/3;grid-column:1;width:100%;height:100%;max-height:250px;object-fit:cover}
-.vn h3{font:400 1.35rem/1.2 var(--serif);margin:.4rem 0 .5rem}.vn p{font-size:.78rem;display:flex;gap:.5rem;line-height:1.5;margin-bottom:.15rem}.vn p svg{width:14px;height:14px;flex:none;margin-top:.25rem}.vn .pill{padding:.5rem 1rem;font-size:.55rem;margin:.6rem 0 1.2rem}
-.mc{grid-column:3;grid-row:1/3;align-self:center;display:block;border:1px solid var(--gray);background:#fff;overflow:hidden}
-.mp{height:150px;display:grid;place-items:center;text-align:center;font:600 .76rem/1.3 var(--sans);background:linear-gradient(115deg,transparent 46%,#e8e6df 47%,#e8e6df 50%,transparent 51%),linear-gradient(35deg,transparent 40%,#eceae3 41%,#eceae3 45%,transparent 46%),#f3f2ee}.mp svg{width:24px;height:24px;fill:var(--ink);stroke:#fff}.mp span{display:block;font-weight:400;font-size:.7rem}
-.mc iframe{width:100%;height:150px;border:0;display:block}.mg{display:flex;align-items:center;justify-content:center;gap:.5rem;background:var(--ink);color:#fff;font:500 .55rem var(--sans);letter-spacing:.2em;padding:.8rem}.mg svg{width:13px;height:13px}
-/* row 3 */
-.r3{display:grid;grid-template-columns:1fr 1.15fr .8fr;gap:2rem;align-items:center;padding-block:3rem}.r3 .tx p{font-size:.84rem;margin:.9rem 0 1.2rem;max-width:20rem}
-.th{font:400 .95rem var(--serif);letter-spacing:.08em}.sw{display:flex;gap:.9rem}.sw i{width:34px;height:34px;border-radius:50%;border:1px solid var(--gray)}
-.r3 img{width:100%;aspect-ratio:1.55;object-fit:cover}.cr small{font:500 .62rem var(--sans);letter-spacing:.26em;text-transform:uppercase}.cr p{font-size:.78rem;margin:.5rem 0 1.4rem}.cr q{display:block;font:400 1.9rem/1.25 var(--scr);quotes:none;position:relative}.cr q::before,.cr q::after{content:"";display:block;width:26px;height:1px;background:var(--gold);margin:.7rem 0}
-.ar{position:absolute;width:120px;color:var(--gold);opacity:.4;pointer-events:none}
-/* row 4 */
-.r4{display:grid;grid-template-columns:260px 1fr;gap:2.4rem;align-items:center;padding-block:2.4rem}.r4 p{font-size:.78rem;margin:.6rem 0 1.4rem}
-.tr{position:relative}.trk{display:flex;gap:.7rem;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}.trk::-webkit-scrollbar{display:none}
-.trk button{all:unset;flex:0 0 calc(25% - .55rem);aspect-ratio:1.1;scroll-snap-align:start;cursor:zoom-in;background:#e9e6df}.trk img{width:100%;height:100%;object-fit:cover}
-.ab{position:absolute;top:50%;width:32px;height:32px;border-radius:50%;border:0;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.25);cursor:pointer;transform:translateY(-50%);display:grid;place-items:center}.ab svg{width:14px;height:14px}.ab.l{left:-12px}.ab.r{right:-12px}
-/* rsvp + footer */
-.rs{position:relative;background:var(--ink);color:#fff;overflow:hidden}.rs .c{display:grid;grid-template-columns:1.1fr auto 1fr;gap:2.4rem;align-items:center;padding-block:2.4rem}
-.rs .a{display:flex;gap:1.2rem;align-items:center}.rs .a>svg{width:44px;height:44px;color:var(--gold);flex:none}.rs h2{color:var(--gold);font-size:1.7rem}.rs p{font-size:.78rem}.rs .m{border-left:1px solid rgba(255,255,255,.2);padding-left:2.4rem;min-height:56px;display:flex;align-items:center}
-.rs .b{border-left:1px solid rgba(255,255,255,.2);padding-left:2.4rem}.rs .b .pill{margin-top:.8rem;color:#fff}.warn{background:#4a1d1d;padding:.7rem 1rem;font-size:.75rem}
-.fq{padding:2.6rem 0}.fq details{border-top:1px solid var(--gray);padding:.9rem 0;max-width:760px;margin:0 auto}.fq summary{cursor:pointer;font:400 1.1rem var(--serif)}.fq p{margin-top:.4rem;font-size:.85rem}.fq h2{text-align:center;margin-bottom:1rem}
-footer{background:var(--ink);color:#fff;border-top:1px solid rgba(201,164,92,.35)}footer .c{display:grid;grid-template-columns:1fr 2fr 1fr;align-items:center;gap:1rem;padding-block:1.5rem}
-footer .so{display:flex;gap:1.3rem}.so a svg{width:18px;height:18px}.cl2{text-align:center;font:400 1.5rem/1.3 var(--scr);color:#e7d9bb}.cl2 small{display:block;font:500 .6rem var(--sans);letter-spacing:.2em;color:var(--gold)}
-.fr{text-align:right;font:500 .62rem var(--sans);letter-spacing:.18em}.fr span{border-left:1px solid rgba(255,255,255,.3);margin-left:.9rem;padding-left:.9rem}
-#lb{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.95);display:none;align-items:center;justify-content:center}#lb.on{display:flex}#lb img{max-width:94vw;max-height:84vh}
-#lb button{position:absolute;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(201,164,92,.6);width:46px;height:46px;font-size:1.4rem;cursor:pointer}#lb .x{top:14px;right:14px}#lb .p{left:12px}#lb .n{right:12px}
+:root{--cream:#faf6f0;--paper:#fffdf9;--ink:#38332f;--muted:#82776e;--rose:#b77e78;--sage:#9ba58d;--gold:#b79a64;--line:#e8ded3;--serif:'Cormorant Garamond',Georgia,serif;--sans:'DM Sans',Arial,sans-serif}
+*{box-sizing:border-box}html{scroll-behavior:smooth;scroll-padding-top:70px}body{margin:0;background:var(--cream);color:var(--ink);font-family:var(--sans);line-height:1.7;overflow-x:hidden}
+a{color:inherit}img{display:block;width:100%;object-fit:cover}:focus-visible{outline:2px solid var(--rose);outline-offset:3px}
+.skip{position:absolute;left:-999px;top:0;background:#fff;padding:.6rem 1rem;z-index:99}.skip:focus{left:0}
+.wrap{width:min(1120px,calc(100% - 40px));margin:auto}.center{text-align:center}
+.eyebrow{text-transform:uppercase;letter-spacing:.22em;font-size:.68rem;font-weight:600;color:var(--rose)}
+h1,h2,h3,p{margin-top:0}h1,h2,h3{font-family:var(--serif);font-weight:500;line-height:1.05}h2{font-size:clamp(2.4rem,5vw,4rem);margin-bottom:18px}h3{font-size:1.8rem}
+.section{padding:100px 0}.intro{max-width:620px;margin:0 auto 46px;text-align:center}.intro p{color:var(--muted)}.flourish{color:var(--gold);font-family:var(--serif);font-size:2rem;margin:14px 0}
+.nav{position:absolute;z-index:30;top:0;left:0;right:0;padding:24px 0;color:#fff}.nav .wrap{display:flex;align-items:center;justify-content:space-between;gap:20px}
+.brand{font-family:var(--serif);font-size:1.45rem;letter-spacing:.04em;text-decoration:none}.navlinks{display:flex;gap:25px;font-size:.78rem;letter-spacing:.08em}.navlinks a{text-decoration:none;text-transform:uppercase}.navlinks a:hover{color:#f1d7c7}
+.burger{display:none;background:none;border:1px solid rgba(255,255,255,.6);color:#fff;width:42px;height:42px;cursor:pointer}.burger span,.burger span::before,.burger span::after{display:block;width:18px;height:1.5px;background:#fff;margin:auto;position:relative}.burger span::before,.burger span::after{content:"";position:absolute;left:0}.burger span::before{top:-6px}.burger span::after{top:6px}
+.hero{min-height:780px;display:grid;place-items:center;position:relative;text-align:center;color:#fff;overflow:hidden;background:radial-gradient(circle at 20% 20%,#c99a92 0,transparent 50%),radial-gradient(circle at 85% 80%,#8d9a80 0,transparent 50%),#4a403a}
+.hero>img{position:absolute;inset:0;height:100%;object-position:center 48%}.hero::before{content:"";position:absolute;inset:0;z-index:1;background:linear-gradient(180deg,rgba(31,28,27,.24),rgba(31,28,27,.58))}
+.hero-content{position:relative;z-index:2;padding:130px 20px 90px;max-width:900px}.hero .eyebrow{color:#f2d8c9}
+.hero h1{font-size:clamp(4rem,10vw,8.7rem);margin:20px 0 12px;letter-spacing:-.035em}.amp{font-style:italic;color:#e9c9a9}
+.hero-sub{font-size:.8rem;letter-spacing:.24em;text-transform:uppercase}.hero-date{margin-top:26px;display:inline-flex;align-items:center;gap:16px;font-size:.8rem;letter-spacing:.18em;text-transform:uppercase}.hero-date:before,.hero-date:after{content:"";height:1px;width:48px;background:#e8d4bf}
+.hero-place{font-size:.8rem;letter-spacing:.14em;margin-top:6px;opacity:.9}.btn{display:inline-block;padding:14px 25px;background:#e9d1b8;color:#44372e;text-decoration:none;text-transform:uppercase;letter-spacing:.12em;font-size:.72rem;font-weight:600;transition:.2s;border:1px solid #e9d1b8;cursor:pointer}.btn:hover{background:#fff}
+.btn.o{background:transparent;color:#fff;border-color:rgba(255,255,255,.7);margin-top:28px}.btn.o:hover{background:#fff;color:#44372e}
+.story-grid{display:grid;grid-template-columns:1fr 1fr;gap:70px;align-items:center}.story-photo{height:590px;position:relative}.story-photo img{height:100%;border-radius:48% 48% 3px 3px}.story-photo:after{content:"";position:absolute;inset:18px -18px -18px 18px;border:1px solid #cdbda8;border-radius:48% 48% 3px 3px;z-index:-1}
+.story-grid.np{grid-template-columns:1fr;max-width:700px;margin:auto;text-align:center}.story-copy p{color:var(--muted)}.signature{font-family:var(--serif);font-style:italic;font-size:1.8rem;color:var(--rose);margin-top:28px}
+.details{background:var(--paper)}.detail-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px}.detail-card{padding:38px 25px;text-align:center;border:1px solid var(--line);background:#fffdfa}
+.detail-icon{font-size:1.7rem;color:var(--rose);margin-bottom:12px}.detail-card h3{margin-bottom:10px}.detail-card p{color:var(--muted);font-size:.9rem;margin-bottom:8px}.detail-card strong{color:var(--ink)}
+.small-link{display:inline-block;margin-top:14px;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;text-decoration:none;border-bottom:1px solid var(--gold);padding-bottom:4px}
+.countdown{background:#e9e1d6;padding:72px 0;text-align:center}.countdown h2{font-size:clamp(2.3rem,5vw,3.5rem)}.timer{display:flex;justify-content:center;gap:clamp(14px,4vw,52px);margin-top:30px}
+.timebox strong{font-family:var(--serif);font-size:clamp(2.4rem,6vw,4rem);font-weight:500;display:block;line-height:1}.timebox span{font-size:.66rem;letter-spacing:.18em;text-transform:uppercase;color:#786b60}.cdm{font:italic 1.8rem var(--serif);margin-top:26px}
+.timeline{max-width:760px;margin:auto;position:relative}.timeline:before{content:"";position:absolute;top:10px;bottom:10px;left:50%;width:1px;background:#d7c6b4}.event{width:50%;padding:0 42px 42px 0;position:relative;text-align:right}.event:nth-child(even){margin-left:50%;padding:0 0 42px 42px;text-align:left}
+.event:after{content:"";position:absolute;right:-5px;top:8px;width:9px;height:9px;border-radius:50%;background:var(--rose);box-shadow:0 0 0 5px var(--cream)}.event:nth-child(even):after{right:auto;left:-4px}
+.event time{color:var(--rose);font-size:.7rem;text-transform:uppercase;letter-spacing:.18em;font-weight:600}.event h3{font-size:1.65rem;margin:7px 0}.event p{color:var(--muted);font-size:.88rem;margin:0}
+.palette{display:flex;justify-content:center;gap:15px;flex-wrap:wrap;margin-top:32px}.swatch{width:110px;text-align:center;font-size:.72rem;color:var(--muted)}.swatch-color{height:110px;border-radius:50%;margin-bottom:12px;border:5px solid rgba(255,255,255,.7);box-shadow:0 3px 14px #0000000c}.dress-note{max-width:620px;margin:30px auto 0;text-align:center;color:var(--muted)}
+.gallery-grid{display:grid;grid-template-columns:1.1fr .9fr .9fr;grid-auto-rows:230px;gap:14px}.gallery-grid button{all:unset;display:block;overflow:hidden;cursor:zoom-in;border-radius:3px;background:#e9e1d6}.gallery-grid button:first-child{grid-row:span 2}.gallery-grid.g4 button:last-child{grid-column:2 / 4}
+.gallery-grid img{height:100%;transition:transform .7s}.gallery-grid button:hover img{transform:scale(1.04)}.gallery-grid:focus-within{outline:none}
+.faq{max-width:760px;margin:0 auto}.faq details{border-top:1px solid var(--line);padding:1rem 0}.faq summary{cursor:pointer;font:500 1.4rem var(--serif)}.faq p{color:var(--muted);margin:.5rem 0 0}
+.rsvp{background:#62584f;color:#fff;text-align:center}.rsvp .eyebrow{color:#e7c9ad}.rsvp p{color:#e3dcd5;max-width:540px;margin:0 auto 30px}.rsvp-deadline{font-size:.75rem!important;letter-spacing:.08em}.warn{background:#4a1d1d;padding:.8rem;font-size:.85rem}
+.contact{margin-top:46px;padding-top:30px;border-top:1px solid rgba(255,255,255,.18);font-size:.9rem;color:#e3dcd5}.contact a{border-bottom:1px solid #e7c9ad;text-decoration:none}
+footer{padding:35px 0;text-align:center;color:var(--muted);font-size:.75rem}footer .brand{color:var(--rose);margin-bottom:5px;display:block;font-size:1.45rem}
+#lb{position:fixed;inset:0;z-index:90;background:rgba(20,16,14,.95);display:none;align-items:center;justify-content:center}#lb.on{display:flex}#lb img{max-width:94vw;max-height:84vh;width:auto;border-radius:3px}
+#lb button{position:absolute;background:rgba(255,255,255,.12);color:#fff;border:0;width:46px;height:46px;border-radius:50%;font-size:1.4rem;cursor:pointer}#lb .x{top:14px;right:14px}#lb .p{left:12px}#lb .n{right:12px}
 .rv{opacity:0;transform:translateY(18px);transition:.9s}.rv.in{opacity:1;transform:none}.nojs .rv{opacity:1;transform:none}
-@media(max-width:1000px){.nav{position:fixed;inset:62px 0 0;background:var(--iv);flex-direction:column;align-items:center;justify-content:center;gap:1.6rem;display:none}.hd.o .nav{display:flex}.nav a{font-size:.8rem}.bg{display:block}.rb{display:none}
-.hero .hi{width:100%;opacity:.55}.hero::before{background:linear-gradient(0deg,#0B0B0B 8%,rgba(11,11,11,.35))}.hn{display:none}
-.r1,.r2,.r3,.r4,.rs .c,footer .c{grid-template-columns:1fr}.r1>.wd{border:0;border-top:1px solid var(--gray)}.st{grid-template-columns:1fr;margin:0}.pol{max-width:260px;margin:1rem auto}
-.vn{grid-template-columns:1fr}.vn>.t,.vn img.cv,.mc{grid-column:1;grid-row:auto}.vn img.cv{max-height:240px}.rs .m,.rs .b{border:0;padding:0}.trk button{flex-basis:calc(50% - .35rem)}.fr,.cl2{text-align:center}footer .so{justify-content:center}.ar{display:none}}
-@media(max-width:560px){.gr{grid-template-columns:1fr}}
+@media(max-width:860px){.burger{display:block}.navlinks{position:fixed;inset:0;background:rgba(40,34,30,.97);flex-direction:column;align-items:center;justify-content:center;gap:1.6rem;font-size:1rem;display:none;z-index:29}.nav.o .navlinks{display:flex}.nav.o .burger{position:relative;z-index:31}
+.hero{min-height:690px}.section{padding:72px 0}.story-grid{grid-template-columns:1fr;gap:45px}.story-photo{height:430px;max-width:430px;margin:auto;width:90%}.detail-card{padding:30px 20px}
+.gallery-grid{grid-template-columns:1fr 1fr;grid-auto-rows:190px}.gallery-grid button:first-child{grid-row:auto}.gallery-grid.g4 button:last-child{grid-column:auto}
+.timeline:before{left:8px}.event,.event:nth-child(even){width:100%;margin-left:0;padding:0 0 35px 32px;text-align:left}.event:after,.event:nth-child(even):after{left:4px;right:auto}.swatch{width:85px}.swatch-color{height:85px}.hero h1{font-size:clamp(3.7rem,17vw,6rem)}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.rv{opacity:1;transform:none;transition:none}*{transition:none!important}}
 </style></head>
 <body class="nojs"><script>document.body.classList.remove('nojs')</script>
-<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
-<symbol id="sp" viewBox="0 0 200 200"><path d="M10 190C60 130 110 80 190 10"/><path d="M40 150c-8-14-4-26 6-34M40 150c14 2 24-4 28-14M70 118c-8-14-4-26 6-34M70 118c14 2 24-4 28-14M104 84c-6-12-2-22 6-30M104 84c12 2 20-4 24-12M140 52c-5-10-2-18 5-24M140 52c10 1 17-3 20-10"/></symbol>
-<symbol id="cal" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h2M12 14h2M8 17h2"/></symbol>
-<symbol id="pin" viewBox="0 0 24 24"><path d="M12 21s7-6.2 7-11.5A7 7 0 0 0 5 9.5C5 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.4"/></symbol>
-<symbol id="wa" viewBox="0 0 24 24"><path d="M3 21l1.6-4.7A9 9 0 1 1 8 19.6L3 21z"/><path d="M9 8.5c.5 3 2.5 5 5.5 6l1.5-1.5-2-1-1 .8c-1-.5-1.8-1.3-2.3-2.3l.8-1-1-2z"/></symbol>
-<symbol id="ar" viewBox="0 0 24 24"><path d="M4 12h16M14 6l6 6-6 6"/></symbol>
-<symbol id="ht" viewBox="0 0 24 24"><path d="M12 20s-7-4.6-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.400-7 10-7 10z"/></symbol>
-<symbol id="ring" viewBox="0 0 32 32"><circle cx="11" cy="20" r="7"/><circle cx="21" cy="20" r="7"/><path d="M8 9l3-4 3 4-3 3zM18 9l3-4 3 4-3 3z"/></symbol>
-<symbol id="gls" viewBox="0 0 32 32"><path d="M7 5h8l-1 9a3 3 0 0 1-6 0zM11 17v9M8 26h6M19 7h7l-1 8a3 3 0 0 1-5 0zM22.500 18v8M20 26h5M15 4l3-2"/></symbol>
-<symbol id="drs" viewBox="0 0 32 32"><path d="M12 3l4 5 4-5M12 3l1 9-5 16h16L19 12l1-9M13 12h6"/></symbol>
-<symbol id="fb" viewBox="0 0 24 24"><path d="M14 8h3V4h-3a4 4 0 0 0-4 4v3H7v4h3v6h4v-6h3l1-4h-4V8z"/></symbol>
-<symbol id="ig" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.500" cy="6.500" r=".6"/></symbol>
-<symbol id="tt" viewBox="0 0 24 24"><path d="M14 3v11a4 4 0 1 1-4-4M14 3c.5 3 2.500 5 6 5"/></symbol>
-<symbol id="yt" viewBox="0 0 24 24"><rect x="2.500" y="5.500" width="19" height="13" rx="4"/><path d="M10 9.500v5l4.500-2.500z"/></symbol>
-</defs></svg>
 <a class="skip" href="#main">Skip to content</a>
-<header class="hd" id="hd"><div class="c hr"><a class="logo" href="#home" aria-label="{{ w.names }}">{% if ini|length > 1 %}{{ ini[0] }}<i>&amp;</i>{{ ini[1:] }}{% else %}{{ ini }}{% endif %}</a>
-<nav class="nav" id="nav" aria-label="Main"><a href="#home" class="on">Home</a><a href="#story">Our Story</a><a href="#details">Event Details</a>{% if w.gallery %}<a href="#gallery">Gallery</a>{% endif %}<a href="#rsvp">RSVP</a><a href="#contact">Contact</a></nav>
-<a class="rb" href="#rsvp"><svg><use href="#wa"/></svg>RSVP</a><button class="bg" id="bg" aria-label="Menu" aria-expanded="false"><span></span></button></div></header>
+<header class="nav" id="nav"><div class="wrap"><a class="brand" href="#home">{{ ini[0] ~ ' & ' ~ ini[1:] if ini|length > 1 else ini }} ♡</a>
+<button class="burger" id="bg" aria-label="Menu" aria-expanded="false"><span></span></button>
+<nav class="navlinks" id="links" aria-label="Main"><a href="#story">Our Story</a><a href="#details">The Details</a>{% if w.schedule %}<a href="#schedule">Schedule</a>{% endif %}{% if w.gallery %}<a href="#gallery">Gallery</a>{% endif %}<a href="#rsvp">RSVP</a><a href="#contact">Contact</a></nav></div></header>
 
 <main id="main">
-{% set hi = w.hero or w.portrait %}
-<section class="hero" id="home">{% if hi %}<img class="hi" src="{{ hi }}" alt="{{ w.names }}" fetchpriority="high" onerror="this.remove()">{% endif %}
-<svg class="sp" aria-hidden="true"><use href="#sp"/></svg>
-<div class="c hc"><p class="wo">The Wedding Of</p>
-<h1 class="nm">{% if w.parts|length == 2 %}{{ w.parts[0] }} <span class="amp">&amp;</span> {{ w.parts[1] }}{% else %}{{ w.names }}{% endif %}</h1><i class="gl"></i>
-{% if w.guest %}<p class="tg">Welcome, {{ w.guest }}.</p>{% endif %}<p class="tg">{{ w.tagline }}</p>
-<div class="dt"><svg><use href="#cal"/></svg><div><b>{{ w.date_short }}</b>{% if w.place %}<span><svg class="ico" style="display:inline;vertical-align:-3px;margin-right:.4rem"><use href="#pin"/></svg>{{ w.place }}</span>{% endif %}</div></div>
-{% if w.has_date %}<a class="pill" href="{{ url_for('public_wedding_ics', slug=w.slug) }}" download>Save the Date <svg><use href="#cal"/></svg></a>{% endif %}</div>
-<p class="hn">{{ w.hero_note }}</p></section>
+<section class="hero" id="home">{% if w.hero %}<img src="{{ w.hero }}" alt="" fetchpriority="high" onerror="this.remove()">{% endif %}
+<div class="hero-content"><div class="eyebrow">{% if w.guest %}Dear {{ w.guest }}, with full hearts, we invite you{% else %}With full hearts, we invite you{% endif %}</div>
+<h1>{% if w.parts|length == 2 %}{{ w.parts[0] }} <span class="amp">&amp;</span> {{ w.parts[1] }}{% else %}{{ w.names }}{% endif %}</h1>
+{% if w.tagline %}<p class="hero-sub">{{ w.tagline }}</p>{% endif %}<div class="flourish" aria-hidden="true">✧</div>
+<div class="hero-date">{{ w.date_long }}</div>{% if w.place %}<div class="hero-place">{{ w.place }}</div>{% endif %}
+{% if w.has_date %}<div><a class="btn o" href="{{ url_for('public_wedding_ics', slug=w.slug) }}" download>Save the Date</a></div>{% endif %}</div></section>
 
-<section class="r1 rv">
-<div id="story"><div class="st"><div><span class="k">Our Story</span><h2>{{ w.story_title }}</h2><p class="cl" id="sty">{{ w.story }}</p>
-{% if w.story|length > 230 %}<button class="pill" id="more" type="button" aria-expanded="false"><span>Read our story</span><svg><use href="#ar"/></svg></button>{% endif %}</div>
-{% if w.portrait %}<figure class="pol"><svg class="lf" aria-hidden="true" style="stroke:#5d6e48"><use href="#sp"/></svg><img src="{{ w.portrait }}" alt="{{ w.names }}" loading="lazy" onerror="this.parentNode.remove()"><figcaption>{{ w.cap }} <svg><use href="#ht"/></svg></figcaption></figure>{% endif %}</div></div>
-<div class="wd" id="details"><h2>Wedding Details</h2><div class="gr">
-{% if w.cer %}<div class="it"><span><svg><use href="#ring"/></svg></span><div><small>Ceremony</small><p>{{ w.cer.name }}{% if w.cer.addr %}<br>{{ w.cer.addr }}{% endif %}</p>{% if w.cer.time %}<p>{{ w.cer.time }}</p>{% endif %}{% if w.cer.date and not w.has_date %}<p>{{ w.cer.date }}</p>{% endif %}</div></div>{% endif %}
-{% if w.rec %}<div class="it"><span><svg><use href="#gls"/></svg></span><div><small>Reception</small><p>{{ w.rec.name }}{% if w.rec.addr %}<br>{{ w.rec.addr }}{% endif %}</p>{% if w.rec.time %}<p>{{ w.rec.time }}</p>{% endif %}</div></div>{% endif %}
-{% if w.dress or w.dress_note %}<div class="it"><span><svg><use href="#drs"/></svg></span><div><small>Dress Code</small><p>{{ w.dress }}{% if w.dress_note %}<br>{{ w.dress_note }}{% endif %}</p></div></div>{% endif %}
-{% if w.deadline %}<div class="it"><span><svg><use href="#cal"/></svg></span><div><small>RSVP Deadline</small><p>{{ w.deadline }}</p><em>Kindly confirm your attendance</em></div></div>{% endif %}
+<section class="section" id="story"><div class="wrap story-grid rv {{ '' if w.portrait else 'np' }}">{% if w.portrait %}<div class="story-photo"><img src="{{ w.portrait }}" alt="{{ w.names }}" loading="lazy" width="520" height="590" onerror="this.parentNode.remove()"></div>{% endif %}
+<div class="story-copy"><div class="eyebrow">Two hearts, one beautiful story</div><h2>{{ w.story_title }}</h2><div class="flourish" aria-hidden="true">— ❦ —</div>
+{% for p in w.story.replace('\r','').split('\n\n') %}{% if p.strip() %}<p>{{ p }}</p>{% endif %}{% endfor %}<div class="signature">With love, {{ w.names }}</div></div></div></section>
+
+<section class="section details" id="details"><div class="wrap rv"><div class="intro"><div class="eyebrow">Save the date</div><h2>The wedding details</h2><p>Everything you need to know to celebrate with us. We can't wait to see you there.</p><div class="flourish" aria-hidden="true">✧</div></div>
+<div class="detail-grid">
+{% if w.cer %}<article class="detail-card"><div class="detail-icon" aria-hidden="true">♡</div><h3>The Ceremony</h3>{% if w.cer.date %}<p><strong>{{ w.cer.date }}</strong></p>{% endif %}{% if w.cer.time %}<p>{{ w.cer.time }}</p>{% endif %}<p>{{ w.cer.name }}{% if w.cer.addr %}<br>{{ w.cer.addr }}{% endif %}</p>{% if w.cer.maps %}<a class="small-link" href="{{ w.cer.maps }}" target="_blank" rel="noopener">View location ↗</a>{% endif %}</article>{% endif %}
+{% if w.rec %}<article class="detail-card"><div class="detail-icon" aria-hidden="true">✧</div><h3>The Reception</h3><p><strong>Celebration &amp; dinner</strong></p>{% if w.rec.time %}<p>{{ w.rec.time }}</p>{% endif %}<p>{{ w.rec.name }}{% if w.rec.addr %}<br>{{ w.rec.addr }}{% endif %}</p>{% if w.rec.maps %}<a class="small-link" href="{{ w.rec.maps }}" target="_blank" rel="noopener">View location ↗</a>{% endif %}</article>{% endif %}
+{% if w.dress or w.dress_note or w.palette %}<article class="detail-card"><div class="detail-icon" aria-hidden="true">♧</div><h3>Dress Code</h3>{% if w.dress %}<p><strong>{{ w.dress }}</strong></p>{% endif %}{% if w.dress_note %}<p>{{ w.dress_note }}</p>{% endif %}<a class="small-link" href="#colors">Explore the palette ↓</a></article>{% endif %}
 </div></div></section>
 
-<section class="r2 rv">
-<div class="cdp"><svg class="sp s1" aria-hidden="true"><use href="#sp"/></svg><svg class="sp s2" aria-hidden="true"><use href="#sp"/></svg>
-<h3>Countdown to our big day</h3>
-{% if w.has_date %}<div class="cd" id="cd" data-iso="{{ w.iso }}" role="timer"><div><b id="c-d">0</b><span>Days</span></div><div><b id="c-h">0</b><span>Hours</span></div><div><b id="c-m">0</b><span>Minutes</span></div><div><b id="c-s">0</b><span>Seconds</span></div></div>
-{% else %}<p style="font:italic 1.4rem var(--serif);position:relative">Date to be confirmed</p>{% endif %}
-<q id="cdq">We can't wait to celebrate with you!</q></div>
-<div class="vn" id="venues">{% if w.cer_img %}<img class="cv" src="{{ w.cer_img }}" alt="{{ w.cer.name if w.cer else 'Ceremony venue' }}" loading="lazy" onerror="this.remove()">{% endif %}
-<div class="t"><span class="k">Our Venues</span>
-{% if w.cer %}<h3>Ceremony Venue</h3>{% if w.cer.name %}<p><svg><use href="#pin"/></svg><span>{{ w.cer.name }}{% if w.cer.addr %}<br>{{ w.cer.addr }}{% endif %}</span></p>{% endif %}{% if w.cer.maps %}<a class="pill" href="{{ w.cer.maps }}" target="_blank" rel="noopener">View on map <svg><use href="#ar"/></svg></a>{% endif %}{% endif %}
-{% if w.rec %}<h3>Reception Venue</h3>{% if w.rec.name %}<p><svg><use href="#pin"/></svg><span>{{ w.rec.name }}{% if w.rec.addr %}<br>{{ w.rec.addr }}{% endif %}</span></p>{% endif %}{% if w.rec.maps %}<a class="pill" href="{{ w.rec.maps }}" target="_blank" rel="noopener">View on map <svg><use href="#ar"/></svg></a>{% endif %}{% endif %}</div>
-{% set mv = w.rec or w.cer %}{% if mv and (mv.maps or w.embeds) %}<div class="mc">{% if w.embeds %}<iframe src="{{ w.embeds[0] }}" loading="lazy" title="Venue map" referrerpolicy="no-referrer-when-downgrade"></iframe>{% else %}<div class="mp"><div><svg><use href="#pin"/></svg><br>{{ mv.name }}{% if mv.addr %}<span>{{ mv.addr }}</span>{% endif %}</div></div>{% endif %}
-<a class="mg" href="{{ mv.maps }}" target="_blank" rel="noopener"><svg><use href="#wa"/></svg>GET DIRECTIONS</a></div>{% endif %}</div></section>
+{% if w.has_date %}<section class="countdown"><div class="wrap rv"><div class="eyebrow">The countdown begins</div><h2>Until we say “I do”</h2>
+<div class="timer" id="timer" data-iso="{{ w.iso }}" role="timer"><div class="timebox"><strong id="d">000</strong><span>Days</span></div><div class="timebox"><strong id="h">00</strong><span>Hours</span></div><div class="timebox"><strong id="m">00</strong><span>Minutes</span></div><div class="timebox"><strong id="s">00</strong><span>Seconds</span></div></div></div></section>{% endif %}
 
-<section class="c r3 rv" style="position:relative"><svg class="ar" style="left:-30px;bottom:0" aria-hidden="true"><use href="#sp"/></svg>
-<div class="tx"><h2>Wedding Theme &amp; Colours</h2><p class="th" style="margin-top:.9rem">{{ w.theme_words }}</p><p>{{ w.theme_text }}</p>
-<div class="sw">{% for n, c in w.palette %}<i title="{{ n }}" style="background:radial-gradient(circle at 35% 30%,rgba(255,255,255,.3),transparent 60%),{{ c }}"></i>{% endfor %}</div></div>
-{% if w.theme_img %}<img src="{{ w.theme_img }}" alt="Wedding decor" loading="lazy" onerror="this.remove()">{% else %}<span></span>{% endif %}
-<div class="cr"><small>Our Colours</small><p>{{ w.colours_label }}</p><q>{{ w.colours_quote }}</q></div></section>
+{% if w.schedule %}<section class="section" id="schedule"><div class="wrap rv"><div class="intro"><div class="eyebrow">A day to remember</div><h2>Order of the day</h2><p>Come ready for heartfelt moments, happy tears, good food and a little dancing.</p></div>
+<div class="timeline">{% for t, h, d in w.schedule %}<div class="event"><time>{{ t }}</time><h3>{{ h }}</h3>{% if d %}<p>{{ d }}</p>{% endif %}</div>{% endfor %}</div></div></section>{% endif %}
 
-{% if w.gallery %}<section class="c r4 rv" id="gallery"><div><h2>Our Gallery</h2><p>A glimpse of our journey and the moments we're looking forward to.</p><button class="pill" id="all" type="button">View all photos <svg><use href="#ar"/></svg></button></div>
-<div class="tr"><div class="trk" id="gal">{% for u in w.gallery %}<button type="button" aria-label="Open photo {{ loop.index }}"><img src="{{ u }}" alt="Wedding photo {{ loop.index }}" loading="lazy" width="300" height="270" onerror="this.parentNode.remove()"></button>{% endfor %}</div>
-<button class="ab l" id="gl" aria-label="Previous photos"><svg style="transform:scaleX(-1)"><use href="#ar"/></svg></button><button class="ab r" id="gr" aria-label="Next photos"><svg><use href="#ar"/></svg></button></div></section>{% endif %}
+<section class="section details" id="colors"><div class="wrap rv"><div class="intro"><div class="eyebrow">A little inspiration</div><h2>Our wedding palette</h2><p>A soft, romantic blend inspired by gardens, candlelight and timeless elegance.</p></div>
+<div class="palette">{% for n, c in w.palette %}<div class="swatch"><div class="swatch-color" style="background:{{ c }}"></div>{{ n }}</div>{% endfor %}</div>
+<p class="dress-note">Feel free to use these colours as inspiration for your outfit. Most importantly, come as you are and celebrate with us.</p></div></section>
 
-<section class="rs rv" id="rsvp"><svg class="ar" style="left:-20px;top:0" aria-hidden="true"><use href="#sp"/></svg><svg class="ar" style="right:-20px;bottom:0;transform:rotate(180deg)" aria-hidden="true"><use href="#sp"/></svg>
-<div class="c"><div class="a"><svg><use href="#wa"/></svg><div><h2>RSVP</h2><p>Let us know if you'll be joining us for our special day.</p>{% if w.deadline %}<p>Please reply by {{ w.deadline }}.</p>{% endif %}</div></div>
-<div class="m">{% if w.wa_href %}<a class="pill f" href="{{ w.wa_href }}" target="_blank" rel="noopener"><svg><use href="#wa"/></svg>Confirm on WhatsApp <svg><use href="#ar"/></svg></a>{% elif w.dev %}<p class="warn">DEV: set the WhatsApp number (international digits) in Wedding Details to enable RSVP.</p>{% endif %}</div>
-<div class="b" id="contact"><p>Have any questions,<br>feel free to reach out to us.</p>{% if w.contact_text %}<p class="ct" id="ct" style="white-space:pre-line;margin-top:.5rem">{{ w.contact_text }}</p>{% endif %}
-{% if w.email %}<a class="pill" href="mailto:{{ w.email }}">Contact us <svg><use href="#ar"/></svg></a>{% elif w.wa %}<a class="pill" href="https://wa.me/{{ w.wa }}" target="_blank" rel="noopener">Contact us <svg><use href="#ar"/></svg></a>{% endif %}</div></div></section>
-{% if w.faq %}<section class="c fq"><h2>Frequently Asked Questions</h2>{% for q, a in w.faq %}<details><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</section>{% endif %}
+{% if w.gallery %}<section class="section" id="gallery"><div class="wrap rv"><div class="intro"><div class="eyebrow">Little moments, big love</div><h2>A glimpse of our joy</h2><p>A few moments that capture the feeling of this season of our lives.</p></div>
+<div class="gallery-grid {{ 'g4' if w.gallery|length == 4 }}" id="gal">{% for u in w.gallery %}<button type="button" aria-label="Open photo {{ loop.index }}"><img src="{{ u }}" alt="Wedding photo {{ loop.index }}" loading="lazy" width="600" height="460" onerror="this.parentNode.remove()"></button>{% endfor %}</div></div></section>{% endif %}
+
+{% if w.embeds %}<section class="section details"><div class="wrap rv"><div class="intro"><div class="eyebrow">Finding us</div><h2>Our venues</h2></div>{% for u in w.embeds %}<iframe src="{{ u }}" loading="lazy" title="Venue map {{ loop.index }}" style="width:100%;height:340px;border:1px solid var(--line);margin-bottom:14px" referrerpolicy="no-referrer-when-downgrade"></iframe>{% endfor %}</div></section>{% endif %}
+
+{% if w.faq %}<section class="section"><div class="wrap rv"><div class="intro"><div class="eyebrow">Good to know</div><h2>Questions &amp; answers</h2></div><div class="faq">{% for q, a in w.faq %}<details><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div></div></section>{% endif %}
+
+<section class="section rsvp" id="rsvp"><div class="wrap rv"><div class="eyebrow">We saved you a place</div><h2>Will you celebrate with us?</h2>
+<p>Your presence is the loveliest gift. Please let us know if you'll be joining us so we can prepare to welcome you.</p>
+{% if w.wa_href %}<a class="btn" href="{{ w.wa_href }}" target="_blank" rel="noopener">RSVP on WhatsApp</a>{% elif w.dev %}<p class="warn">DEV: set the WhatsApp number (international digits) in the wedding details to enable RSVP.</p>{% endif %}
+{% if w.deadline %}<p class="rsvp-deadline" style="margin-top:22px">Kindly respond by {{ w.deadline }}</p>{% endif %}
+<div class="contact" id="contact">{% if w.contact_text %}<div id="ct" style="white-space:pre-line">{{ w.contact_text }}</div>{% endif %}{% if w.email %}<div><a href="mailto:{{ w.email }}">{{ w.email }}</a></div>{% endif %}{% if not (w.contact_text or w.email) %}Questions? Message us on WhatsApp.{% endif %}</div></div></section>
 </main>
-
-<footer><div class="c"><div class="so">{% for n, u in w.socials %}<a href="{{ u }}" target="_blank" rel="noopener" aria-label="{{ n }}"><svg><use href="#{{ {'Facebook':'fb','Instagram':'ig','TikTok':'tt','YouTube':'yt'}[n] }}"/></svg></a>{% endfor %}</div>
-<div class="cl2">{{ w.closing }} <svg class="ico" style="color:var(--gold);fill:var(--gold)"><use href="#ht"/></svg>{% if w.hashtag %}<small>{{ w.hashtag }}</small>{% endif %}</div>
-<div class="fr">{{ ini[0] ~ ' & ' ~ ini[1:] if ini|length > 1 else ini }}<span>{{ w.date_short }}</span></div></div></footer>
-<div id="lb" role="dialog" aria-modal="true" aria-label="Photos"><button class="x" aria-label="Close">×</button><button class="p" aria-label="Previous">‹</button><button class="n" aria-label="Next">›</button><img alt=""></div>
+<footer><div class="wrap"><span class="brand">{{ w.names }} ♡</span><div>Made with love · We can't wait to celebrate with you</div>{% if w.hashtag %}<div style="margin-top:8px">{{ w.hashtag }}</div>{% endif %}{% if w.instagram %}<div style="margin-top:6px"><a href="{{ w.instagram }}" target="_blank" rel="noopener">Instagram</a></div>{% endif %}</div></footer>
+<div id="lb" role="dialog" aria-modal="true" aria-label="Photos"><button class="x" aria-label="Close">×</button><button class="p" aria-label="Previous photo">‹</button><button class="n" aria-label="Next photo">›</button><img alt=""></div>
 <script>
-(function(){const $=s=>document.querySelector(s),hd=$('#hd'),bg=$('#bg');
-bg.onclick=()=>{const o=hd.classList.toggle('o');bg.setAttribute('aria-expanded',o)};document.querySelectorAll('#nav a').forEach(a=>a.onclick=()=>{hd.classList.remove('o');bg.setAttribute('aria-expanded',false)});
-const links=[...document.querySelectorAll('#nav a')],secs=links.map(a=>$(a.getAttribute('href'))).filter(Boolean);
-const spy=()=>{let cur=0;secs.forEach((s,i)=>{if(s.getBoundingClientRect().top<innerHeight*.4)cur=i});links.forEach((a,i)=>a.classList.toggle('on',a.getAttribute('href')===('#'+(secs[cur]||{}).id)))};spy();addEventListener('scroll',spy,{passive:true});
+(function(){const $=s=>document.querySelector(s),nav=$('#nav'),bg=$('#bg');
+bg.onclick=()=>{const o=nav.classList.toggle('o');bg.setAttribute('aria-expanded',o)};document.querySelectorAll('#links a').forEach(a=>a.onclick=()=>{nav.classList.remove('o');bg.setAttribute('aria-expanded',false)});
 const io='IntersectionObserver' in window?new IntersectionObserver(es=>es.forEach(x=>{if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target)}}),{threshold:.08}):null;
 document.querySelectorAll('.rv').forEach(e=>io?io.observe(e):e.classList.add('in'));
-const mo=$('#more');if(mo)mo.onclick=()=>{const o=$('#sty').classList.toggle('open');mo.setAttribute('aria-expanded',o);mo.querySelector('span').textContent=o?'Show less':'Read our story'};
-const cd=$('#cd');if(cd){const t=new Date(cd.dataset.iso);if(!isNaN(t)){const tk=()=>{const ms=t-Date.now();if(ms<=0){cd.outerHTML='<p style="font:italic 1.5rem var(--serif);position:relative">'+(Date.now()-t<864e5?"Today is the day!":"Thank you for celebrating with us.")+'</p>';$('#cdq').remove();return false}
-const s=Math.floor(ms/1e3);$('#c-d').textContent=Math.floor(s/86400);$('#c-h').textContent=Math.floor(s%86400/3600);$('#c-m').textContent=Math.floor(s%3600/60);$('#c-s').textContent=s%60;return true};
+const tm=$('#timer');if(tm){const t=new Date(tm.dataset.iso).getTime();if(!isNaN(t)){const p=(n,l)=>String(n).padStart(l,'0');const tk=()=>{let d=t-Date.now();if(d<=0){tm.outerHTML='<p class="cdm">'+(Date.now()-t<864e5?"Today is the day!":"Thank you for celebrating with us.")+'</p>';return false}
+$('#d').textContent=p(Math.floor(d/864e5),3);d%=864e5;$('#h').textContent=p(Math.floor(d/36e5),2);d%=36e5;$('#m').textContent=p(Math.floor(d/6e4),2);$('#s').textContent=p(Math.floor(d/1e3)%60,2);return true};
 if(tk()){const iv=setInterval(()=>{if(!tk())clearInterval(iv)},1000)}}}
-const ct=$('#ct');if(ct)ct.innerHTML=ct.innerHTML.replace(/(\+?\d[\d ]{8,14}\d)/g,m=>'<a href="tel:'+m.replace(/\s/g,'')+'" style="border-bottom:1px solid var(--gold)">'+m+'</a>');
-const trk=$('#gal');if(trk){const sc=d=>trk.scrollBy({left:d*trk.clientWidth*.8,behavior:'smooth'});$('#gl').onclick=()=>sc(-1);$('#gr').onclick=()=>sc(1)}
+const ct=$('#ct');if(ct)ct.innerHTML=ct.innerHTML.replace(/(\+?\d[\d ]{8,14}\d)/g,m=>'<a href="tel:'+m.replace(/\s/g,'')+'">'+m+'</a>');
 const lb=$('#lb'),li=lb.querySelector('img');let im=[],k=0,last=null;const show=i=>{k=(i+im.length)%im.length;li.src=im[k].src;li.alt=im[k].alt};
-const open=(i,b)=>{im=[...document.querySelectorAll('#gal img')];if(!im.length)return;last=b;show(i);lb.classList.add('on');document.body.style.overflow='hidden';lb.querySelector('.x').focus()};
 const close=()=>{lb.classList.remove('on');document.body.style.overflow='';last&&last.focus()};
-document.querySelectorAll('#gal button').forEach(b=>b.onclick=()=>open([...document.querySelectorAll('#gal img')].indexOf(b.querySelector('img')),b));
-const all=$('#all');if(all)all.onclick=()=>open(0,all);
+document.querySelectorAll('#gal button').forEach(b=>b.onclick=()=>{im=[...document.querySelectorAll('#gal img')];last=b;show(im.indexOf(b.querySelector('img')));lb.classList.add('on');document.body.style.overflow='hidden';lb.querySelector('.x').focus()});
 lb.querySelector('.x').onclick=close;lb.querySelector('.p').onclick=()=>show(k-1);lb.querySelector('.n').onclick=()=>show(k+1);lb.onclick=e=>{if(e.target===lb)close()};
-document.addEventListener('keydown',e=>{if(!lb.classList.contains('on'))return;if(e.key==='Escape')close();if(e.key==='ArrowLeft')show(k-1);if(e.key==='ArrowRight')show(k+1)});
+document.addEventListener('keydown',e=>{if(e.key==='Escape')nav.classList.remove('o');if(!lb.classList.contains('on'))return;if(e.key==='Escape')close();if(e.key==='ArrowLeft')show(k-1);if(e.key==='ArrowRight')show(k+1)});
 let sx=0;lb.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});lb.addEventListener('touchend',e=>{const d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>50)show(k+(d<0?1:-1))});
 })();
 </script></body></html>

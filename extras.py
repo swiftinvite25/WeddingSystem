@@ -187,7 +187,7 @@ from urllib.parse import quote as _q
 _EAT = timezone(timedelta(hours=3))
 _SW_D = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
 _SW_M = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
-_DEFAULT_PALETTE = [("Black", "#0B0B0B"), ("Ivory", "#FAF8F4"), ("Champagne Gold", "#C9A45C"), ("Soft Gray", "#D8D5CF")]
+_DEFAULT_PALETTE = [("Dusty Rose", "#b77e78"), ("Sage Green", "#9ba58d"), ("Champagne", "#d9c3a5"), ("Ivory", "#f7f0e5")]
 
 # (key, label, kind)  kind: text | dt | date | area
 WED_FIELDS = [
@@ -207,14 +207,8 @@ WED_FIELDS = [
     ("palette", "Theme colours, one per line:  Name #HEX   (e.g. Champagne Gold #C9A45C)", "area"),
     ("faq", "FAQ, one per line:  Question | Answer", "area"),
     ("embeds", "Embedded map URLs (optional, Google Maps 'Embed a map' src links, one per line)", "area"),
-    ("quote_hero", "Hero side note (default: Love Brings Us Here)", "text"), ("polaroid_cap", "Polaroid caption (default: Better Together)", "text"),
-    ("story_title", "Story heading (default: A beautiful journey of love)", "text"),
-    ("cer_img", "Ceremony venue photo URL (optional; defaults to 2nd gallery photo)", "text"),
-    ("theme_img", "Theme / decor photo URL (optional; defaults to 3rd gallery photo)", "text"),
-    ("theme_words", "Theme words (default: Classic · Modern · Timeless)", "text"), ("theme_text", "Theme description", "area"),
-    ("colours_label", "Colours label (default: Black · White · Gold)", "text"), ("colours_quote", "Colours quote", "text"),
-    ("closing_line", "Footer line (default: Together is our favourite place to be)", "text"),
-    ("facebook", "Facebook URL (optional)", "text"), ("tiktok", "TikTok URL (optional)", "text"), ("youtube", "YouTube URL (optional)", "text"),
+    ("story_title", "Story heading (default: Our story is bringing us to you.)", "text"),
+    ("schedule", "Order of the day, one per line:  9:30 AM | Guest arrival | Short description (optional)", "area"),
 ]
 
 
@@ -292,11 +286,11 @@ def build_wedding(ev, guest_name="", dev=False):
         parts = [names]
     ph = getattr(ev, "site_contact", None) or ""
     return dict(
-        slug=ev.slug, names=names, initials=initials, tagline=g("tagline") or "Two hearts. One journey. A lifetime together.",
+        slug=ev.slug, names=names, initials=initials, tagline=g("tagline") or "A celebration of love, laughter & forever",
         place=g("city") or (getattr(ev, "event_venue", None) or ""), hashtag=g("hashtag"),
         date_str=date_str, iso=wd.isoformat() if wd else "", has_date=bool(wd),
         hero=hero, portrait=_safe_url(g("portrait")) or (gallery[0] if gallery else hero),
-        story=getattr(ev, "site_story", None) or "From our first meeting to this special day, our journey has been filled with love, laughter and unwavering support. We can't wait to celebrate this next chapter with you!", gallery=gallery, cer=cer, rec=rec,
+        story=getattr(ev, "site_story", None) or "Some love stories feel like home from the very beginning. Ours has been filled with little moments, big dreams, laughter, friendship, and a love that keeps growing.\n\nNow, we are so excited to begin our next chapter as one, and even more excited to celebrate this special day with the people who have made our journey so meaningful.\n\nHaving you with us would make our day unforgettable.", gallery=gallery, cer=cer, rec=rec,
         dress=getattr(ev, "site_dress_code", None) or "", dress_note=g("dress_note"),
         deadline=g("rsvp_deadline"), palette=palette or _DEFAULT_PALETTE,
         faq=faq, embeds=[u for u in g("embeds").splitlines() if u.strip().startswith("https://www.google.com/maps/embed")],
@@ -305,7 +299,8 @@ def build_wedding(ev, guest_name="", dev=False):
         contact_text=ph, guest=guest_name, dev=dev, sample=not x,
         parts=parts, date_short=_wfmt(wd)[2] or (legacy.upper() if legacy else "DATE TO BE CONFIRMED"), date_long=date_str,
         hero_note=g("quote_hero") or "Love Brings Us Here", cap=g("polaroid_cap") or "Better Together",
-        story_title=g("story_title") or "A beautiful journey of love",
+        story_title=g("story_title") or "Our story is bringing us to you.",
+        schedule=[tuple(p.strip() for p in (ln.split("|") + ["", ""])[:3]) for ln in g("schedule").splitlines() if "|" in ln],
         cer_img=_safe_url(g("cer_img")) or (gallery[1] if len(gallery) > 1 else ""),
         theme_img=_safe_url(g("theme_img")) or (gallery[2] if len(gallery) > 2 else ""),
         theme_words=g("theme_words") or "Classic · Modern · Timeless",

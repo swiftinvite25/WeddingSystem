@@ -39,7 +39,7 @@
       <label><input type="checkbox" name="site_enabled" {% if event.site_enabled %}checked{% endif %}>
         Page is ON (link is added to invitations &amp; reminders)</label>
 
-      {% if event.site_theme=='bwg' %}<p><a href="{{ url_for('event_wedding_edit', event_id=event.id) }}"><b>Edit Black, White &amp; Gold wedding details (ceremony, reception, RSVP, FAQ…) →</b></a></p>{% endif %}
+      {% if event.site_theme=='bwg' %}<p><a href="{{ url_for('event_wedding_edit', event_id=event.id) }}"><b>Edit premium wedding website details (ceremony, reception, RSVP, FAQ…) →</b></a></p>{% endif %}
       <label>Event time (shown as “Saa …”)</label>
       <input type="text" name="site_event_time" value="{{ event.site_event_time }}" placeholder="12:00 Jioni">
 
@@ -64,7 +64,7 @@
         <option value="burgundy" {% if event.site_theme=='burgundy' %}selected{% endif %}>Burgundy &amp; Gold</option>
         <option value="navy" {% if event.site_theme=='navy' %}selected{% endif %}>Royal Navy &amp; Gold</option>
         <option value="rose" {% if event.site_theme=='rose' %}selected{% endif %}>Rose Gold &amp; Plum</option>
-        <option value="bwg" {% if event.site_theme=='bwg' %}selected{% endif %}>Black, White &amp; Gold (premium wedding site)</option>
+        <option value="bwg" {% if event.site_theme=='bwg' %}selected{% endif %}>Elegant Rose &amp; Sage (premium wedding site)</option>
       </select>
       <div class="hint">No photos yet? The page shows an elegant default design with the couple's initials. Add the pre-wedding photos later, any time, and they appear automatically.</div>
 
