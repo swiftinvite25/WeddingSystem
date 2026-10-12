@@ -1,0 +1,13 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Wedding website — {{ event.name }}</title>
+<style>body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;color:#1f2937}.w{max-width:760px;margin:0 auto;padding:1rem}.b{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:1.2rem;margin-bottom:1rem}
+label{display:block;font-weight:bold;font-size:.85rem;margin:.9rem 0 .3rem}input,textarea{width:100%;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;font:inherit}textarea{min-height:80px}
+button{background:#0B0B0B;color:#C9A45C;border:0;padding:.8rem 1.6rem;border-radius:8px;font-size:1rem;cursor:pointer}.f{padding:.7rem 1rem;border-radius:8px;margin-bottom:.8rem;background:#dcfce7}.h{color:#6b7280;font-size:.85rem}.warn{background:#fef9c3;padding:.7rem;border-radius:8px}</style></head>
+<body><div class="w"><p><a href="{{ url_for('event_site_edit', event_id=event.id) }}">← Event Page</a></p>
+{% for m in get_flashed_messages() %}<div class="f">{{ m }}</div>{% endfor %}
+<div class="b"><h2 style="margin-top:0">Black, White &amp; Gold wedding website — {{ event.name }}</h2>
+<p class="h">Public link: <code>/w/{{ event.slug }}</code> (also <code>/e/{{ event.slug }}</code> when the style is set to Black, White &amp; Gold). Ceremony defaults, story, dress code, photos and contacts come from the Event Page and event details; fill in only what you want to override or add.</p>
+{% if not event.enabled %}<p class="warn">The Event Page is switched OFF — turn it on in Event Page settings or the public link will show “not found”.</p>{% endif %}
+<form method="post">{% for key, label, kind in fields %}<label for="{{ key }}">{{ label }}</label>
+{% if kind == 'area' %}<textarea id="{{ key }}" name="{{ key }}">{{ x.get(key, '') }}</textarea>
+{% else %}<input id="{{ key }}" name="{{ key }}" type="{{ {'dt':'datetime-local','date':'text'}.get(kind,'text') }}" value="{{ x.get(key, '') }}"{% if kind == 'date' %} placeholder="e.g. 30 Aprili 2027"{% endif %}>{% endif %}{% endfor %}
+<p><br><button type="submit">Save wedding details</button></p></form></div></div></body></html>

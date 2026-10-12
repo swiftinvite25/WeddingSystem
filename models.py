@@ -61,6 +61,7 @@ def _run_migrations(engine):
             ("site_dress_code",   "VARCHAR"),
             ("contribution_info", "TEXT"),
             ("site_theme",        "VARCHAR"),
+            ("site_extra",        "TEXT"),
         ]:
             if col_def[0] not in ev_cols:
                 try:
@@ -81,6 +82,9 @@ def _run_migrations(engine):
             ("reminder_sms_sent_at", "TIMESTAMP"),
             ("reminder_sms_count",   "INTEGER DEFAULT 0"),
             ("reminder_sms_error",   "VARCHAR"),
+            # ── contributions (michango / ahadi) ──
+            ("pledge_amount",        "INTEGER DEFAULT 0"),
+            ("paid_amount",          "INTEGER DEFAULT 0"),
         ]:
             if col_def[0] not in guest_cols:
                 try:
@@ -152,7 +156,8 @@ class Event(Base):
     site_contact      = Column(Text,   nullable=True)
     site_dress_code   = Column(String, nullable=True)
     contribution_info = Column(Text,   nullable=True)   # michango / how to contribute
-    site_theme        = Column(String, nullable=True)   # emerald | burgundy | navy | rose
+    site_theme        = Column(String, nullable=True)   # emerald | burgundy | navy | rose | bwg
+    site_extra        = Column(Text,   nullable=True)   # JSON: Black-White-Gold website settings
 
     # Status
     is_active   = Column(Boolean, default=True)
@@ -217,6 +222,10 @@ class Guest(Base):
     reminder_sms_sent_at = Column(DateTime, nullable=True)
     reminder_sms_count   = Column(Integer, default=0)
     reminder_sms_error   = Column(String, nullable=True)
+
+    # Contributions (TSh)
+    pledge_amount = Column(Integer, default=0)
+    paid_amount   = Column(Integer, default=0)
 
     # Relationship
     event = relationship("Event", back_populates="guests")

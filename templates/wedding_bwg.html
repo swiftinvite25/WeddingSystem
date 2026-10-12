@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="sw"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+{% set T = {'nav':['Mwanzo','Hadithi Yetu','Maelezo','Picha','RSVP','Mawasiliano'],'eye':'Pamoja Milele','save':'Hifadhi Tarehe','rsvp':'RSVP','story':'Hadithi Yetu','details':'Maelezo ya Harusi','cer':'Sherehe ya Ndoa','rec':'Mapokezi','dir':'Pata Maelekezo','dress':'Mavazi','deadline':'Mwisho wa RSVP','cd':'Siku Zilizobaki','d':'Siku','h':'Saa','m':'Dakika','s':'Sekunde','past':'Asanteni kwa kuwa sehemu ya siku yetu maalum.','today':'Leo ndiyo siku!','theme':'Rangi za Harusi','venues':'Kumbi Zetu','gal':'Picha','rsvpt':'Thibitisha Mahudhurio','rsvpd':'Tafadhali tujulishe kama utakuja kupitia WhatsApp. Tutafurahi kukuona.','rsvpb':'RSVP kwa WhatsApp','contact':'Mawasiliano na Maswali','faq':'Maswali Yanayoulizwa Mara kwa Mara','close':'Funga','prev':'Iliyopita','next':'Inayofuata','skip':'Ruka hadi maudhui'} %}
+{% set desc = w.names ~ ' — ' ~ w.date_str ~ (' · ' ~ w.place if w.place else '') %}
+<title>{{ w.names }} — Harusi</title>
+<meta name="description" content="Mwaliko wa harusi ya {{ desc }}.">
+<meta property="og:type" content="website"><meta property="og:title" content="Harusi ya {{ w.names }}"><meta property="og:description" content="{{ desc }}">
+{% if w.hero or w.portrait %}<meta property="og:image" content="{{ w.hero or w.portrait }}">{% endif %}<meta property="og:url" content="{{ w.url }}">
+<meta name="theme-color" content="#0B0B0B">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='30' fill='%230B0B0B' stroke='%23C9A45C' stroke-width='3'/%3E%3Ctext x='32' y='40' font-size='22' text-anchor='middle' fill='%23C9A45C' font-family='serif'%3E{{ w.initials|urlencode }}%3C/text%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,700;1,400&family=Great+Vibes&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+:root{--ink:#0B0B0B;--ivory:#FAF8F4;--gold:#C9A45C;--gray:#D8D5CF;--serif:'Playfair Display',Georgia,serif;--script:'Great Vibes',cursive;--sans:'Jost',system-ui,sans-serif}
+*{box-sizing:border-box;margin:0}html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{font:300 1.05rem/1.75 var(--sans);background:var(--ivory);color:var(--ink);-webkit-font-smoothing:antialiased;overflow-x:hidden}
+img{display:block;max-width:100%}a{color:inherit}svg{fill:none;stroke:currentColor}
+:focus-visible{outline:2px solid var(--gold);outline-offset:3px}
+.skip{position:absolute;left:-999px;top:0;background:var(--gold);color:#000;padding:.6rem 1rem;z-index:99}.skip:focus{left:0}
+.w{max-width:1120px;margin:0 auto;padding:0 1.4rem}
+/* header */
+.hd{position:fixed;inset:0 0 auto;z-index:40;padding:.9rem 0;transition:.3s;color:var(--ivory)}.hd.s,.hd.o{background:rgba(11,11,11,.94);backdrop-filter:blur(8px);box-shadow:0 1px 0 rgba(201,164,92,.35)}
+.hd .w{display:flex;align-items:center;justify-content:space-between;gap:1rem}
+.mono{display:grid;place-items:center;width:46px;height:46px;border:1px solid var(--gold);border-radius:50%;font:500 .95rem var(--serif);letter-spacing:.06em;color:var(--gold);text-decoration:none}
+.nav{display:flex;align-items:center;gap:1.6rem}.nav a{font-size:.74rem;letter-spacing:.2em;text-transform:uppercase;text-decoration:none;opacity:.9}.nav a:hover{color:var(--gold)}
+.btn{display:inline-block;padding:.85rem 1.8rem;border:1px solid var(--gold);background:var(--gold);color:#0B0B0B!important;font:500 .74rem var(--sans);letter-spacing:.2em;text-transform:uppercase;text-decoration:none;cursor:pointer;transition:.25s}
+.btn:hover{background:transparent;color:var(--gold)!important}.btn.o{background:transparent;color:var(--gold)!important}.btn.o:hover{background:var(--gold);color:#0B0B0B!important}
+.nav .btn{padding:.6rem 1.2rem;color:#0B0B0B}.nav .btn:hover{color:var(--gold)}
+.bg{display:none;background:none;border:1px solid rgba(201,164,92,.6);color:var(--gold);width:46px;height:46px;cursor:pointer}.bg span,.bg span::before,.bg span::after{display:block;width:20px;height:1px;background:currentColor;margin:auto;position:relative}
+.bg span::before,.bg span::after{content:"";position:absolute;left:0}.bg span::before{top:-6px}.bg span::after{top:6px}
+@media(max-width:860px){.bg{display:block}.nav{position:fixed;inset:72px 0 0;background:#0B0B0B;flex-direction:column;justify-content:center;gap:1.8rem;display:none}.hd.o .nav{display:flex}.nav a{font-size:.95rem}}
+/* hero */
+.hero{position:relative;min-height:100svh;display:grid;align-items:center;background:radial-gradient(70% 60% at 80% 20%,#2a2214,transparent),#0B0B0B;color:var(--ivory);padding:7rem 0 4rem;overflow:hidden}
+.hero>img.b{position:absolute;inset:0;width:100%;height:100%;object-fit:cover}
+.hero::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,rgba(11,11,11,.9) 0%,rgba(11,11,11,.55) 55%,rgba(11,11,11,.3) 100%),linear-gradient(0deg,rgba(11,11,11,.85),transparent 40%)}
+.hg{position:relative;display:grid;gap:3rem;align-items:center}@media(min-width:900px){.hg{grid-template-columns:1.1fr .9fr}}
+.eye{letter-spacing:.42em;font-size:.72rem;text-transform:uppercase;color:var(--gold);margin:1.4rem 0 .6rem}
+.names{font:400 clamp(3.4rem,11vw,6.6rem)/1.05 var(--script);margin-bottom:.8rem}
+.tag{font:italic 400 1.25rem/1.6 var(--serif);max-width:30rem;opacity:.92}
+.meta{margin:1.6rem 0 2rem;display:flex;flex-wrap:wrap;gap:.4rem 1.6rem;letter-spacing:.16em;text-transform:uppercase;font-size:.8rem}.meta span+span{border-left:1px solid var(--gold);padding-left:1.6rem}
+.cta{display:flex;flex-wrap:wrap;gap:.9rem}
+.hp{position:relative;max-width:420px;width:100%;justify-self:center}.hp img{width:100%;aspect-ratio:4/5;object-fit:cover;border:1px solid var(--gold);padding:10px;background:rgba(11,11,11,.4)}
+.sprig{position:absolute;color:var(--gold);opacity:.3;width:min(34vw,260px);pointer-events:none}
+/* sections */
+section{padding:5.5rem 0;position:relative}.d{background:var(--ink);color:var(--ivory)}.l{background:var(--ivory)}
+.k{display:block;letter-spacing:.4em;font-size:.7rem;text-transform:uppercase;color:var(--gold);text-align:center}
+h2{font:400 clamp(2rem,6vw,3.2rem)/1.2 var(--serif);text-align:center;margin:.5rem 0}
+.rule{width:90px;height:1px;background:var(--gold);margin:1.4rem auto 3rem;position:relative}.rule::after{content:"";position:absolute;left:50%;top:-3px;width:7px;height:7px;background:var(--gold);transform:translateX(-50%) rotate(45deg)}
+.story{display:grid;gap:3rem;align-items:center}@media(min-width:860px){.story.p{grid-template-columns:.8fr 1.2fr}}
+.story img{width:100%;max-width:420px;aspect-ratio:3/4;object-fit:cover;margin:0 auto;box-shadow:16px 16px 0 -1px var(--gray)}
+.story p{font-size:1.15rem;white-space:pre-line}
+.two{display:grid;gap:1.6rem;grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.ev{border:1px solid rgba(201,164,92,.5);padding:2.4rem 2rem;text-align:center}.ev h3{font:400 1.7rem var(--serif);color:var(--gold);margin-bottom:.8rem}
+.ev .n{font:500 1.2rem var(--serif)}.ev p{margin:.3rem 0;opacity:.9}.ev .btn{margin-top:1.2rem}
+.note{text-align:center;margin-top:2.4rem;letter-spacing:.06em}.note b{font-weight:500;color:var(--gold)}
+.cd{display:grid;grid-template-columns:repeat(4,1fr);max-width:640px;margin:0 auto;text-align:center}.cd div+div{border-left:1px solid var(--gray)}
+.cd b{display:block;font:400 clamp(2.2rem,9vw,3.8rem)/1 var(--serif)}.cd span{font-size:.68rem;letter-spacing:.28em;text-transform:uppercase;color:#6b665e}
+.cdm{text-align:center;font:italic 1.5rem var(--serif)}
+.sw{display:flex;flex-wrap:wrap;gap:2rem;justify-content:center}.sw div{text-align:center;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase}.sw i{display:block;width:78px;height:78px;border-radius:50%;border:1px solid rgba(201,164,92,.7);margin:0 auto .7rem}
+.emb{display:grid;gap:1.4rem;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}.emb iframe{width:100%;height:320px;border:1px solid var(--gray);filter:grayscale(.3)}
+.gal{display:grid;gap:.8rem;grid-template-columns:repeat(2,1fr)}@media(min-width:820px){.gal{grid-template-columns:repeat(3,1fr)}}
+.gal figure{aspect-ratio:1;overflow:hidden;background:#1a1a1a}.gal button{all:unset;display:block;width:100%;height:100%;cursor:zoom-in}.gal img{width:100%;height:100%;object-fit:cover;transition:transform .7s}.gal button:hover img{transform:scale(1.05)}
+.rs{text-align:center;max-width:620px;margin:0 auto}.warn{background:#4a1d1d;color:#fff;padding:.8rem;margin-top:1rem;font-size:.9rem}
+.faq{max-width:760px;margin:2.5rem auto 0}.faq details{border-top:1px solid var(--gray);padding:1rem 0}.faq summary{cursor:pointer;font:500 1.15rem var(--serif)}.faq p{margin-top:.6rem}
+.ct{text-align:center;white-space:pre-line}.ct a{color:#8a6a24;text-underline-offset:4px}
+footer{background:#000;color:var(--ivory);text-align:center;padding:3.6rem 1.4rem calc(2.4rem + env(safe-area-inset-bottom));border-top:1px solid var(--gold)}
+footer .mono{margin:0 auto 1rem}footer p{letter-spacing:.2em;text-transform:uppercase;font-size:.75rem;margin:.3rem 0}footer .h{color:var(--gold)}
+#lb{position:fixed;inset:0;z-index:90;background:rgba(0,0,0,.95);display:none;align-items:center;justify-content:center}#lb.on{display:flex}#lb img{max-width:94vw;max-height:84vh}
+#lb button{position:absolute;background:rgba(255,255,255,.1);color:#fff;border:1px solid rgba(201,164,92,.6);width:46px;height:46px;font-size:1.4rem;cursor:pointer}#lb .x{top:14px;right:14px}#lb .p{left:12px}#lb .n{right:12px}
+.rv{opacity:0;transform:translateY(20px);transition:.9s}.rv.in{opacity:1;transform:none}.nojs .rv{opacity:1;transform:none}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}.rv{opacity:1;transform:none;transition:none}*{transition:none!important}}
+</style></head>
+<body class="nojs"><script>document.body.classList.remove('nojs')</script>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs><symbol id="sp" viewBox="0 0 200 200"><g stroke-width="1" stroke-linecap="round"><path d="M10 190C60 130 110 80 190 10"/><path d="M40 150c-8-14-4-26 6-34M40 150c14 2 24-4 28-14M70 118c-8-14-4-26 6-34M70 118c14 2 24-4 28-14M104 84c-6-12-2-22 6-30M104 84c12 2 20-4 24-12M140 52c-5-10-2-18 5-24M140 52c10 1 17-3 20-10"/></g></symbol></defs></svg>
+<a class="skip" href="#main">{{ T.skip }}</a>
+<header class="hd" id="hd"><div class="w"><a class="mono" href="#home" aria-label="{{ w.names }}">{{ w.initials }}</a>
+<button class="bg" id="bg" aria-label="Menu" aria-expanded="false" aria-controls="nav"><span></span></button>
+<nav class="nav" id="nav" aria-label="Menu kuu"><a href="#home">{{ T.nav[0] }}</a>{% if w.story %}<a href="#story">{{ T.nav[1] }}</a>{% endif %}<a href="#details">{{ T.nav[2] }}</a>{% if w.gallery %}<a href="#gallery">{{ T.nav[3] }}</a>{% endif %}<a href="#contact">{{ T.nav[5] }}</a><a class="btn" href="#rsvp">{{ T.nav[4] }}</a></nav></div></header>
+
+<main id="main">
+<section class="hero" id="home">
+ {% if w.hero %}<img class="b" src="{{ w.hero }}" alt="" fetchpriority="high" onerror="this.remove()">{% endif %}
+ <svg class="sprig" style="left:-20px;bottom:-10px" aria-hidden="true"><use href="#sp"/></svg>
+ <div class="w hg"><div>
+  <div class="mono" aria-hidden="true">{{ w.initials }}</div><p class="eye">{{ T.eye }}</p>
+  <h1 class="names">{{ w.names }}</h1>
+  {% if w.guest %}<p class="tag">Karibu, {{ w.guest }}.</p>{% endif %}{% if w.tagline %}<p class="tag">{{ w.tagline }}</p>{% endif %}
+  <p class="meta"><span>{{ w.date_str }}</span>{% if w.place %}<span>{{ w.place }}</span>{% endif %}</p>
+  <div class="cta">{% if w.has_date %}<a class="btn" href="{{ url_for('public_wedding_ics', slug=w.slug) }}" download>{{ T.save }}</a>{% endif %}<a class="btn o" href="#rsvp">{{ T.rsvp }}</a></div>
+ </div>
+ {% if w.portrait %}<div class="hp"><img src="{{ w.portrait }}" alt="Picha ya {{ w.names }}" width="420" height="525" onerror="this.parentNode.remove()"></div>{% endif %}</div>
+</section>
+
+{% if w.story %}<section class="l" id="story"><div class="w rv"><span class="k">{{ T.story }}</span><h2>{{ w.names }}</h2><div class="rule"></div>
+ <div class="story {{ 'p' if w.portrait }}">{% if w.portrait %}<img src="{{ w.portrait }}" alt="Picha ya {{ w.names }}" loading="lazy" width="420" height="560" onerror="this.remove()">{% endif %}<p>{{ w.story }}</p></div></div></section>{% endif %}
+
+<section class="d" id="details"><div class="w rv"><span class="k">{{ T.details }}</span><h2>{{ w.date_str }}</h2><div class="rule"></div>
+ <div class="two">{% for key, ev in [(T.cer, w.cer), (T.rec, w.rec)] %}{% if ev %}<article class="ev"><h3>{{ key }}</h3>
+  {% if ev.name %}<p class="n">{{ ev.name }}</p>{% endif %}{% if ev.date %}<p>{{ ev.date }}{% if ev.time %} · {{ ev.time }}{% endif %}</p>{% endif %}{% if ev.addr %}<p>{{ ev.addr }}</p>{% endif %}
+  {% if ev.maps %}<a class="btn o" href="{{ ev.maps }}" target="_blank" rel="noopener">{{ T.dir }}</a>{% endif %}</article>{% endif %}{% endfor %}</div>
+ {% if w.dress or w.dress_note or w.deadline %}<div class="note">{% if w.dress %}<p><b>{{ T.dress }}:</b> {{ w.dress }}</p>{% endif %}{% if w.dress_note %}<p>{{ w.dress_note }}</p>{% endif %}{% if w.deadline %}<p><b>{{ T.deadline }}:</b> {{ w.deadline }}</p>{% endif %}</div>{% endif %}</div></section>
+
+{% if w.has_date %}<section class="l" id="countdown"><div class="w rv"><span class="k">{{ T.cd }}</span><div class="rule"></div>
+ <div class="cd" id="cd" data-iso="{{ w.iso }}" role="timer" aria-live="off"><div><b id="c-d">0</b><span>{{ T.d }}</span></div><div><b id="c-h">0</b><span>{{ T.h }}</span></div><div><b id="c-m">0</b><span>{{ T.m }}</span></div><div><b id="c-s">0</b><span>{{ T.s }}</span></div></div></div></section>{% endif %}
+
+{% if w.palette %}<section class="d" id="theme"><div class="w rv"><span class="k">{{ T.theme }}</span><div class="rule"></div>
+ <div class="sw">{% for n, c in w.palette %}<div><i style="background:{{ c }}"></i>{{ n }}</div>{% endfor %}</div>{% if w.dress_note %}<p class="note">{{ w.dress_note }}</p>{% endif %}</div></section>{% endif %}
+
+{% if w.embeds %}<section class="l" id="venues"><div class="w rv"><span class="k">{{ T.venues }}</span><div class="rule"></div><div class="emb">{% for u in w.embeds %}<iframe src="{{ u }}" loading="lazy" title="Ramani ya ukumbi {{ loop.index }}" referrerpolicy="no-referrer-when-downgrade"></iframe>{% endfor %}</div></div></section>{% endif %}
+
+{% if w.gallery %}<section class="d" id="gallery"><div class="w rv"><span class="k">{{ T.gal }}</span><div class="rule"></div>
+ <div class="gal" id="gal">{% for u in w.gallery %}<figure><button type="button" aria-label="Fungua picha {{ loop.index }}"><img src="{{ u }}" alt="Picha ya harusi {{ loop.index }}" loading="lazy" width="400" height="400" onerror="this.closest('figure').remove()"></button></figure>{% endfor %}</div></div></section>{% endif %}
+
+<section class="l" id="rsvp"><div class="w rv rs"><span class="k">RSVP</span><h2>{{ T.rsvpt }}</h2><div class="rule"></div><p>{{ T.rsvpd }}</p><br>
+ {% if w.wa_href %}<a class="btn" style="background:#0B0B0B;border-color:#0B0B0B;color:var(--gold)!important" href="{{ w.wa_href }}" target="_blank" rel="noopener">{{ T.rsvpb }}</a>
+ {% elif w.dev %}<p class="warn">DEV: weka namba ya WhatsApp (tarakimu za kimataifa) kwenye Wedding Details ili kuonyesha kitufe cha RSVP.</p>{% endif %}
+ {% if w.deadline %}<p class="note">{{ T.deadline }}: {{ w.deadline }}</p>{% endif %}</div></section>
+
+{% if w.contact_text or w.email or w.faq %}<section class="d" id="contact"><div class="w rv"><span class="k">{{ T.contact }}</span><div class="rule"></div>
+ <div class="ct" id="ct">{{ w.contact_text }}</div>{% if w.email %}<p class="ct"><a href="mailto:{{ w.email }}">{{ w.email }}</a></p>{% endif %}
+ {% if w.faq %}<div class="faq"><h2 style="font-size:1.6rem">{{ T.faq }}</h2>{% for q, a in w.faq %}<details><summary>{{ q }}</summary><p>{{ a }}</p></details>{% endfor %}</div>{% endif %}</div></section>{% endif %}
+</main>
+
+<footer><div class="mono" aria-hidden="true">{{ w.initials }}</div><div class="names" style="font-size:2.8rem;color:var(--gold)">{{ w.names }}</div>
+ {% if w.hashtag %}<p>{{ w.hashtag }}</p>{% endif %}<p>{{ w.date_str }}{% if w.place %} · {{ w.place }}{% endif %}</p>{% if w.instagram %}<p><a href="{{ w.instagram }}" target="_blank" rel="noopener">Instagram</a></p>{% endif %}</footer>
+
+<div id="lb" role="dialog" aria-modal="true" aria-label="Picha"><button class="x" aria-label="{{ T.close }}">×</button><button class="p" aria-label="{{ T.prev }}">‹</button><button class="n" aria-label="{{ T.next }}">›</button><img alt=""></div>
+<script>
+(function(){const $=s=>document.querySelector(s),hd=$('#hd'),bg=$('#bg');
+const sc=()=>hd.classList.toggle('s',scrollY>40);sc();addEventListener('scroll',sc,{passive:true});
+bg.onclick=()=>{const o=hd.classList.toggle('o');bg.setAttribute('aria-expanded',o)};document.querySelectorAll('#nav a').forEach(a=>a.onclick=()=>{hd.classList.remove('o');bg.setAttribute('aria-expanded',false)});
+const io='IntersectionObserver' in window?new IntersectionObserver(es=>es.forEach(x=>{if(x.isIntersecting){x.target.classList.add('in');io.unobserve(x.target)}}),{threshold:.1}):null;
+document.querySelectorAll('.rv').forEach(e=>io?io.observe(e):e.classList.add('in'));
+const cd=$('#cd');if(cd){const t=new Date(cd.dataset.iso);if(!isNaN(t)){const tk=()=>{const ms=t-Date.now();if(ms<=0){cd.outerHTML='<p class="cdm">'+(Date.now()-t<864e5?{{ T.today|tojson }}:{{ T.past|tojson }})+'</p>';return false}
+const s=Math.floor(ms/1e3);$('#c-d').textContent=Math.floor(s/86400);$('#c-h').textContent=Math.floor(s%86400/3600);$('#c-m').textContent=Math.floor(s%3600/60);$('#c-s').textContent=s%60;return true};
+if(tk()){const iv=setInterval(()=>{if(!tk())clearInterval(iv)},1000)}}}
+const ct=$('#ct');if(ct)ct.innerHTML=ct.innerHTML.replace(/(\+?\d[\d ]{8,14}\d)/g,m=>'<a href="tel:'+m.replace(/\s/g,'')+'">'+m+'</a>');
+const lb=$('#lb'),li=lb.querySelector('img');let im=[],k=0,last=null;const show=i=>{k=(i+im.length)%im.length;li.src=im[k].src;li.alt=im[k].alt};
+const close=()=>{lb.classList.remove('on');document.body.style.overflow='';last&&last.focus()};
+document.querySelectorAll('#gal button').forEach(b=>b.onclick=()=>{im=[...document.querySelectorAll('#gal img')];last=b;show(im.indexOf(b.querySelector('img')));lb.classList.add('on');document.body.style.overflow='hidden';lb.querySelector('.x').focus()});
+lb.querySelector('.x').onclick=close;lb.querySelector('.p').onclick=()=>show(k-1);lb.querySelector('.n').onclick=()=>show(k+1);lb.onclick=e=>{if(e.target===lb)close()};
+document.addEventListener('keydown',e=>{if(!lb.classList.contains('on'))return;if(e.key==='Escape')close();if(e.key==='ArrowLeft')show(k-1);if(e.key==='ArrowRight')show(k+1)});
+let sx=0;lb.addEventListener('touchstart',e=>sx=e.touches[0].clientX,{passive:true});lb.addEventListener('touchend',e=>{const d=e.changedTouches[0].clientX-sx;if(Math.abs(d)>50)show(k+(d<0?1:-1))});
+})();
+</script></body></html>

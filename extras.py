@@ -4,12 +4,13 @@
 # (see APPLY_THESE_CHANGES.md)
 
 import os
+import csv
 import json
 import time
 import hmac
 import hashlib
 import logging
-from io import BytesIO
+from io import BytesIO, StringIO
 from datetime import datetime, timezone, timedelta
 
 from flask import (
@@ -33,8 +34,8 @@ EVENT_TYPE_LABELS = {
     "Other":        "SHUGHULI",
 }
 
-SITE_THEMES = ("emerald", "burgundy", "navy", "rose")
-REMINDER_KINDS = ("event", "michango")
+SITE_THEMES = ("emerald", "burgundy", "navy", "rose", "bwg")
+REMINDER_KINDS = ("event", "michango", "personal")
 REMINDER_COOLDOWN_HOURS = 6   # don't re-remind the same guest within this window
 
 
@@ -98,6 +99,22 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
     site_url = event_site_url(event, guest)
     when_text = (when_text or "").strip()
 
+    if kind == "personal":
+        pledge = int(getattr(guest, "pledge_amount", 0) or 0)
+        paid   = int(getattr(guest, "paid_amount", 0) or 0)
+        info   = (getattr(event, "contribution_info", None) or "").strip() if event else ""
+        lines = ["KUMBUSHO LA AHADI", f"Habari {guest.name},", "",
+                 f"Tunakukumbusha kwa upendo kuhusu ahadi yako ya TSh {pledge:,} kwa ajili ya {label} ya {weds.upper()}."]
+        if paid > 0:
+            lines.append(f"Umeshalipa: TSh {paid:,}")
+        lines.append(f"Salio: TSh {max(pledge - paid, 0):,}")
+        if info:
+            lines += ["", "Namna ya kulipa:", info]
+        if site_url:
+            lines += ["", f"Maelezo: {site_url}"]
+        lines += ["", "Tafadhali toa taarifa baada ya kulipa. Asante sana, Mungu akubariki."]
+        return "\n".join(lines)
+
     if kind == "michango":
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
         parts = [
@@ -160,6 +177,131 @@ def _hours_since(dt):
 # Route registration
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Black, White & Gold wedding website (public, read-only)
+# ---------------------------------------------------------------------------
+import re as _re
+from urllib.parse import quote as _q
+
+_EAT = timezone(timedelta(hours=3))
+_SW_D = ["Jumatatu", "Jumanne", "Jumatano", "Alhamisi", "Ijumaa", "Jumamosi", "Jumapili"]
+_SW_M = ["Januari", "Februari", "Machi", "Aprili", "Mei", "Juni", "Julai", "Agosti", "Septemba", "Oktoba", "Novemba", "Desemba"]
+_DEFAULT_PALETTE = [("Black", "#0B0B0B"), ("Ivory", "#FAF8F4"), ("Champagne Gold", "#C9A45C"), ("Soft Gray", "#D8D5CF")]
+
+# (key, label, kind)  kind: text | dt | date | area
+WED_FIELDS = [
+    ("bride", "Bride's name", "text"), ("groom", "Groom's name", "text"),
+    ("initials", "Monogram initials (max 3 letters)", "text"), ("tagline", "Short tagline", "text"),
+    ("city", "City / location", "text"), ("hashtag", "Wedding hashtag (e.g. #AsaAndJuma)", "text"),
+    ("wedding_dt", "Wedding date & time (East Africa Time) — enables countdown and Save the Date", "dt"),
+    ("cer_name", "Ceremony venue name", "text"), ("cer_addr", "Ceremony full address", "text"),
+    ("cer_dt", "Ceremony date & time", "dt"), ("cer_maps", "Ceremony Google Maps link (optional; auto-built from address if empty)", "text"),
+    ("rec_name", "Reception venue name", "text"), ("rec_addr", "Reception full address", "text"),
+    ("rec_dt", "Reception date & time", "dt"), ("rec_maps", "Reception Google Maps link (optional)", "text"),
+    ("dress_note", "Attire note (dress code itself comes from the Event Page)", "area"),
+    ("rsvp_deadline", "RSVP deadline", "date"),
+    ("wa", "WhatsApp number for RSVP — international digits only, e.g. 255712345678", "text"),
+    ("email", "Contact email", "text"), ("instagram", "Instagram URL (optional)", "text"),
+    ("portrait", "Couple portrait image URL (optional; defaults to first gallery photo)", "text"),
+    ("palette", "Theme colours, one per line:  Name #HEX   (e.g. Champagne Gold #C9A45C)", "area"),
+    ("faq", "FAQ, one per line:  Question | Answer", "area"),
+    ("embeds", "Embedded map URLs (optional, Google Maps 'Embed a map' src links, one per line)", "area"),
+]
+
+
+def _wdt(iso):
+    try:
+        return datetime.strptime((iso or "").strip()[:16], "%Y-%m-%dT%H:%M").replace(tzinfo=_EAT)
+    except Exception:
+        return None
+
+
+def _wfmt(d):
+    return (f"{_SW_D[d.weekday()]}, {d.day} {_SW_M[d.month - 1]} {d.year}", d.strftime("%H:%M")) if d else ("", "")
+
+
+def _safe_url(u):
+    u = (u or "").strip()
+    return u if u.lower().startswith(("http://", "https://")) and " " not in u else ""
+
+
+def _wextra(ev):
+    try:
+        d = json.loads(getattr(ev, "site_extra", None) or "{}")
+        return d if isinstance(d, dict) else {}
+    except Exception:
+        return {}
+
+
+def _map_link(url, addr):
+    return _safe_url(url) or (f"https://www.google.com/maps/dir/?api=1&destination={_q(addr)}" if addr else "")
+
+
+def build_wedding(ev, guest_name="", dev=False):
+    """Public-only view model. Never includes guests, phones (other than the configured RSVP
+    number) or admin data."""
+    x = _wextra(ev)
+    g = lambda k: (x.get(k) or "").strip()
+    bride, groom = g("bride"), g("groom")
+    base = (getattr(ev, "weds_names", None) or ev.name or "").strip()
+    names = f"{bride} & {groom}" if bride and groom else (base or "Bride & Groom")
+    initials = _re.sub(r"[^A-Za-z0-9&]", "", g("initials") or "".join(p[0] for p in names.replace("&", " ").split()[:2]).upper())[:3] or "W"
+    gallery = _site_gallery(ev)
+    hero = getattr(ev, "site_hero_url", None) or ""
+    wd = _wdt(g("wedding_dt")) or _wdt(g("cer_dt"))
+    legacy = ", ".join(p for p in [getattr(ev, "event_day", None), getattr(ev, "event_date", None)] if p)
+    date_str = _wfmt(wd)[0] or legacy or "Tarehe itathibitishwa"
+
+    def block(p, fallback_name=""):
+        d = _wdt(g(p + "_dt")) or (wd if p == "cer" else None)
+        ds, ts = _wfmt(d)
+        b = dict(name=g(p + "_name") or fallback_name, addr=g(p + "_addr"), date=ds, time=ts,
+                 maps=_map_link(g(p + "_maps"), g(p + "_addr")))
+        if p == "cer":
+            b["date"] = ds or legacy
+            b["time"] = ts or (getattr(ev, "site_event_time", None) or "")
+        return b if (b["name"] or b["addr"] or b["date"]) else None
+
+    cer = block("cer", getattr(ev, "event_venue", None) or "")
+    rec = block("rec")
+    palette = []
+    for line in g("palette").splitlines():
+        m = _re.match(r"^(.*?)\s*(#[0-9a-fA-F]{6})$", line.strip())
+        if m:
+            palette.append((m.group(1).strip() or m.group(2), m.group(2)))
+    faq = [tuple(p.strip() for p in ln.split("|", 1)) for ln in g("faq").splitlines() if "|" in ln]
+    wa = _re.sub(r"\D", "", g("wa"))
+    msg = (f"Habari! Naitwa {guest_name or '[jina lako]'}. Ninafurahi kuthibitisha mahudhurio yangu kwenye harusi ya "
+           f"{names}. Idadi ya wageni: [idadi]. Asanteni sana.")
+    ph = getattr(ev, "site_contact", None) or ""
+    return dict(
+        slug=ev.slug, names=names, initials=initials, tagline=g("tagline"),
+        place=g("city") or (getattr(ev, "event_venue", None) or ""), hashtag=g("hashtag"),
+        date_str=date_str, iso=wd.isoformat() if wd else "", has_date=bool(wd),
+        hero=hero, portrait=_safe_url(g("portrait")) or (gallery[0] if gallery else hero),
+        story=getattr(ev, "site_story", None) or "", gallery=gallery, cer=cer, rec=rec,
+        dress=getattr(ev, "site_dress_code", None) or "", dress_note=g("dress_note"),
+        deadline=g("rsvp_deadline"), palette=palette or ([] if x else _DEFAULT_PALETTE),
+        faq=faq, embeds=[u for u in g("embeds").splitlines() if u.strip().startswith("https://www.google.com/maps/embed")],
+        wa=wa, wa_href=(f"https://wa.me/{wa}?text={_q(msg)}" if wa else ""),
+        email=g("email") if "@" in g("email") else "", instagram=_safe_url(g("instagram")),
+        contact_text=ph, guest=guest_name, dev=dev, sample=not x,
+    )
+
+
+def _ics_esc(s):
+    return (s or "").replace("\\", "\\\\").replace(";", "\\;").replace(",", "\\,").replace("\n", "\\n")
+
+
+def build_ics(title, start, location="", url=""):
+    f = lambda d: d.astimezone(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    return "\r\n".join(["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//SwiftInvite//Wedding//EN", "CALSCALE:GREGORIAN",
+        "BEGIN:VEVENT", f"UID:{f(start)}-{abs(hash(title)) % 10**8}@swiftinvite", f"DTSTAMP:{f(datetime.now(timezone.utc))}",
+        f"DTSTART:{f(start)}", f"DTEND:{f(start + timedelta(hours=5))}", f"SUMMARY:{_ics_esc(title)}",
+        f"LOCATION:{_ics_esc(location)}", f"URL:{url}" if url else "X-NOURL:1", "END:VEVENT", "END:VCALENDAR", ""])
+
+
 def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                     upload_to_supabase, delete_from_supabase,
                     login_required, admin_required,
@@ -173,6 +315,8 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             if not ev or not getattr(ev, "site_enabled", False):
                 return ("<h2 style='font-family:sans-serif;text-align:center;margin-top:20vh'>"
                         "Ukurasa haupatikani.</h2>"), 404
+            if getattr(ev, "site_theme", None) == "bwg":
+                return _render_wedding(ev)
             weds, day, date, venue, etype, etime = _ev_fields(ev)
             gname = ""
             _g, _s = request.args.get("g", ""), request.args.get("s", "")
@@ -299,7 +443,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
 
     # ── Reminders ───────────────────────────────────────────────────────
     class _Sample:
-        name = "Mgeni Mfano"; visual_id = 12; card_type = "single"
+        name = "Mgeni Mfano"; visual_id = 12; card_type = "single"; pledge_amount = 100000; paid_amount = 40000
 
     @app.route("/reminders")
     @admin_required
@@ -313,6 +457,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                 with_phone=sum(1 for g in guests if g.phone),
                 declined=sum(1 for g in guests if g.rsvp_status == "not_attending"),
                 entered=sum(1 for g in guests if (g.checked_in_count or 0) >= 1),
+                owing=sum(1 for g in guests if (g.pledge_amount or 0) > (g.paid_amount or 0)),
                 sms_enabled=at_configured(),
                 site_url=event_site_url(ev),
             )
@@ -348,6 +493,8 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                        .order_by(Guest.visual_id).all():
                 if not g.phone:
                     continue
+                if kind == "personal" and (g.pledge_amount or 0) <= (g.paid_amount or 0):
+                    continue
                 if skip_declined and g.rsvp_status == "not_attending":
                     continue
                 if skip_entered and (g.checked_in_count or 0) >= 1:
@@ -375,6 +522,8 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                 if not guest:
                     return jsonify(success=False, guest_id=guest_id, error="Guest not found"), 404
                 ev = db.get(Event, guest.event_id) if guest.event_id else get_active_event(db)
+                if kind == "personal" and (guest.pledge_amount or 0) <= (guest.paid_amount or 0):
+                    return jsonify(success=False, guest_id=guest_id, name=guest.name, error="No outstanding balance")
                 phone = to_whatsapp_number(guest.phone)
                 msg = build_reminder_sms(guest, ev, kind, d.get("when_text", ""))
                 result = at_send_sms(phone, msg)
@@ -391,3 +540,121 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
         except Exception as e:
             logging.exception(f"send_reminder_one failed for {guest_id}")
             return jsonify(success=False, guest_id=guest_id, error=str(e)), 500
+
+    # ── Contributions (michango / ahadi) ────────────────────────────────
+    def _num(v):
+        try:
+            return max(0, int(float(str(v).replace(",", "").replace(" ", "") or 0)))
+        except Exception:
+            return 0
+
+    @app.route("/pledges")
+    @admin_required
+    def pledges_page():
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            gs = db.query(Guest).filter_by(event_id=ev.id if ev else None).order_by(Guest.visual_id).all()
+            rows = [dict(id=g.id, vid=str(g.visual_id or 0).zfill(4), name=g.name or "", phone=g.phone or "",
+                         pledge=g.pledge_amount or 0, paid=g.paid_amount or 0) for g in gs]
+            name = ev.name if ev else "No Event"
+        return render_template("pledges.html", rows=rows, event_name=name,
+                               tot_pledge=sum(r["pledge"] for r in rows), tot_paid=sum(r["paid"] for r in rows))
+
+    @app.route("/pledges/save/<int:gid>", methods=["POST"])
+    @admin_required
+    def pledge_save(gid):
+        d = request.get_json() or {}
+        with get_db_session() as db:
+            g = db.get(Guest, gid)
+            if not g:
+                return jsonify(success=False, error="Guest not found"), 404
+            if "pledge" in d: g.pledge_amount = _num(d["pledge"])
+            if "paid" in d:   g.paid_amount   = _num(d["paid"])
+            if "add" in d:    g.paid_amount   = max(0, (g.paid_amount or 0) + int(float(d["add"] or 0)))
+            db.commit()
+            return jsonify(success=True, pledge=g.pledge_amount or 0, paid=g.paid_amount or 0)
+
+    @app.route("/pledges/import", methods=["POST"])
+    @admin_required
+    def pledges_import():
+        f = request.files.get("file")
+        if not f or not f.filename:
+            flash("Choose a CSV file.", "danger")
+            return redirect(url_for("pledges_page"))
+        done = missed = 0
+        reader = csv.DictReader(StringIO(f.read().decode("utf-8-sig")))
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            by_phone = {to_whatsapp_number(g.phone): g for g in
+                        db.query(Guest).filter_by(event_id=ev.id if ev else None).all() if g.phone}
+            for raw in reader:
+                r = {(k or "").strip().lower(): (v or "").strip() for k, v in raw.items()}
+                g = by_phone.get(to_whatsapp_number(r.get("phone") or r.get("simu") or ""))
+                if not g:
+                    missed += 1
+                    continue
+                p = r.get("pledge") or r.get("ahadi")
+                a = r.get("paid") or r.get("amelipa")
+                if p not in (None, ""): g.pledge_amount = _num(p)
+                if a not in (None, ""): g.paid_amount   = _num(a)
+                done += 1
+            db.commit()
+        flash(f"Imported: {done} updated, {missed} phone numbers not found in this event.", "success")
+        return redirect(url_for("pledges_page"))
+
+    # ── Black, White & Gold public site: /w/<slug> ──────────────────────
+    def _render_wedding(ev):
+        gname = ""
+        _g, _s = request.args.get("g", ""), request.args.get("s", "")
+        if _g and _s and hmac.compare_digest(_s, _guest_sig(_g)):
+            with get_db_session() as db2:
+                _guest = db2.query(Guest).filter_by(qr_code_id=_g, event_id=ev.id).first()
+                gname = (_guest.name or "").strip() if _guest else ""
+        dev = bool(app.debug or os.getenv("FLASK_ENV") == "development")
+        w = build_wedding(ev, gname, dev)
+        base = PUBLIC_BASE_URL or request.host_url.rstrip("/")
+        w["url"] = f"{base}/w/{ev.slug}"
+        resp = app.make_response(render_template("wedding_bwg.html", w=w))
+        resp.headers["Cache-Control"] = "private, max-age=60" if gname else "public, max-age=60"
+        return resp
+
+    @app.route("/w/<slug>")
+    def public_wedding(slug):
+        with get_db_session() as db:
+            ev = db.query(Event).filter_by(slug=slug).first()
+            if not ev or not getattr(ev, "site_enabled", False):
+                return ("<h2 style='font-family:sans-serif;text-align:center;margin-top:20vh'>Ukurasa haupatikani.</h2>"), 404
+            return _render_wedding(ev)
+
+    @app.route("/w/<slug>/calendar.ics")
+    def public_wedding_ics(slug):
+        with get_db_session() as db:
+            ev = db.query(Event).filter_by(slug=slug).first()
+            if not ev or not getattr(ev, "site_enabled", False):
+                return "Not found", 404
+            w = build_wedding(ev)
+            start = _wdt(w["iso"][:16]) if w["iso"] else None
+            if not start:
+                return "Wedding date not configured", 404
+            loc = (w["cer"] or {}).get("addr") or w["place"]
+            body = build_ics(f"Harusi ya {w['names']}", start, loc, (PUBLIC_BASE_URL or request.host_url.rstrip("/")) + f"/w/{slug}")
+        return app.response_class(body, mimetype="text/calendar",
+                                  headers={"Content-Disposition": f"attachment; filename=wedding-{slug}.ics"})
+
+    @app.route("/events/<int:event_id>/site/wedding", methods=["GET", "POST"])
+    @admin_required
+    def event_wedding_edit(event_id):
+        with get_db_session() as db:
+            ev = db.get(Event, event_id)
+            if not ev:
+                flash("Event not found.", "danger")
+                return redirect(url_for("events_list"))
+            if request.method == "POST":
+                ev.site_extra = json.dumps({k: (request.form.get(k) or "").strip()[:2000] for k, _, _ in WED_FIELDS})
+                db.commit()
+                flash("Wedding website details saved.", "success")
+                return redirect(url_for("event_wedding_edit", event_id=event_id))
+            data = dict(id=ev.id, name=ev.name, slug=ev.slug, enabled=bool(getattr(ev, "site_enabled", False)),
+                        bwg=getattr(ev, "site_theme", None) == "bwg")
+            x = _wextra(ev)
+        return render_template("event_wedding_form.html", event=data, fields=WED_FIELDS, x=x)
