@@ -185,8 +185,8 @@ import re as _re
 from urllib.parse import quote as _q
 
 _EAT = timezone(timedelta(hours=3))
-_SW_D = ["Jumatatu", "Jumanne", "Jumatano", "Alhamisi", "Ijumaa", "Jumamosi", "Jumapili"]
-_SW_M = ["Januari", "Februari", "Machi", "Aprili", "Mei", "Juni", "Julai", "Agosti", "Septemba", "Oktoba", "Novemba", "Desemba"]
+_SW_D = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+_SW_M = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 _DEFAULT_PALETTE = [("Black", "#0B0B0B"), ("Ivory", "#FAF8F4"), ("Champagne Gold", "#C9A45C"), ("Soft Gray", "#D8D5CF")]
 
 # (key, label, kind)  kind: text | dt | date | area
@@ -207,6 +207,14 @@ WED_FIELDS = [
     ("palette", "Theme colours, one per line:  Name #HEX   (e.g. Champagne Gold #C9A45C)", "area"),
     ("faq", "FAQ, one per line:  Question | Answer", "area"),
     ("embeds", "Embedded map URLs (optional, Google Maps 'Embed a map' src links, one per line)", "area"),
+    ("quote_hero", "Hero side note (default: Love Brings Us Here)", "text"), ("polaroid_cap", "Polaroid caption (default: Better Together)", "text"),
+    ("story_title", "Story heading (default: A beautiful journey of love)", "text"),
+    ("cer_img", "Ceremony venue photo URL (optional; defaults to 2nd gallery photo)", "text"),
+    ("theme_img", "Theme / decor photo URL (optional; defaults to 3rd gallery photo)", "text"),
+    ("theme_words", "Theme words (default: Classic · Modern · Timeless)", "text"), ("theme_text", "Theme description", "area"),
+    ("colours_label", "Colours label (default: Black · White · Gold)", "text"), ("colours_quote", "Colours quote", "text"),
+    ("closing_line", "Footer line (default: Together is our favourite place to be)", "text"),
+    ("facebook", "Facebook URL (optional)", "text"), ("tiktok", "TikTok URL (optional)", "text"), ("youtube", "YouTube URL (optional)", "text"),
 ]
 
 
@@ -218,7 +226,12 @@ def _wdt(iso):
 
 
 def _wfmt(d):
-    return (f"{_SW_D[d.weekday()]}, {d.day} {_SW_M[d.month - 1]} {d.year}", d.strftime("%H:%M")) if d else ("", "")
+    """-> (long date, 12h time, SHORT UPPERCASE date)"""
+    if not d:
+        return ("", "", "")
+    long_ = f"{_SW_D[d.weekday()]}, {d.day} {_SW_M[d.month - 1]} {d.year}"
+    return (long_, f"{d.hour % 12 or 12}:{d.minute:02d} {'AM' if d.hour < 12 else 'PM'}",
+            f"{_SW_D[d.weekday()][:3]}, {d.day} {_SW_M[d.month - 1]} {d.year}".upper())
 
 
 def _safe_url(u):
@@ -251,11 +264,11 @@ def build_wedding(ev, guest_name="", dev=False):
     hero = getattr(ev, "site_hero_url", None) or ""
     wd = _wdt(g("wedding_dt")) or _wdt(g("cer_dt"))
     legacy = ", ".join(p for p in [getattr(ev, "event_day", None), getattr(ev, "event_date", None)] if p)
-    date_str = _wfmt(wd)[0] or legacy or "Tarehe itathibitishwa"
+    date_str = _wfmt(wd)[0] or legacy or "Date to be confirmed"
 
     def block(p, fallback_name=""):
         d = _wdt(g(p + "_dt")) or (wd if p == "cer" else None)
-        ds, ts = _wfmt(d)
+        ds, ts, _sh = _wfmt(d)
         b = dict(name=g(p + "_name") or fallback_name, addr=g(p + "_addr"), date=ds, time=ts,
                  maps=_map_link(g(p + "_maps"), g(p + "_addr")))
         if p == "cer":
@@ -272,21 +285,34 @@ def build_wedding(ev, guest_name="", dev=False):
             palette.append((m.group(1).strip() or m.group(2), m.group(2)))
     faq = [tuple(p.strip() for p in ln.split("|", 1)) for ln in g("faq").splitlines() if "|" in ln]
     wa = _re.sub(r"\D", "", g("wa"))
-    msg = (f"Habari! Naitwa {guest_name or '[jina lako]'}. Ninafurahi kuthibitisha mahudhurio yangu kwenye harusi ya "
-           f"{names}. Idadi ya wageni: [idadi]. Asanteni sana.")
+    msg = (f"Hello! My name is {guest_name or '[your name]'}. I would love to confirm my attendance at the wedding of "
+           f"{names}. Number of guests: [number]. Thank you!")
+    parts = [bride, groom] if bride and groom else [p.strip() for p in _re.split(r"\s*(?:&|\band\b|\bna\b)\s*", base) if p.strip()]
+    if len(parts) != 2:
+        parts = [names]
     ph = getattr(ev, "site_contact", None) or ""
     return dict(
-        slug=ev.slug, names=names, initials=initials, tagline=g("tagline"),
+        slug=ev.slug, names=names, initials=initials, tagline=g("tagline") or "Two hearts. One journey. A lifetime together.",
         place=g("city") or (getattr(ev, "event_venue", None) or ""), hashtag=g("hashtag"),
         date_str=date_str, iso=wd.isoformat() if wd else "", has_date=bool(wd),
         hero=hero, portrait=_safe_url(g("portrait")) or (gallery[0] if gallery else hero),
-        story=getattr(ev, "site_story", None) or "", gallery=gallery, cer=cer, rec=rec,
+        story=getattr(ev, "site_story", None) or "From our first meeting to this special day, our journey has been filled with love, laughter and unwavering support. We can't wait to celebrate this next chapter with you!", gallery=gallery, cer=cer, rec=rec,
         dress=getattr(ev, "site_dress_code", None) or "", dress_note=g("dress_note"),
-        deadline=g("rsvp_deadline"), palette=palette or ([] if x else _DEFAULT_PALETTE),
+        deadline=g("rsvp_deadline"), palette=palette or _DEFAULT_PALETTE,
         faq=faq, embeds=[u for u in g("embeds").splitlines() if u.strip().startswith("https://www.google.com/maps/embed")],
         wa=wa, wa_href=(f"https://wa.me/{wa}?text={_q(msg)}" if wa else ""),
         email=g("email") if "@" in g("email") else "", instagram=_safe_url(g("instagram")),
         contact_text=ph, guest=guest_name, dev=dev, sample=not x,
+        parts=parts, date_short=_wfmt(wd)[2] or (legacy.upper() if legacy else "DATE TO BE CONFIRMED"), date_long=date_str,
+        hero_note=g("quote_hero") or "Love Brings Us Here", cap=g("polaroid_cap") or "Better Together",
+        story_title=g("story_title") or "A beautiful journey of love",
+        cer_img=_safe_url(g("cer_img")) or (gallery[1] if len(gallery) > 1 else ""),
+        theme_img=_safe_url(g("theme_img")) or (gallery[2] if len(gallery) > 2 else ""),
+        theme_words=g("theme_words") or "Classic · Modern · Timeless",
+        theme_text=g("theme_text") or "Our wedding will be a beautiful blend of classic elegance and modern touches, with a touch of natural beauty.",
+        colours_label=g("colours_label") or "Black · White · Gold", colours_quote=g("colours_quote") or "Simple colours, endless elegance.",
+        closing=g("closing_line") or "Together is our favourite place to be",
+        socials=[(n, u) for n, u in [("Facebook", _safe_url(g("facebook"))), ("Instagram", _safe_url(g("instagram"))), ("TikTok", _safe_url(g("tiktok"))), ("YouTube", _safe_url(g("youtube")))] if u],
     )
 
 
@@ -623,7 +649,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
         with get_db_session() as db:
             ev = db.query(Event).filter_by(slug=slug).first()
             if not ev or not getattr(ev, "site_enabled", False):
-                return ("<h2 style='font-family:sans-serif;text-align:center;margin-top:20vh'>Ukurasa haupatikani.</h2>"), 404
+                return ("<h2 style='font-family:sans-serif;text-align:center;margin-top:20vh'>Page not found.</h2>"), 404
             return _render_wedding(ev)
 
     @app.route("/w/<slug>/calendar.ics")
@@ -637,7 +663,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             if not start:
                 return "Wedding date not configured", 404
             loc = (w["cer"] or {}).get("addr") or w["place"]
-            body = build_ics(f"Harusi ya {w['names']}", start, loc, (PUBLIC_BASE_URL or request.host_url.rstrip("/")) + f"/w/{slug}")
+            body = build_ics(f"Wedding of {w['names']}", start, loc, (PUBLIC_BASE_URL or request.host_url.rstrip("/")) + f"/w/{slug}")
         return app.response_class(body, mimetype="text/calendar",
                                   headers={"Content-Disposition": f"attachment; filename=wedding-{slug}.ics"})
 
