@@ -57,6 +57,13 @@ def _guest_sig(qr_code_id: str) -> str:
     return hmac.new(key, (qr_code_id or "").encode(), hashlib.sha256).hexdigest()[:10]
 
 
+def _sig_ok(qr_code_id, sig) -> bool:
+    try:
+        return bool(qr_code_id and sig) and hmac.compare_digest(str(sig).encode(), _guest_sig(qr_code_id).encode())
+    except Exception:
+        return False
+
+
 def event_site_path(event, guest=None) -> str:
     """'<slug>' or '<slug>?g=<qr_id>&s=<sig>' — also used as the WhatsApp URL-button variable."""
     slug = (getattr(event, "slug", "") or "") if event else ""
@@ -245,7 +252,7 @@ def _map_link(url, addr):
     return _safe_url(url) or (f"https://www.google.com/maps/dir/?api=1&destination={_q(addr)}" if addr else "")
 
 
-def build_wedding(ev, guest_name="", dev=False):
+def build_wedding(ev, guest_name="", dev=False, rsvp=None):
     """Public-only view model. Never includes guests, phones (other than the configured RSVP
     number) or admin data."""
     x = _wextra(ev)
@@ -296,7 +303,7 @@ def build_wedding(ev, guest_name="", dev=False):
         faq=faq, embeds=[u for u in g("embeds").splitlines() if u.strip().startswith("https://www.google.com/maps/embed")],
         wa=wa, wa_href=(f"https://wa.me/{wa}?text={_q(msg)}" if wa else ""),
         email=g("email") if "@" in g("email") else "", instagram=_safe_url(g("instagram")),
-        contact_text=ph, guest=guest_name, dev=dev, sample=not x,
+        contact_text=ph, guest=guest_name, dev=dev, sample=not x, rsvp=rsvp,
         parts=parts, date_short=_wfmt(wd)[2] or (legacy.upper() if legacy else "DATE TO BE CONFIRMED"), date_long=date_str,
         hero_note=g("quote_hero") or "Love Brings Us Here", cap=g("polaroid_cap") or "Better Together",
         story_title=g("story_title") or "Our story is bringing us to you.",
@@ -341,7 +348,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             weds, day, date, venue, etype, etime = _ev_fields(ev)
             gname = ""
             _g, _s = request.args.get("g", ""), request.args.get("s", "")
-            if _g and _s and hmac.compare_digest(_s, _guest_sig(_g)):
+            if _sig_ok(_g, _s):
                 _guest = db.query(Guest).filter_by(qr_code_id=_g, event_id=ev.id).first()
                 if _guest and _guest.name:
                     gname = _guest.name.strip()
@@ -625,18 +632,20 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
 
     # ── Black, White & Gold public site: /w/<slug> ──────────────────────
     def _render_wedding(ev):
-        gname = ""
+        gname, rsvp = "", None
         _g, _s = request.args.get("g", ""), request.args.get("s", "")
-        if _g and _s and hmac.compare_digest(_s, _guest_sig(_g)):
+        if _sig_ok(_g, _s):
             with get_db_session() as db2:
                 _guest = db2.query(Guest).filter_by(qr_code_id=_g, event_id=ev.id).first()
                 gname = (_guest.name or "").strip() if _guest else ""
+                if _guest:
+                    rsvp = {"g": _g, "s": _s, "status": _guest.rsvp_status or ""}
         dev = bool(app.debug or os.getenv("FLASK_ENV") == "development")
-        w = build_wedding(ev, gname, dev)
+        w = build_wedding(ev, gname, dev, rsvp)
         base = PUBLIC_BASE_URL or request.host_url.rstrip("/")
         w["url"] = f"{base}/w/{ev.slug}"
         resp = app.make_response(render_template("wedding_bwg.html", w=w))
-        resp.headers["Cache-Control"] = "private, max-age=60" if gname else "public, max-age=60"
+        resp.headers["Cache-Control"] = "private, no-store" if gname else "public, max-age=60"
         return resp
 
     @app.route("/w/<slug>")
@@ -679,3 +688,20 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                         bwg=getattr(ev, "site_theme", None) == "bwg")
             x = _wextra(ev)
         return render_template("event_wedding_form.html", event=data, fields=WED_FIELDS, x=x)
+
+    # ── Website RSVP (same fields as the WhatsApp webhook) ───────────────
+    @app.route("/w/<slug>/rsvp", methods=["POST"])
+    def public_wedding_rsvp(slug):
+        d = request.get_json(silent=True) or {}
+        g, sig, status = str(d.get("g", "")), str(d.get("s", "")), d.get("status")
+        if status not in ("attending", "not_attending") or not _sig_ok(g, sig):
+            return jsonify(success=False, error="invalid"), 400
+        with get_db_session() as db:
+            ev = db.query(Event).filter_by(slug=slug).first()
+            guest = db.query(Guest).filter_by(qr_code_id=g, event_id=ev.id).first() if ev else None
+            if not ev or not getattr(ev, "site_enabled", False) or not guest:
+                return jsonify(success=False, error="not_found"), 404
+            guest.rsvp_status = status
+            guest.rsvp_at = now_eat()
+            db.commit()
+            return jsonify(success=True, status=status)

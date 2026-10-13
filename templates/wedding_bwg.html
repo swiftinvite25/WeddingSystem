@@ -44,6 +44,7 @@ h1,h2,h3,p{margin-top:0}h1,h2,h3{font-family:var(--serif);font-weight:500;line-h
 .gallery-grid img{height:100%;transition:transform .7s}.gallery-grid button:hover img{transform:scale(1.04)}.gallery-grid:focus-within{outline:none}
 .faq{max-width:760px;margin:0 auto}.faq details{border-top:1px solid var(--line);padding:1rem 0}.faq summary{cursor:pointer;font:500 1.4rem var(--serif)}.faq p{color:var(--muted);margin:.5rem 0 0}
 .rsvp{background:#62584f;color:#fff;text-align:center}.rsvp .eyebrow{color:#e7c9ad}.rsvp p{color:#e3dcd5;max-width:540px;margin:0 auto 30px}.rsvp-deadline{font-size:.75rem!important;letter-spacing:.08em}.warn{background:#4a1d1d;padding:.8rem;font-size:.85rem}
+.rbtns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}.rbtns .btn{min-width:210px;padding:16px 26px}.rbtns small{display:block;font-weight:400;letter-spacing:.06em;text-transform:none;font-size:.74rem;opacity:.8;margin-top:2px}.btn.o2{background:transparent;color:#fff;border-color:#e9d1b8}.btn.o2:hover{background:#e9d1b8;color:#44372e}.btn[disabled]{opacity:.6;cursor:wait}#rmsg{margin:18px auto 0!important;min-height:1.6em}.alt{margin-top:22px!important;font-size:.8rem}
 .contact{margin-top:46px;padding-top:30px;border-top:1px solid rgba(255,255,255,.18);font-size:.9rem;color:#e3dcd5}.contact a{border-bottom:1px solid #e7c9ad;text-decoration:none}
 footer{padding:35px 0;text-align:center;color:var(--muted);font-size:.75rem}footer .brand{color:var(--rose);margin-bottom:5px;display:block;font-size:1.45rem}
 #lb{position:fixed;inset:0;z-index:90;background:rgba(20,16,14,.95);display:none;align-items:center;justify-content:center}#lb.on{display:flex}#lb img{max-width:94vw;max-height:84vh;width:auto;border-radius:3px}
@@ -99,7 +100,12 @@ footer{padding:35px 0;text-align:center;color:var(--muted);font-size:.75rem}foot
 
 <section class="section rsvp" id="rsvp"><div class="wrap rv"><div class="eyebrow">We saved you a place</div><h2>Will you celebrate with us?</h2>
 <p>Your presence is the loveliest gift. Please let us know if you'll be joining us so we can prepare to welcome you.</p>
-{% if w.wa_href %}<a class="btn" href="{{ w.wa_href }}" target="_blank" rel="noopener">RSVP on WhatsApp</a>{% elif w.dev %}<p class="warn">DEV: set the WhatsApp number (international digits) in the wedding details to enable RSVP.</p>{% endif %}
+{% if w.rsvp %}<div id="rsvpbox" data-url="{{ url_for('public_wedding_rsvp', slug=w.slug) }}" data-g="{{ w.rsvp.g }}" data-s="{{ w.rsvp.s }}">
+<p id="cur" style="margin-bottom:18px">{% if w.rsvp.status == 'attending' %}Your reply so far: <strong>Nitakuwepo</strong>. You can change it below.{% elif w.rsvp.status == 'not_attending' %}Your reply so far: <strong>Sitakuwepo</strong>. You can change it below.{% endif %}</p>
+<div class="rbtns"><button type="button" class="btn" data-v="attending">Nitakuwepo<small>I'll be there</small></button><button type="button" class="btn o2" data-v="not_attending">Sitakuwepo<small>I can't make it</small></button></div>
+<p id="rmsg" role="status" aria-live="polite"></p></div>
+{% if w.wa_href %}<p class="alt"><a href="{{ w.wa_href }}" target="_blank" rel="noopener" style="border-bottom:1px solid #e7c9ad;text-decoration:none">Prefer WhatsApp? Message us</a></p>{% endif %}
+{% elif w.wa_href %}<a class="btn" href="{{ w.wa_href }}" target="_blank" rel="noopener">RSVP on WhatsApp</a>{% elif w.dev %}<p class="warn">DEV: set the WhatsApp number (international digits) in the wedding details to enable RSVP.</p>{% endif %}
 {% if w.deadline %}<p class="rsvp-deadline" style="margin-top:22px">Kindly respond by {{ w.deadline }}</p>{% endif %}
 <div class="contact" id="contact">{% if w.contact_text %}<div id="ct" style="white-space:pre-line">{{ w.contact_text }}</div>{% endif %}{% if w.email %}<div><a href="mailto:{{ w.email }}">{{ w.email }}</a></div>{% endif %}{% if not (w.contact_text or w.email) %}Questions? Message us on WhatsApp.{% endif %}</div></div></section>
 </main>
@@ -113,6 +119,12 @@ document.querySelectorAll('.rv').forEach(e=>io?io.observe(e):e.classList.add('in
 const tm=$('#timer');if(tm){const t=new Date(tm.dataset.iso).getTime();if(!isNaN(t)){const p=(n,l)=>String(n).padStart(l,'0');const tk=()=>{let d=t-Date.now();if(d<=0){tm.outerHTML='<p class="cdm">'+(Date.now()-t<864e5?"Today is the day!":"Thank you for celebrating with us.")+'</p>';return false}
 $('#d').textContent=p(Math.floor(d/864e5),3);d%=864e5;$('#h').textContent=p(Math.floor(d/36e5),2);d%=36e5;$('#m').textContent=p(Math.floor(d/6e4),2);$('#s').textContent=p(Math.floor(d/1e3)%60,2);return true};
 if(tk()){const iv=setInterval(()=>{if(!tk())clearInterval(iv)},1000)}}}
+const rb=$('#rsvpbox');if(rb){const lab={attending:'Nitakuwepo',not_attending:'Sitakuwepo'},msg=$('#rmsg'),cur=$('#cur');
+rb.querySelectorAll('button').forEach(b=>b.onclick=async()=>{const bs=rb.querySelectorAll('button');bs.forEach(x=>x.disabled=true);msg.textContent='Saving…';
+try{const r=await fetch(rb.dataset.url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({g:rb.dataset.g,s:rb.dataset.s,status:b.dataset.v})});const d=await r.json();
+if(r.ok&&d.success){msg.textContent='Thank you! Your reply ('+lab[d.status]+') has been saved.';cur.textContent=''}else throw 0}
+catch(e){msg.textContent='Sorry, we could not save your reply. Please try again or use WhatsApp.'}
+bs.forEach(x=>x.disabled=false)})}
 const ct=$('#ct');if(ct)ct.innerHTML=ct.innerHTML.replace(/(\+?\d[\d ]{8,14}\d)/g,m=>'<a href="tel:'+m.replace(/\s/g,'')+'">'+m+'</a>');
 const lb=$('#lb'),li=lb.querySelector('img');let im=[],k=0,last=null;const show=i=>{k=(i+im.length)%im.length;li.src=im[k].src;li.alt=im[k].alt};
 const close=()=>{lb.classList.remove('on');document.body.style.overflow='';last&&last.focus()};
