@@ -64,7 +64,7 @@ footer{padding:35px 0;text-align:center;color:var(--muted);font-size:.75rem}foot
 
 <main id="main">
 <section class="hero" id="home">{% if w.hero %}<img src="{{ w.hero }}" alt="" fetchpriority="high" onerror="this.remove()">{% endif %}
-<div class="hero-content"><div class="eyebrow">{% if w.guest %}Dear {{ w.guest }}, with full hearts, we invite you{% else %}With full hearts, we invite you{% endif %}</div>
+<div class="hero-content"><div class="eyebrow">{% if w.guest %}Dear {{ w.guest }}, with full hearts, we invite you to{% else %}With full hearts, we invite you to{% endif %}</div>
 <h1>{% if w.parts|length == 2 %}{{ w.parts[0] }} <span class="amp">&amp;</span> {{ w.parts[1] }}{% else %}{{ w.names }}{% endif %}</h1>
 {% if w.tagline %}<p class="hero-sub">{{ w.tagline }}</p>{% endif %}<div class="flourish" aria-hidden="true">✧</div>
 <div class="hero-date">{{ w.date_long }}</div>{% if w.place %}<div class="hero-place">{{ w.place }}</div>{% endif %}
