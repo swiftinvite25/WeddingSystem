@@ -1,18 +1,24 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
+<div class="d-flex justify-content-between align-items-center mb-4 flex-wrap gap-2">
   <h2>{{ title }}</h2>
-  <a href="{{ url_for('events_list') }}" class="btn btn-outline-secondary">← Back to Events</a>
+  <div class="d-flex gap-2">
+    {% if event %}
+    <a href="{{ url_for('event_site_edit', event_id=event.id) }}" class="btn btn-success">🌐 Event Website</a>
+    {% endif %}
+    <a href="{{ url_for('events_list') }}" class="btn btn-outline-secondary">← Back to Events</a>
+  </div>
 </div>
 
 <form method="POST" enctype="multipart/form-data" class="card p-4 shadow-sm mb-4">
   <h5 class="mb-3 text-success">Event Details</h5>
   <div class="row g-3 mb-4">
     <div class="col-md-6">
-      <label class="form-label">Event Name <span class="text-danger">*</span></label>
+      <label class="form-label">Event Name (internal) <span class="text-danger">*</span></label>
       <input type="text" name="name" class="form-control" required
              value="{{ event.name if event else '' }}"
-             placeholder="e.g. Paul & Grace Wedding">
+             placeholder="e.g. Barkeh's Dinner Party">
+      <div class="form-text">Used to create the event link (slug). Choose carefully: it cannot be changed later.</div>
     </div>
     <div class="col-md-6">
       <label class="form-label">Event Type</label>
@@ -24,12 +30,13 @@
         </option>
         {% endfor %}
       </select>
+      <div class="form-text">Controls the wording of the website and SMS. You can show a custom type (e.g. "Dinner Party") on the website in the Event Website page.</div>
     </div>
     <div class="col-md-6">
-      <label class="form-label">Couple / Honoree Names (for SMS)</label>
+      <label class="form-label">Event Name / Host Names <small class="text-muted">(shown big on the website and in SMS)</small></label>
       <input type="text" name="weds_names" class="form-control"
              value="{{ event.weds_names if event else '' }}"
-             placeholder="e.g. PAUL J. MISALABA & GRACE MAHEWA">
+             placeholder="e.g. Barkeh's Dinner Party  or  Juma Mkambala & Asha Mohammed">
     </div>
     <div class="col-md-4">
       <label class="form-label">Day</label>
@@ -49,6 +56,13 @@
              value="{{ event.event_venue if event else '' }}"
              placeholder="e.g. NEXUS HALL KIBAHA">
     </div>
+    {% if not event %}
+    <div class="col-12">
+      <label class="form-label">Card Template <small class="text-muted">(JPG or PNG, best 1240 × 1748 px)</small></label>
+      <input type="file" name="template_file" accept=".jpg,.jpeg,.png" class="form-control" style="max-width:420px">
+      <div class="form-text">Optional now. You can upload or replace it later from Edit Event. After saving with a template you go straight to the visual card editor.</div>
+    </div>
+    {% endif %}
   </div>
 
   <h5 class="mb-3 text-primary">WhatsApp Config <small class="text-muted fs-6">(leave blank to use global .env values)</small></h5>
@@ -85,14 +99,15 @@
       <div class="form-text">
         <strong>has_image_header</strong>: true/false — does your template have an image in the header?<br>
         <strong>body_vars</strong>: ordered list of your template's variables —
-        options are <code>guest_name</code>, <code>card_number</code>, <code>event_name</code><br>
+        options are <code>guest_name</code>, <code>card_number</code>, <code>event_name</code>, <code>site_link</code><br>
         <strong>has_buttons</strong>: true/false — does your template have quick-reply buttons?<br>
-        <em>Leave blank to use default (image header + guest_name + card_number).</em>
+        <strong>url_button_index</strong> (optional): 0-based position of a "Visit website" button in your template, e.g. <code>2</code> when two quick-reply buttons come first. Its value is the guest's personal website link.<br>
+        <em>Must be valid JSON (double quotes, no trailing commas). Leave blank to use default (image header + guest_name + card_number).</em>
       </div>
     </div>
   </div>
 
-  <h5 class="mb-3 text-warning">SMS Config (Africa's Talking) <small class="text-muted fs-6">(leave blank to use global .env values)</small></h5>
+  <h5 class="mb-3 text-warning">SMS Config (Africa's Talking) <small class="text-muted fs-6">(currently the app uses the global Render values for all events)</small></h5>
   <div class="row g-3 mb-4">
     <div class="col-md-4">
       <label class="form-label">AT Username</label>

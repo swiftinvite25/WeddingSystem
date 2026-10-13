@@ -26,12 +26,12 @@
   <p><a href="{{ url_for('view_all') }}">← Back</a></p>
   <div class="box">
     <h1>Send Reminders — {{ event_name }}</h1>
-    <div class="hint">{{ with_phone }} guests with phone numbers · {{ declined }} declined · {{ entered }} already checked in</div>
+    <div class="hint">{{ with_phone }} guests with phone numbers · {{ declined }} declined · {{ entered }} already checked in · {{ owing }} still owe a pledge · <a href="{{ url_for('pledges_page') }}">Manage pledges</a></div>
     {% if not sms_enabled %}<p class="warn">Africa's Talking SMS is not configured, so reminders cannot be sent.</p>{% endif %}
-    {% if not site_url %}<p class="hint">Tip: turn on the Event Page (Events → Event Page) to include a link in reminders.</p>{% endif %}
 
     <label><input type="radio" name="kind" value="event" checked> 📅 Event reminder (date, time, venue, card number)</label>
-    <label><input type="radio" name="kind" value="michango"> 💰 Michango / ahadi reminder</label>
+    <label><input type="radio" name="kind" value="michango"> 💰 Michango reminder (same message to everyone)</label>
+    <label><input type="radio" name="kind" value="personal"> 🎯 Personal ahadi reminder (each guest's pledge, paid &amp; balance; only guests who still owe)</label>
 
     <label id="whenWrap">Headline (optional) — e.g. “KESHO”, “LEO”, “JUMAMOSI HII”
       <input type="text" id="when" placeholder="KESHO"></label>

@@ -103,7 +103,6 @@ def _ev_fields(event):
 def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
     weds, day, date, venue, etype, etime = _ev_fields(event)
     label    = EVENT_TYPE_LABELS.get(etype, etype.upper())
-    site_url = event_site_url(event, guest)
     when_text = (when_text or "").strip()
 
     if kind == "personal":
@@ -117,8 +116,6 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         lines.append(f"Salio: TSh {max(pledge - paid, 0):,}")
         if info:
             lines += ["", "Namna ya kulipa:", info]
-        if site_url:
-            lines += ["", f"Maelezo: {site_url}"]
         lines += ["", "Tafadhali toa taarifa baada ya kulipa. Asante sana, Mungu akubariki."]
         return "\n".join(lines)
 
@@ -133,8 +130,6 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         ]
         if info:
             parts += ["", "Namna ya kuchangia:", info]
-        if site_url:
-            parts += ["", f"Maelezo zaidi: {site_url}"]
         parts += ["", "Asante sana kwa ushirikiano wako. Mungu akubariki."]
         return "\n".join(parts)
 
@@ -150,8 +145,6 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         f"Namba ya Kadi: {str(guest.visual_id or 0).zfill(4)} - {(guest.card_type or 'Single').title()}",
         "Usisahau kuja na kadi yako.",
     ]
-    if site_url:
-        parts += [f"Maelezo & picha: {site_url}"]
     parts += ["Karibu sana!"]
     return "\n".join(parts)
 
@@ -196,27 +189,61 @@ _SW_D = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Su
 _SW_M = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
 _DEFAULT_PALETTE = [("Dusty Rose", "#b77e78"), ("Sage Green", "#9ba58d"), ("Champagne", "#d9c3a5"), ("Ivory", "#f7f0e5")]
 
-# (key, label, kind)  kind: text | dt | date | area
-WED_FIELDS = [
-    ("bride", "Bride's name", "text"), ("groom", "Groom's name", "text"),
-    ("initials", "Monogram initials (max 3 letters)", "text"), ("tagline", "Short tagline", "text"),
-    ("city", "City / location", "text"), ("hashtag", "Wedding hashtag (e.g. #AsaAndJuma)", "text"),
-    ("wedding_dt", "Wedding date & time (East Africa Time) — enables countdown and Save the Date", "dt"),
-    ("cer_name", "Ceremony venue name", "text"), ("cer_addr", "Ceremony full address", "text"),
-    ("cer_dt", "Ceremony date & time", "dt"), ("cer_maps", "Ceremony Google Maps link (optional; auto-built from address if empty)", "text"),
-    ("rec_name", "Reception venue name", "text"), ("rec_addr", "Reception full address", "text"),
-    ("rec_dt", "Reception date & time", "dt"), ("rec_maps", "Reception Google Maps link (optional)", "text"),
-    ("dress_note", "Attire note (dress code itself comes from the Event Page)", "area"),
-    ("rsvp_deadline", "RSVP deadline", "date"),
-    ("wa", "WhatsApp number for RSVP — international digits only, e.g. 255712345678", "text"),
-    ("email", "Contact email", "text"), ("instagram", "Instagram URL (optional)", "text"),
-    ("portrait", "Couple portrait image URL (optional; defaults to first gallery photo)", "text"),
-    ("palette", "Theme colours, one per line:  Name #HEX   (e.g. Champagne Gold #C9A45C)", "area"),
-    ("faq", "FAQ, one per line:  Question | Answer", "area"),
-    ("embeds", "Embedded map URLs (optional, Google Maps 'Embed a map' src links, one per line)", "area"),
-    ("story_title", "Story heading (default: Our story is bringing us to you.)", "text"),
-    ("schedule", "Order of the day, one per line:  9:30 AM | Guest arrival | Short description (optional)", "area"),
+# Sections of the unified "Event Website" admin form.
+# field = (key, label, kind, store)   kind: text|area|dt|date|check   store: "col" (Event column) | "json" (site_extra)
+FIELD_SECTIONS = [
+    ("Website", [("site_enabled", "Show the website (turn ON to publish)", "check", "col")]),
+    ("Headline", [
+        ("type_label", "Event type shown under the name (e.g. Wedding Celebration, Dinner Party, Send-Off). Leave empty to use the event type.", "text", "json"),
+        ("tagline", "Short tagline under the type (optional)", "text", "json"),
+        ("city", "City / location (optional)", "text", "json"),
+        ("hashtag", "Hashtag (optional)", "text", "json"),
+        ("wedding_dt", "Event date & time (East Africa Time) — enables the countdown and Save the Date", "dt", "json"),
+        ("initials", "Monogram initials (optional; made from the event name if empty)", "text", "json")]),
+    ("Story / welcome", [
+        ("story_title", "Heading (optional)", "text", "json"),
+        ("site_story", "Welcome message (separate paragraphs with a blank line)", "area", "col"),
+        ("portrait", "Portrait photo URL (optional; defaults to the first gallery photo)", "text", "json")]),
+    ("Programme & venues", [
+        ("cer_title", "First section heading (e.g. The Ceremony / The Dinner)", "text", "json"),
+        ("cer_name", "Venue name", "text", "json"), ("cer_addr", "Full address", "text", "json"),
+        ("cer_dt", "Date & time (leave empty to use the event date)", "dt", "json"),
+        ("cer_maps", "Google Maps link (optional; built from the address if empty)", "text", "json"),
+        ("rec_title", "Second section heading (e.g. The Reception) — leave all second-section fields empty to hide it", "text", "json"),
+        ("rec_name", "Venue name", "text", "json"), ("rec_addr", "Full address", "text", "json"),
+        ("rec_dt", "Date & time", "dt", "json"), ("rec_maps", "Google Maps link (optional)", "text", "json")]),
+    ("Dress code & colours", [
+        ("site_dress_code", "Dress code (e.g. Elegant & celebratory)", "text", "col"),
+        ("dress_note", "Attire note (optional)", "area", "json"),
+        ("palette", "Colours, one per line:  Name #HEX   (e.g. Dusty Rose #b77e78). Weddings get a default palette if empty.", "area", "json")]),
+    ("Order of the day", [("schedule", "One per line:  9:30 AM | Guest arrival | Short description (optional)", "area", "json")]),
+    ("RSVP & contact", [
+        ("rsvp_deadline", "RSVP deadline (e.g. 1 June 2027)", "date", "json"),
+        ("wa", "WhatsApp number for RSVP — international digits only, e.g. 255712345678", "text", "json"),
+        ("email", "Contact email (optional)", "text", "json"),
+        ("site_contact", "Contact details shown on the page (names and phone numbers)", "area", "col"),
+        ("instagram", "Instagram URL (optional)", "text", "json")]),
+    ("Contributions (michango)", [("contribution_info", "How to contribute: payment numbers and names (also used in contribution reminders)", "area", "col")]),
+    ("FAQ & maps", [
+        ("faq", "FAQ, one per line:  Question | Answer", "area", "json"),
+        ("embeds", "Embedded map URLs (optional; Google Maps 'Embed a map' src links, one per line)", "area", "json")]),
 ]
+
+_TYPE_LABEL = {"Wedding": "Wedding Celebration", "Send-Off": "Send-Off Celebration", "Birthday": "Birthday Celebration",
+               "Conference": "Conference", "Confirmation": "Confirmation Celebration", "Corporate": "Corporate Event", "Other": "Special Celebration"}
+_COPY_WEDDING = dict(
+    tagline="A celebration of love, laughter & forever", story_title="Our story is bringing us to you.", story_kicker="Two hearts, one beautiful story",
+    story="Some love stories feel like home from the very beginning. Ours has been filled with little moments, big dreams, laughter, friendship, and a love that keeps growing.\n\nNow, we are so excited to begin our next chapter as one, and even more excited to celebrate this special day with the people who have made our journey so meaningful.\n\nHaving you with us would make our day unforgettable.",
+    sign="With love", details_h="The wedding details", countdown_h="Until we say \u201cI do\u201d", palette_h="Our wedding palette",
+    palette_p="A soft, romantic blend inspired by gardens, candlelight and timeless elegance.",
+    palette_note="Feel free to use these colours as inspiration for your outfit. Most importantly, come as you are and celebrate with us.",
+    b1="The Ceremony", b2="The Reception", title_tag="A Celebration of Love")
+_COPY_EVENT = dict(
+    tagline="", story_title="You're warmly invited", story_kicker="About this occasion",
+    story="We are delighted to invite you to celebrate with us. Your presence would make this occasion truly special, and we can't wait to welcome you.",
+    sign="Warm regards", details_h="The event details", countdown_h="Until the big day", palette_h="Our colours",
+    palette_p="The colours we'll be celebrating in.", palette_note="Feel free to wear these colours if you like. Most importantly, come and celebrate with us.",
+    b1="The Event", b2="Afterwards", title_tag="You're Invited")
 
 
 def _wdt(iso):
@@ -257,9 +284,12 @@ def build_wedding(ev, guest_name="", dev=False, rsvp=None):
     number) or admin data."""
     x = _wextra(ev)
     g = lambda k: (x.get(k) or "").strip()
-    bride, groom = g("bride"), g("groom")
+    bride = groom = ""
+    etype = (getattr(ev, "event_type", None) or "Wedding").strip()
+    wedding = etype in ("Wedding", "Send-Off")
+    C = _COPY_WEDDING if wedding else _COPY_EVENT
     base = (getattr(ev, "weds_names", None) or ev.name or "").strip()
-    names = f"{bride} & {groom}" if bride and groom else (base or "Bride & Groom")
+    names = f"{bride} & {groom}" if bride and groom else (base or "Our Event")
     initials = _re.sub(r"[^A-Za-z0-9&]", "", g("initials") or "".join(p[0] for p in names.replace("&", " ").split()[:2]).upper())[:3] or "W"
     gallery = _site_gallery(ev)
     hero = getattr(ev, "site_hero_url", None) or ""
@@ -270,7 +300,7 @@ def build_wedding(ev, guest_name="", dev=False, rsvp=None):
     def block(p, fallback_name=""):
         d = _wdt(g(p + "_dt")) or (wd if p == "cer" else None)
         ds, ts, _sh = _wfmt(d)
-        b = dict(name=g(p + "_name") or fallback_name, addr=g(p + "_addr"), date=ds, time=ts,
+        b = dict(title=g(p + "_title") or (C["b1"] if p == "cer" else C["b2"]), name=g(p + "_name") or fallback_name, addr=g(p + "_addr"), date=ds, time=ts,
                  maps=_map_link(g(p + "_maps"), g(p + "_addr")))
         if p == "cer":
             b["date"] = ds or legacy
@@ -286,27 +316,27 @@ def build_wedding(ev, guest_name="", dev=False, rsvp=None):
             palette.append((m.group(1).strip() or m.group(2), m.group(2)))
     faq = [tuple(p.strip() for p in ln.split("|", 1)) for ln in g("faq").splitlines() if "|" in ln]
     wa = _re.sub(r"\D", "", g("wa"))
-    msg = (f"Hello! My name is {guest_name or '[your name]'}. I would love to confirm my attendance at the wedding of "
+    msg = (f"Hello! My name is {guest_name or '[your name]'}. I would love to confirm my attendance at "
            f"{names}. Number of guests: [number]. Thank you!")
     parts = [bride, groom] if bride and groom else [p.strip() for p in _re.split(r"\s*(?:&|\band\b|\bna\b)\s*", base) if p.strip()]
     if len(parts) != 2:
         parts = [names]
     ph = getattr(ev, "site_contact", None) or ""
     return dict(
-        slug=ev.slug, names=names, initials=initials, tagline=g("tagline") or "A celebration of love, laughter & forever",
+        slug=ev.slug, names=names, initials=initials, tagline=g("tagline") or C["tagline"],
         place=g("city") or (getattr(ev, "event_venue", None) or ""), hashtag=g("hashtag"),
         date_str=date_str, iso=wd.isoformat() if wd else "", has_date=bool(wd),
         hero=hero, portrait=_safe_url(g("portrait")) or (gallery[0] if gallery else hero),
-        story=getattr(ev, "site_story", None) or "Some love stories feel like home from the very beginning. Ours has been filled with little moments, big dreams, laughter, friendship, and a love that keeps growing.\n\nNow, we are so excited to begin our next chapter as one, and even more excited to celebrate this special day with the people who have made our journey so meaningful.\n\nHaving you with us would make our day unforgettable.", gallery=gallery, cer=cer, rec=rec,
+        story=getattr(ev, "site_story", None) or C["story"], gallery=gallery, cer=cer, rec=rec,
         dress=getattr(ev, "site_dress_code", None) or "", dress_note=g("dress_note"),
-        deadline=g("rsvp_deadline"), palette=palette or _DEFAULT_PALETTE,
+        deadline=g("rsvp_deadline"), palette=palette or (_DEFAULT_PALETTE if wedding else []),
         faq=faq, embeds=[u for u in g("embeds").splitlines() if u.strip().startswith("https://www.google.com/maps/embed")],
         wa=wa, wa_href=(f"https://wa.me/{wa}?text={_q(msg)}" if wa else ""),
         email=g("email") if "@" in g("email") else "", instagram=_safe_url(g("instagram")),
-        contact_text=ph, guest=guest_name, dev=dev, sample=not x, rsvp=rsvp,
+        contact_text=ph, c=C, type_label=g("type_label") or _TYPE_LABEL.get(etype, "Special Celebration"), contribute=getattr(ev, "contribution_info", None) or "", guest=guest_name, dev=dev, sample=not x, rsvp=rsvp,
         parts=parts, date_short=_wfmt(wd)[2] or (legacy.upper() if legacy else "DATE TO BE CONFIRMED"), date_long=date_str,
         hero_note=g("quote_hero") or "Love Brings Us Here", cap=g("polaroid_cap") or "Better Together",
-        story_title=g("story_title") or "Our story is bringing us to you.",
+        story_title=g("story_title") or C["story_title"],
         schedule=[tuple(p.strip() for p in (ln.split("|") + ["", ""])[:3]) for ln in g("schedule").splitlines() if "|" in ln],
         cer_img=_safe_url(g("cer_img")) or (gallery[1] if len(gallery) > 1 else ""),
         theme_img=_safe_url(g("theme_img")) or (gallery[2] if len(gallery) > 2 else ""),
@@ -335,45 +365,6 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                     login_required, admin_required,
                     at_send_sms, at_configured):
 
-    # ── Public mini-site (no login) ─────────────────────────────────────
-    @app.route("/e/<slug>")
-    def public_event_site(slug):
-        with get_db_session() as db:
-            ev = db.query(Event).filter_by(slug=slug).first()
-            if not ev or not getattr(ev, "site_enabled", False):
-                return ("<h2 style='font-family:sans-serif;text-align:center;margin-top:20vh'>"
-                        "Ukurasa haupatikani.</h2>"), 404
-            if getattr(ev, "site_theme", None) == "bwg":
-                return _render_wedding(ev)
-            weds, day, date, venue, etype, etime = _ev_fields(ev)
-            gname = ""
-            _g, _s = request.args.get("g", ""), request.args.get("s", "")
-            if _sig_ok(_g, _s):
-                _guest = db.query(Guest).filter_by(qr_code_id=_g, event_id=ev.id).first()
-                if _guest and _guest.name:
-                    gname = _guest.name.strip()
-            data = {
-                "guest":     gname,
-                "name":      ev.name,
-                "label":     EVENT_TYPE_LABELS.get(etype, etype.upper()),
-                "weds":      weds,
-                "day":       day,
-                "date":      date,
-                "venue":     venue,
-                "time":      etime,
-                "story":     getattr(ev, "site_story", None) or "",
-                "hero":      getattr(ev, "site_hero_url", None) or "",
-                "gallery":   _site_gallery(ev),
-                "map_url":   getattr(ev, "site_map_url", None) or "",
-                "contact":   getattr(ev, "site_contact", None) or "",
-                "dress":     getattr(ev, "site_dress_code", None) or "",
-                "contribute": getattr(ev, "contribution_info", None) or "",
-                "theme":     (getattr(ev, "site_theme", None) if getattr(ev, "site_theme", None) in SITE_THEMES else "emerald"),
-            }
-        resp = app.make_response(render_template("event_site.html", e=data))
-        resp.headers["Cache-Control"] = ("private, max-age=60" if data["guest"] else "public, max-age=60")
-        return resp
-
     # ── Admin: edit mini-site ───────────────────────────────────────────
     @app.route("/events/<int:event_id>/site", methods=["GET", "POST"])
     @admin_required
@@ -383,30 +374,24 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             if not ev:
                 flash("Event not found.", "danger")
                 return redirect(url_for("events_list"))
-
             if request.method == "POST":
-                ev.site_enabled      = "site_enabled" in request.form
-                ev.site_event_time   = _clean(request.form.get("site_event_time")) or None
-                ev.site_story        = _clean(request.form.get("site_story")) or None
-                ev.site_contact      = _clean(request.form.get("site_contact")) or None
-                ev.site_dress_code   = _clean(request.form.get("site_dress_code")) or None
-                ev.contribution_info = _clean(request.form.get("contribution_info")) or None
-                theme = _clean(request.form.get("site_theme"))
-                ev.site_theme = theme if theme in SITE_THEMES else "emerald"
-
-                map_url = _clean(request.form.get("site_map_url"))
-                if map_url and not map_url.lower().startswith(("http://", "https://")):
-                    flash("Map link must start with http:// or https:// — it was not saved.", "warning")
-                    map_url = getattr(ev, "site_map_url", None) or ""
-                ev.site_map_url = map_url or None
-
+                extra = {}
+                for _title, fields in FIELD_SECTIONS:
+                    for key, _label, kind, store in fields:
+                        if kind == "check":
+                            setattr(ev, key, key in request.form)
+                            continue
+                        val = (request.form.get(key) or "").strip()[:4000]
+                        if store == "col":
+                            setattr(ev, key, val or None)
+                        else:
+                            extra[key] = val
+                ev.site_extra = json.dumps(extra)
                 try:
                     hero = request.files.get("hero")
                     if hero and hero.filename:
                         ev.site_hero_url = _upload_site_image(ev, hero, "hero", upload_to_supabase, 1800)
-
                     gallery = _site_gallery(ev)
-                    added = 0
                     for i, f in enumerate(request.files.getlist("images")):
                         if not f or not f.filename:
                             continue
@@ -414,37 +399,27 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                             flash(f"Gallery limit is {SITE_MAX_GALLERY} photos; extra files ignored.", "warning")
                             break
                         gallery.append(_upload_site_image(ev, f, f"g{i}", upload_to_supabase))
-                        added += 1
                     ev.site_gallery = json.dumps(gallery)
                 except Exception as e:
                     msg = str(e)
                     if "Bucket not found" in msg or "404" in msg:
-                        flash(f'Storage bucket "{SITE_BUCKET}" not found. Create it in Supabase '
-                              f'(Storage → New bucket, set to Public).', "danger")
+                        flash(f'Storage bucket "{SITE_BUCKET}" not found. Create it in Supabase (Storage -> New bucket, Public).', "danger")
                     else:
                         flash(f"Image upload failed: {msg}", "danger")
                     logging.exception("site image upload failed")
-
                 db.commit()
-                flash("Event page saved.", "success")
+                flash("Event website saved.", "success")
                 return redirect(url_for("event_site_edit", event_id=event_id))
-
-            data = {
-                "id": ev.id, "name": ev.name, "slug": ev.slug,
-                "site_enabled":      bool(getattr(ev, "site_enabled", False)),
-                "site_event_time":   getattr(ev, "site_event_time", None) or "",
-                "site_story":        getattr(ev, "site_story", None) or "",
-                "site_contact":      getattr(ev, "site_contact", None) or "",
-                "site_dress_code":   getattr(ev, "site_dress_code", None) or "",
-                "site_map_url":      getattr(ev, "site_map_url", None) or "",
-                "contribution_info": getattr(ev, "contribution_info", None) or "",
-                "site_theme":        getattr(ev, "site_theme", None) or "emerald",
-                "hero":              getattr(ev, "site_hero_url", None) or "",
-                "gallery":           _site_gallery(ev),
-            }
-            public_url = (f"{PUBLIC_BASE_URL}/e/{ev.slug}" if PUBLIC_BASE_URL
-                          else f"{request.host_url.rstrip('/')}/e/{ev.slug}")
-        return render_template("event_site_form.html", event=data, public_url=public_url)
+            x = _wextra(ev)
+            vals = {}
+            for _title, fields in FIELD_SECTIONS:
+                for key, _label, kind, store in fields:
+                    vals[key] = bool(getattr(ev, key, False)) if kind == "check" else ((getattr(ev, key, None) or "") if store == "col" else x.get(key, ""))
+            data = dict(id=ev.id, name=ev.name, slug=ev.slug, title=ev.weds_names or ev.name, etype=ev.event_type or "Wedding",
+                        day=ev.event_day or "", date=ev.event_date or "", venue=ev.event_venue or "",
+                        hero=getattr(ev, "site_hero_url", None) or "", gallery=_site_gallery(ev))
+            public_url = f"{PUBLIC_BASE_URL or request.host_url.rstrip('/')}/e/{ev.slug}"
+        return render_template("event_site_form.html", event=data, sections=FIELD_SECTIONS, vals=vals, public_url=public_url)
 
     @app.route("/events/<int:event_id>/site/remove_image", methods=["POST"])
     @admin_required
@@ -648,6 +623,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
         resp.headers["Cache-Control"] = "private, no-store" if gname else "public, max-age=60"
         return resp
 
+    @app.route("/e/<slug>")
     @app.route("/w/<slug>")
     def public_wedding(slug):
         with get_db_session() as db:
@@ -667,27 +643,14 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             if not start:
                 return "Wedding date not configured", 404
             loc = (w["cer"] or {}).get("addr") or w["place"]
-            body = build_ics(f"Wedding of {w['names']}", start, loc, (PUBLIC_BASE_URL or request.host_url.rstrip("/")) + f"/w/{slug}")
+            body = build_ics(w['names'], start, loc, (PUBLIC_BASE_URL or request.host_url.rstrip("/")) + f"/w/{slug}")
         return app.response_class(body, mimetype="text/calendar",
                                   headers={"Content-Disposition": f"attachment; filename=wedding-{slug}.ics"})
 
-    @app.route("/events/<int:event_id>/site/wedding", methods=["GET", "POST"])
+    @app.route("/events/<int:event_id>/site/wedding")
     @admin_required
     def event_wedding_edit(event_id):
-        with get_db_session() as db:
-            ev = db.get(Event, event_id)
-            if not ev:
-                flash("Event not found.", "danger")
-                return redirect(url_for("events_list"))
-            if request.method == "POST":
-                ev.site_extra = json.dumps({k: (request.form.get(k) or "").strip()[:2000] for k, _, _ in WED_FIELDS})
-                db.commit()
-                flash("Wedding website details saved.", "success")
-                return redirect(url_for("event_wedding_edit", event_id=event_id))
-            data = dict(id=ev.id, name=ev.name, slug=ev.slug, enabled=bool(getattr(ev, "site_enabled", False)),
-                        bwg=getattr(ev, "site_theme", None) == "bwg")
-            x = _wextra(ev)
-        return render_template("event_wedding_form.html", event=data, fields=WED_FIELDS, x=x)
+        return redirect(url_for("event_site_edit", event_id=event_id))
 
     # ── Website RSVP (same fields as the WhatsApp webhook) ───────────────
     @app.route("/w/<slug>/rsvp", methods=["POST"])

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Michango — {{ event_name }}</title>
+<style>
+body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;color:#1f2937}.w{max-width:900px;margin:0 auto;padding:1rem}
+.box{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:1rem;margin-bottom:1rem}h1{font-size:1.3rem;color:#185a3f;margin:.2rem 0 .8rem}
+.t{display:grid;grid-template-columns:repeat(3,1fr);gap:.6rem;text-align:center}.t b{display:block;font-size:1.25rem;color:#185a3f}.t span{font-size:.75rem;color:#6b7280}
+table{width:100%;border-collapse:collapse;font-size:.9rem}td,th{padding:.45rem .3rem;border-bottom:1px solid #eee;text-align:left}th{font-size:.7rem;color:#6b7280;text-transform:uppercase}
+input[type=number],input[type=search]{padding:.45rem;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem}input[type=number]{width:105px}input[type=search]{width:100%;margin-bottom:.6rem}
+button,.b{background:#185a3f;color:#fff;border:0;border-radius:6px;padding:.45rem .7rem;font-size:.8rem;cursor:pointer}button.g{background:#6b7280}
+.f{padding:.7rem 1rem;border-radius:8px;margin-bottom:.8rem;background:#dcfce7}.bal{font-weight:bold}.ok{color:#15803d}.owe{color:#dc2626}.sc{overflow-x:auto}
+</style></head><body><div class="w">
+<p><a href="{{ url_for('view_all') }}">← Back</a> · <a href="{{ url_for('reminders_page') }}">Reminders</a></p>
+{% for m in get_flashed_messages() %}<div class="f">{{ m }}</div>{% endfor %}
+<div class="box"><h1>Michango — {{ event_name }}</h1>
+ <div class="t"><div><b id="tp">{{ '{:,}'.format(tot_pledge) }}</b><span>Pledged (TSh)</span></div><div><b id="td">{{ '{:,}'.format(tot_paid) }}</b><span>Paid</span></div><div><b id="tb">{{ '{:,}'.format([tot_pledge-tot_paid,0]|max) }}</b><span>Outstanding</span></div></div></div>
+<div class="box"><form method="post" action="{{ url_for('pledges_import') }}" enctype="multipart/form-data">
+ <b>Import from CSV</b> <small style="color:#6b7280">columns: phone, pledge, paid (paid optional)</small><br><br>
+ <input type="file" name="file" accept=".csv" required> <button>Import</button></form></div>
+<div class="box"><input type="search" id="q" placeholder="Search name or phone…">
+<div class="sc"><table><thead><tr><th>#</th><th>Name</th><th>Pledge (TSh)</th><th>Paid</th><th>Balance</th><th></th></tr></thead><tbody>
+{% for r in rows %}<tr data-id="{{ r.id }}" data-s="{{ (r.name ~ ' ' ~ r.phone)|lower }}">
+ <td>{{ r.vid }}</td><td>{{ r.name }}<br><small style="color:#6b7280">{{ r.phone }}</small></td>
+ <td><input type="number" min="0" class="pl" value="{{ r.pledge }}"></td>
+ <td class="pd">{{ '{:,}'.format(r.paid) }}</td>
+ <td class="bal"></td>
+ <td><button class="sv">Save</button> <button class="g ad">+ Payment</button></td></tr>{% endfor %}
+</tbody></table></div></div></div>
+<script>
+const fmt=n=>Number(n).toLocaleString('en-US');
+const rows=[...document.querySelectorAll('tbody tr')];
+const paid=new Map(rows.map(r=>[r,+r.querySelector('.pd').textContent.replace(/,/g,'')]));
+function refresh(r){const p=+r.querySelector('.pl').value||0,d=paid.get(r),b=Math.max(p-d,0),c=r.querySelector('.bal');
+  c.textContent=fmt(b);c.className='bal '+(p>0&&b===0?'ok':b>0?'owe':'');r.querySelector('.pd').textContent=fmt(d)}
+function totals(){let p=0,d=0;rows.forEach(r=>{p+=+r.querySelector('.pl').value||0;d+=paid.get(r)});
+  tp.textContent=fmt(p);td.textContent=fmt(d);tb.textContent=fmt(Math.max(p-d,0))}
+async function post(id,body){const r=await fetch('/pledges/save/'+id,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});return r.json()}
+rows.forEach(r=>{refresh(r);const id=r.dataset.id;
+ r.querySelector('.pl').oninput=()=>{refresh(r);totals()};
+ r.querySelector('.sv').onclick=async e=>{const x=await post(id,{pledge:r.querySelector('.pl').value});e.target.textContent=x.success?'Saved ✓':'Error';setTimeout(()=>e.target.textContent='Save',1500)};
+ r.querySelector('.ad').onclick=async()=>{const a=prompt('Amount received (TSh):');if(!a)return;const n=parseInt(a.replace(/[, ]/g,''),10);if(isNaN(n))return alert('Enter a number');
+   const x=await post(id,{add:n});if(x.success){paid.set(r,x.paid);r.querySelector('.pl').value=x.pledge;refresh(r);totals()}else alert('Failed')}});
+totals();
+q.oninput=()=>{const v=q.value.toLowerCase();rows.forEach(r=>r.style.display=r.dataset.s.includes(v)?'':'none')};
+</script></body></html>
