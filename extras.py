@@ -668,3 +668,17 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             guest.rsvp_at = now_eat()
             db.commit()
             return jsonify(success=True, status=status)
+
+    # ── Personal website links (admin) — SMS no longer carries a link ─────
+    @app.route("/guest_links")
+    @admin_required
+    def guest_links_page():
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            gs = db.query(Guest).filter_by(event_id=ev.id if ev else None).order_by(Guest.visual_id).all()
+            base = PUBLIC_BASE_URL or request.host_url.rstrip("/")
+            rows = [dict(vid=str(g.visual_id or 0).zfill(4), name=g.name or "", phone=g.phone or "", rsvp=g.rsvp_status or "",
+                         url=f"{base}/e/{ev.slug}?g={g.qr_code_id}&s={_guest_sig(g.qr_code_id)}") for g in gs if ev]
+            name = ev.name if ev else "No Event"
+            on = bool(ev and getattr(ev, "site_enabled", False))
+        return render_template("guest_links.html", rows=rows, event_name=name, site_on=on)

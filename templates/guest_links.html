@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width,initial-scale=1">
+        <title>Guest links — {{ event_name }}</title>
+    </head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background: #f3f4f6;
+            margin: 0;
+            color: #1f2937;
+        }
+        .w {
+            max-width: 980px;
+            margin: 0 auto;
+            padding: 1rem;
+        }
+        .b {
+            background: #fff;
+            border: 1px solid #e5e7eb;
+            border-radius: 12px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        h1 {
+            font-size: 1.3rem;
+            color: #185a3f;
+            margin: .2rem 0 .4rem;
+        }
+        input[type=search] {
+            width: 100%;
+            padding: .5rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            margin-bottom: .7rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .88rem;
+        }
+        td, th {
+            padding: .45rem .3rem;
+            border-bottom: 1px solid #eee;
+            text-align: left;
+            vertical-align: middle;
+        }
+        th {
+            font-size: .7rem;
+            color: #6b7280;
+            text-transform: uppercase;
+        }
+        button, .bt {
+            background: #185a3f;
+            color: #fff;
+            border: 0;
+            border-radius: 6px;
+            padding: .4rem .7rem;
+            font-size: .78rem;
+            cursor:pointer;
+            text-decoration:none;
+            display:inline-block
+        }
+        .g {
+            background:#6b7280
+        }
+        .wa {
+            background:#25d366
+        }
+        .h {
+            color:#6b7280
+        }
+        .warn {
+          background:#fef9c3
+          padding:.7rem
+          border-radius:8px
+        }
+        .y {
+          color:#15803d
+        }
+        .n {
+          color:#dc2626
+        }
+        .sc {
+          overflow-x:auto
+        }
+    </style>
+<body>
+    <div class="w">
+        <p><a href="{{ url_for('view_all') }}">← Back</a> · <a href="{{ url_for('reminders_page') }}">Reminders</a> · <a href="{{ url_for('pledges_page') }}">Michango</a></p>
+<div class="b">
+    <h1>Personal website links — {{ event_name }}</h1>
+    <p class="h">Each guest has their own link. When they open it they see their name and the <b>Nitakuwepo / Sitakuwepo</b> buttons, and their answer is saved here. Use these to test the RSVP buttons, or to send a link by WhatsApp. SMS messages do not contain the link.</p>
+    {% if not site_on %}<p class="warn">The event website is OFF. Turn it on in Event Website, otherwise these links show "Page not found".</p>{% endif %}
+<input type="search" id="q" placeholder="Search name or phone…">
+<div class="sc"><table><thead><tr><th>#</th><th>Guest</th><th>RSVP</th><th>Personal link</th></tr></thead><tbody>
+{% for r in rows %}<tr data-s="{{ (r.name ~ ' ' ~ r.phone)|lower }}"><td>{{ r.vid }}</td><td>{{ r.name }}<br><span class="h">{{ r.phone }}</span></td>
+<td>{% if r.rsvp == 'attending' %}<span class="y">Nitakuwepo</span>{% elif r.rsvp == 'not_attending' %}<span class="n">Sitakuwepo</span>{% else %}<span class="h">—</span>{% endif %}</td>
+<td><button class="cp" data-u="{{ r.url }}">Copy link</button> <a class="bt g" href="{{ r.url }}" target="_blank" rel="noopener">Open</a>
+<a class="bt wa" target="_blank" rel="noopener" href="https://wa.me/{{ r.phone }}?text={{ ('Habari ' ~ r.name ~ ', karibu kwenye ukurasa wa mwaliko wako na uthibitishe kuhudhuria: ' ~ r.url)|urlencode }}">WhatsApp</a></td></tr>{% endfor %}
+</tbody></table></div></div></div>
+<script>document.querySelectorAll('.cp').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(b.dataset.u);b.textContent='Copied ✓'}catch(e){prompt('Copy this link:',b.dataset.u)}setTimeout(()=>b.textContent='Copy link',1800)});
+q.oninput=()=>{const v=q.value.toLowerCase();document.querySelectorAll('tbody tr').forEach(r=>r.style.display=r.dataset.s.includes(v)?'':'none')};</script></body></html>
