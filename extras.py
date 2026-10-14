@@ -64,6 +64,27 @@ def _sig_ok(qr_code_id, sig) -> bool:
         return False
 
 
+def card_status(guest, event):
+    """-> (cleared, reason, base). A card is released when the pledge is fully paid OR the minimum for the
+    card type is reached (or the organiser overrides). With the gate OFF everybody is cleared (old behaviour)."""
+    if not event or not getattr(event, "contrib_gate", False):
+        return True, "gate off", 0
+    ct = (getattr(guest, "card_type", None) or "single").lower()
+    base = int({"single": getattr(event, "min_single", 0), "double": getattr(event, "min_double", 0)}.get(ct, getattr(event, "min_group", 0)) or 0)
+    if getattr(guest, "card_override", False):
+        return True, "override", base
+    pledge, paid = int(getattr(guest, "pledge_amount", 0) or 0), int(getattr(guest, "paid_amount", 0) or 0)
+    if pledge > 0 and paid >= pledge:
+        return True, "pledge completed", base
+    if base > 0 and paid >= base:
+        return True, "minimum reached", base
+    return False, "waiting", base
+
+
+def card_cleared(guest, event) -> bool:
+    return card_status(guest, event)[0]
+
+
 def event_site_path(event, guest=None) -> str:
     """'<slug>' or '<slug>?g=<qr_id>&s=<sig>' — also used as the WhatsApp URL-button variable."""
     slug = (getattr(event, "slug", "") or "") if event else ""
@@ -114,6 +135,9 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         if paid > 0:
             lines.append(f"Umeshalipa: TSh {paid:,}")
         lines.append(f"Salio: TSh {max(pledge - paid, 0):,}")
+        _ok, _why, _base = card_status(guest, event)
+        if _base and not _ok:
+            lines.append(f"Kiwango cha chini ili upokee kadi: TSh {_base:,} (bado TSh {max(_base - paid, 0):,}).")
         if info:
             lines += ["", "Namna ya kulipa:", info]
         lines += ["", "Tafadhali toa taarifa baada ya kulipa. Asante sana, Mungu akubariki."]
@@ -461,6 +485,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                 declined=sum(1 for g in guests if g.rsvp_status == "not_attending"),
                 entered=sum(1 for g in guests if (g.checked_in_count or 0) >= 1),
                 owing=sum(1 for g in guests if (g.pledge_amount or 0) > (g.paid_amount or 0)),
+                gate=bool(getattr(ev, "contrib_gate", False)),
                 sms_enabled=at_configured(),
                 site_url=event_site_url(ev),
             )
@@ -498,6 +523,10 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                     continue
                 if kind == "personal" and (g.pledge_amount or 0) <= (g.paid_amount or 0):
                     continue
+                if getattr(ev, "contrib_gate", False):
+                    _cleared = card_status(g, ev)[0]
+                    if (kind == "event" and not _cleared) or (kind == "michango" and _cleared):
+                        continue
                 if skip_declined and g.rsvp_status == "not_attending":
                     continue
                 if skip_entered and (g.checked_in_count or 0) >= 1:
@@ -558,10 +587,40 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             ev = get_active_event(db)
             gs = db.query(Guest).filter_by(event_id=ev.id if ev else None).order_by(Guest.visual_id).all()
             rows = [dict(id=g.id, vid=str(g.visual_id or 0).zfill(4), name=g.name or "", phone=g.phone or "",
-                         pledge=g.pledge_amount or 0, paid=g.paid_amount or 0) for g in gs]
+                         ctype=(g.card_type or "single").lower(), pledge=g.pledge_amount or 0, paid=g.paid_amount or 0,
+                         override=bool(getattr(g, "card_override", False)), sent=bool(g.whatsapp_sent or g.at_sms_sent)) for g in gs]
+            cfg = dict(gate=bool(getattr(ev, "contrib_gate", False)), single=getattr(ev, "min_single", 0) or 0,
+                       double=getattr(ev, "min_double", 0) or 0, group=getattr(ev, "min_group", 0) or 0,
+                       gate_scan=bool(getattr(ev, "gate_scan", False)))
             name = ev.name if ev else "No Event"
-        return render_template("pledges.html", rows=rows, event_name=name,
-                               tot_pledge=sum(r["pledge"] for r in rows), tot_paid=sum(r["paid"] for r in rows))
+        return render_template("pledges.html", rows=rows, cfg=cfg, event_name=name)
+
+    @app.route("/pledges/settings", methods=["POST"])
+    @admin_required
+    def pledges_settings():
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            if ev:
+                ev.min_single = _num(request.form.get("min_single"))
+                ev.min_double = _num(request.form.get("min_double"))
+                ev.min_group = _num(request.form.get("min_group"))
+                ev.contrib_gate = "contrib_gate" in request.form
+                ev.gate_scan = "gate_scan" in request.form
+                db.commit()
+                flash("Contribution rules saved.", "success")
+        return redirect(url_for("pledges_page"))
+
+    @app.route("/pledges/override/<int:gid>", methods=["POST"])
+    @admin_required
+    def pledge_override(gid):
+        d = request.get_json() or {}
+        with get_db_session() as db:
+            g = db.get(Guest, gid)
+            if not g:
+                return jsonify(success=False, error="Guest not found"), 404
+            g.card_override = bool(d.get("on"))
+            db.commit()
+            return jsonify(success=True, override=g.card_override)
 
     @app.route("/pledges/save/<int:gid>", methods=["POST"])
     @admin_required

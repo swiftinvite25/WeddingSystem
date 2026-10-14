@@ -28,7 +28,7 @@ def fmt_eat(dt, fmt='%H:%M') -> str:
 from functools import wraps
 from urllib.parse import quote as url_encode
 from whatsapp import send_guest_card
-from extras import register_extras, event_site_url, event_site_path
+from extras import register_extras, event_site_url, event_site_path, card_cleared, card_status
 from sms_africastalking import send_sms as at_send_sms, is_configured as at_configured
 import time
 
@@ -1012,15 +1012,22 @@ def upload_csv():
             flash("No file selected.", "danger")
             return redirect(request.url)
 
-        stream = StringIO(file.stream.read().decode("utf-8"))
-        reader = csv.DictReader(stream)
-        added = skipped = 0
+        import re as _re
+        reader = csv.DictReader(StringIO(file.stream.read().decode("utf-8-sig")))
+        added = updated = skipped = 0
 
-        def get_row(row, *keys):
-            for k in keys:
-                v = row.get(k) or row.get(k.lower()) or row.get(k.capitalize())
-                if v: return v.strip()
+        def norm_row(row):   # headers like "Amount Paid" / "amount_paid" / "Card Type" all work
+            return {_re.sub(r'[^a-z]', '', (k or '').lower()): (v or '').strip() for k, v in row.items()}
+
+        def pick(r, *names):
+            for n in names:
+                if r.get(n):
+                    return r[n]
             return ""
+
+        def money(v):        # "100,000/=" -> 100000, "" -> None
+            d = _re.sub(r'[^0-9]', '', (v or '').split('.')[0])
+            return int(d) if d else None
 
         def normalize(raw):
             raw = (raw or "").strip().lower()
@@ -1033,46 +1040,57 @@ def upload_csv():
             ev  = get_active_event(db)
             eid = ev.id if ev else None
             for row in reader:
-                name      = get_row(row, "name", "Name")
-                raw_phone = get_row(row, "phone", "Phone")
+                r         = norm_row(row)
+                name      = pick(r, "name", "jina")
+                raw_phone = pick(r, "phone", "phonenumber", "simu")
                 if not raw_phone:
-                    skipped += 1; continue
-
+                    skipped += 1
+                    continue
                 phone     = to_whatsapp_number(raw_phone)
-                card_type = normalize(get_row(row, "Card Type", "card_type", "type"))
+                card_type = normalize(pick(r, "cardtype", "type"))
                 if card_type == "single":   group_size = 1
                 elif card_type == "double": group_size = 2
                 else:
                     try:
-                        group_size = max(1, int(get_row(
-                            row, "Allowed", "allowed", "Size", "size",
-                            "Group Size", "group_size")))
+                        group_size = max(1, int(pick(r, "allowed", "size", "groupsize")))
                     except Exception:
                         group_size = 1
 
-                if db.query(Guest).filter_by(phone=phone, event_id=eid).first():
-                    skipped += 1; continue
+                pledge  = money(pick(r, "pledge", "ahadi"))
+                paid    = money(pick(r, "amountpaid", "paid", "amelipa"))
+                balance = money(pick(r, "balance", "salio"))
+                if pledge is None and balance is not None and paid is not None:
+                    pledge = paid + balance          # file gives paid + balance only
+
+                existing = db.query(Guest).filter_by(phone=phone, event_id=eid).first()
+                if existing:                         # same phone again: update the money, keep the card
+                    if pledge is None and paid is None:
+                        skipped += 1
+                        continue
+                    if pledge is not None: existing.pledge_amount = pledge
+                    if paid is not None:   existing.paid_amount   = paid
+                    updated += 1
+                    continue
 
                 visual_id = get_next_visual_id(db, eid)
                 qr_id     = f"EV{eid or 0}-GUEST-{visual_id:04d}"
                 qr_fname  = f"{qr_id}-{get_safe_filename_name_part(name or 'GUEST')}.png"
                 try:
-                    qr_bytes = generate_qr_bytes(qr_id)
-                    qr_url   = upload_to_supabase(QR_BUCKET, qr_fname, qr_bytes,
-                                                  content_type="image/png")
+                    qr_url = upload_to_supabase(QR_BUCKET, qr_fname, generate_qr_bytes(qr_id),
+                                                content_type="image/png")
                 except Exception as e:
                     current_app.logger.warning(f"QR upload failed for {name}: {e}")
                     qr_url = ""
 
-                db.add(Guest(name=name, phone=phone, qr_code_id=qr_id,
-                             qr_code_url=qr_url, visual_id=visual_id,
-                             card_type=card_type, group_size=group_size,
-                             checked_in_count=0, event_id=eid))
+                db.add(Guest(name=name, phone=phone, qr_code_id=qr_id, qr_code_url=qr_url,
+                             visual_id=visual_id, card_type=card_type, group_size=group_size,
+                             checked_in_count=0, event_id=eid,
+                             pledge_amount=pledge or 0, paid_amount=paid or 0))
                 db.flush()
                 added += 1
             db.commit()
 
-        flash(f"CSV processed — Added: {added}, Skipped: {skipped}", "success")
+        flash(f"CSV processed — Added: {added}, Updated: {updated}, Skipped: {skipped}", "success")
         return redirect(url_for('view_all'))
 
     return render_template('upload_csv.html')
@@ -1101,6 +1119,11 @@ def update_status():
                     visual_id=int(visual_id), event_id=eid).first()
             if not guest:
                 return jsonify(success=False, message="Guest not found.")
+            if getattr(ev, "gate_scan", False) and not card_cleared(guest, ev):
+                return jsonify(success=False,
+                    message="Contribution incomplete — please see the organiser.",
+                    guest={"visual_id": guest.visual_id, "name": guest.name,"card_type": (guest.card_type or "").title(),"remaining_entries": (guest.group_size or 1) - (guest.checked_in_count or 0)})
+
             remaining = guest.group_size - guest.checked_in_count
             if remaining <= 0:
                 return jsonify(
@@ -1796,6 +1819,11 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
     sms_status = "skipped"
     messages   = []
 
+    _ok, _why, _base = card_status(guest, event)
+    if not _ok:
+        return {"wa": "skipped", "sms": "skipped", "overall": "failed",
+            "message": f"Card not released: pledge not completed and the minimum of TSh {_base:,} is not reached yet."}
+
     phone = to_whatsapp_number(guest.phone)
     if not phone:
         return {"wa": "failed", "sms": "failed",
@@ -1923,7 +1951,7 @@ def pending_guest_ids():
         if resend:
             ids = [g.id for g in db.query(Guest)
                 .filter_by(event_id=eid)
-                .order_by(Guest.visual_id).all()]
+                .order_by(Guest.visual_id).all() if card_cleared(g, ev)]
         else:
             q = db.query(Guest).filter(Guest.event_id == eid)
             if channel == 'wa':
@@ -1935,7 +1963,7 @@ def pending_guest_ids():
                     ((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)),
                     ((Guest.at_sms_sent   == False) | (Guest.at_sms_sent   == None))
                 )
-            ids = [g.id for g in q.order_by(Guest.visual_id).all()]
+            ids = [g.id for g in q.order_by(Guest.visual_id).all() if card_cleared(g, ev)]
     return jsonify(guest_ids=ids, total=len(ids))
 
 

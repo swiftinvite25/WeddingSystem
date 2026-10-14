@@ -27,6 +27,7 @@
   <div class="box">
     <h1>Send Reminders — {{ event_name }}</h1>
     <div class="hint">{{ with_phone }} guests with phone numbers · {{ declined }} declined · {{ entered }} already checked in · {{ owing }} still owe a pledge · <a href="{{ url_for('pledges_page') }}">Manage pledges</a></div>
+    {% if gate %}<p class="hint" style="margin-top:.5rem">Card rule is ON: <b>event reminders</b> go only to guests whose card is released; <b>michango reminders</b> go only to guests still waiting.</p>{% endif %}
     {% if not sms_enabled %}<p class="warn">Africa's Talking SMS is not configured, so reminders cannot be sent.</p>{% endif %}
 
     <label><input type="radio" name="kind" value="event" checked> 📅 Event reminder (date, time, venue, card number)</label>

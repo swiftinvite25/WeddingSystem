@@ -62,6 +62,12 @@ def _run_migrations(engine):
             ("contribution_info", "TEXT"),
             ("site_theme",        "VARCHAR"),
             ("site_extra",        "TEXT"),
+            # ── contribution gate (cards released only after minimum / full pledge) ──
+            ("min_single",        "INTEGER DEFAULT 0"),
+            ("min_double",        "INTEGER DEFAULT 0"),
+            ("min_group",         "INTEGER DEFAULT 0"),
+            ("contrib_gate",      "BOOLEAN DEFAULT FALSE"),
+            ("gate_scan",         "BOOLEAN DEFAULT FALSE"),
         ]:
             if col_def[0] not in ev_cols:
                 try:
@@ -85,6 +91,7 @@ def _run_migrations(engine):
             # ── contributions (michango / ahadi) ──
             ("pledge_amount",        "INTEGER DEFAULT 0"),
             ("paid_amount",          "INTEGER DEFAULT 0"),
+            ("card_override",        "BOOLEAN DEFAULT FALSE"),
         ]:
             if col_def[0] not in guest_cols:
                 try:
@@ -159,6 +166,13 @@ class Event(Base):
     site_theme        = Column(String, nullable=True)   # emerald | burgundy | navy | rose | bwg
     site_extra        = Column(Text,   nullable=True)   # JSON: Black-White-Gold website settings
 
+    # Contribution gate: minimum paid (TSh) per card type before a card is released
+    min_single   = Column(Integer, default=0)
+    min_double   = Column(Integer, default=0)
+    min_group    = Column(Integer, default=0)
+    contrib_gate = Column(Boolean, default=False)   # only send cards to guests who qualify
+    gate_scan    = Column(Boolean, default=False)   # also refuse check-in for guests who do not qualify
+
     # Status
     is_active   = Column(Boolean, default=True)
     created_at  = Column(DateTime, nullable=True)
@@ -226,6 +240,7 @@ class Guest(Base):
     # Contributions (TSh)
     pledge_amount = Column(Integer, default=0)
     paid_amount   = Column(Integer, default=0)
+    card_override = Column(Boolean, default=False)  # organiser released the card manually
 
     # Relationship
     event = relationship("Event", back_populates="guests")
