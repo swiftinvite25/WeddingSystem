@@ -1,40 +1,35 @@
 {% extends "base.html" %}
+{% set title = "Upload Guests (CSV)" %}
 {% block content %}
-<div class="card mx-auto shadow-sm" style="max-width:640px;">
+<div class="card mx-auto shadow-sm" style="max-width:720px;">
   <div class="card-body">
-    <h2 class="card-title text-center mb-3">Upload Guests (CSV)</h2>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-
-    <form method="POST" enctype="multipart/form-data">
-      <div class="form-group">
-        <label for="file">CSV File</label>
-        <input required class="form-control-file" type="file" id="file" name="file" accept=".csv">
-        <small class="form-text text-muted">Required columns: name, phone. Optional: card_type (single/double/family), group_size (if family).</small>
+    <h2 class="card-title text-center mb-3">Upload Guests &amp; Pledges (CSV)</h2>
+    <form method="POST" enctype="multipart/form-data" id="upForm">
+      <div class="mb-3">
+        <label for="file" class="form-label fw-bold">CSV file</label>
+        <input required class="form-control" type="file" id="file" name="file" accept=".csv">
       </div>
-
-      <div class="d-flex mt-3">
-        <button class="btn btn-primary mr-2" type="submit">Upload</button>
-        <a href="{{ url_for('view_all') }}" class="btn btn-secondary">Back to Dashboard</a>
+      <div class="alert alert-light border small">
+        <b>Columns</b> (any order): <code>name</code>, <code>phone</code> (required) · <code>card type</code> (single / double / family) · <code>pledge</code> · <code>amount paid</code> · <code>balance</code> · <code>group size</code> (family cards only).<br>
+        • New phone numbers are added as new guests with their pledge and payment.<br>
+        • A phone that already exists in this event only gets its <b>pledge / amount paid updated</b> (its card is kept).<br>
+        • Amounts like <code>100,000/=</code> are fine. If a file has paid + balance but no pledge, the pledge is worked out.
+      </div>
+      <div class="d-flex flex-wrap gap-2">
+        <button class="btn btn-primary" type="submit">Upload</button>
+        <a href="{{ url_for('view_all') }}" class="btn btn-outline-secondary">Back to Guests</a>
+        <a href="#" id="sample" class="btn btn-link ms-auto">Download sample CSV</a>
       </div>
     </form>
+    <hr>
+    <div class="small text-muted">Next step: set the minimum amounts for card release on the <a href="{{ url_for('pledges_page') }}">Michango</a> page, then <a href="{{ url_for('generate_cards_page') }}">generate</a> and <a href="{{ url_for('send_cards') }}">send</a> cards.</div>
   </div>
 </div>
-
 <script>
-document.querySelector('form').addEventListener('submit', function(e){
-  const f = document.getElementById('file');
-  if (!f.value) { e.preventDefault(); alert('Please select a CSV file.'); }
-  else {
-    const name = f.value.toLowerCase();
-    if (!name.endsWith('.csv')) { e.preventDefault(); alert('Only .csv files allowed.'); f.value = ''; }
-  }
-});
+document.getElementById('upForm').addEventListener('submit',function(e){const f=document.getElementById('file');
+  if(!f.value||!f.value.toLowerCase().endsWith('.csv')){e.preventDefault();alert('Please choose a .csv file.');}});
+document.getElementById('sample').onclick=function(e){e.preventDefault();
+  const t='name,phone,card type,pledge,amount paid,balance\nAsha John,0712345678,single,100000,70000,30000\nMr & Mrs Peter,0754123456,double,150000,150000,0\n';
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/csv'}));a.download='guests_sample.csv';a.click();};
 </script>
 {% endblock %}

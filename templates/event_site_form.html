@@ -1,101 +1,47 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Event Page — {{ event.name }}</title>
+{% extends "base.html" %}
+{% set title = "Event Website" %}
+{% block content %}
 <style>
-  body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;color:#1f2937}
-  .wrap{max-width:720px;margin:0 auto;padding:1rem}
-  .box{background:#fff;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #e5e7eb}
-  h1{font-size:1.3rem;color:#185a3f;margin:.2rem 0 1rem}
-  label{display:block;font-weight:bold;font-size:.85rem;margin:.9rem 0 .3rem}
-  input[type=text],input[type=url],textarea{width:100%;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem;font-family:inherit}
-  textarea{min-height:90px}
-  .btn{background:#185a3f;color:#fff;border:0;padding:.7rem 1.3rem;border-radius:8px;font-size:1rem;cursor:pointer;text-decoration:none;display:inline-block}
-  .btn.sm{padding:.3rem .7rem;font-size:.8rem;background:#dc2626}
-  .flash{padding:.7rem 1rem;border-radius:8px;margin-bottom:.8rem;background:#e0f2fe}
-  .flash.success{background:#dcfce7}.flash.danger{background:#fee2e2}.flash.warning{background:#fef9c3}
-  .thumbs{display:flex;flex-wrap:wrap;gap:.7rem}
-  .thumb{width:104px;text-align:center}
-  .thumb img{width:104px;height:104px;object-fit:cover;border-radius:8px;display:block;margin-bottom:.3rem}
-  .hint{color:#6b7280;font-size:.8rem}
-  code{background:#f3f4f6;padding:.15rem .4rem;border-radius:4px;word-break:break-all}
+.pg .w{max-width:780px;margin:0 auto;padding:1rem}
+.pg .b{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:1.2rem;margin-bottom:1rem}
+.pg h1{font-size:1.3rem;margin:.2rem 0 .6rem;color:#7a4f4a}
+.pg h3{margin:1.6rem 0 .2rem;font-size:1rem;color:#7a4f4a;border-bottom:1px solid #eee;padding-bottom:.3rem}
+.pg label{display:block;font-weight:bold;font-size:.84rem;margin:.9rem 0 .3rem}
+.pg input[type=text],.pg input[type=datetime-local],.pg textarea{width:100%;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;font:inherit}
+.pg textarea{min-height:84px}
+.pg .btn{background:#7a4f4a;color:#fff;border:0;padding:.8rem 1.6rem;border-radius:8px;font-size:1rem;cursor:pointer}
+.pg .btn.sm{padding:.3rem .7rem;font-size:.8rem;background:#dc2626}
+.pg .f{padding:.7rem 1rem;border-radius:8px;margin-bottom:.8rem;background:#e0f2fe}
+.pg .f.success{background:#dcfce7}
+.pg .f.danger{background:#fee2e2}
+.pg .f.warning{background:#fef9c3}
+.pg .h{color:#6b7280;font-size:.82rem}
+.pg .sum{background:#faf6f0;border:1px solid #e8ded3;border-radius:8px;padding:.8rem 1rem;font-size:.9rem}
+.pg .th{display:flex;flex-wrap:wrap;gap:.7rem}
+.pg .t{width:104px;text-align:center}
+.pg .t img{width:104px;height:104px;object-fit:cover;border-radius:8px;display:block;margin-bottom:.3rem}
+.pg .bar{position:sticky;bottom:0;background:#fff;border-top:1px solid #e5e7eb;padding:.8rem 0;margin-top:1.4rem;text-align:right}
+.pg code{background:#f3f4f6;padding:.15rem .4rem;border-radius:4px;word-break:break-all}
 </style>
-</head>
-<body><div class="wrap">
-  <p><a href="{{ url_for('events_list') }}">← Back to events</a></p>
-  {% with msgs = get_flashed_messages(with_categories=true) %}
-    {% for cat, m in msgs %}<div class="flash {{ cat }}">{{ m }}</div>{% endfor %}
-  {% endwith %}
-
-  <div class="box">
-    <h1>Event Page — {{ event.name }}</h1>
-    <div class="hint">Guests open this page from the link in their invitation SMS.</div>
-    <p>Link: <code>{{ public_url }}</code>
-       {% if event.site_enabled %}· <a href="{{ public_url }}" target="_blank">Open page ↗</a>{% endif %}</p>
-
-    <form method="post" enctype="multipart/form-data">
-      <label><input type="checkbox" name="site_enabled" {% if event.site_enabled %}checked{% endif %}>
-        Page is ON (link is added to invitations &amp; reminders)</label>
-
-      {% if event.site_theme=='bwg' %}<p><a href="{{ url_for('event_wedding_edit', event_id=event.id) }}"><b>Edit premium wedding website details (ceremony, reception, RSVP, FAQ…) →</b></a></p>{% endif %}
-      <label>Event time (shown as “Saa …”)</label>
-      <input type="text" name="site_event_time" value="{{ event.site_event_time }}" placeholder="12:00 Jioni">
-
-      <label>Welcome message / story</label>
-      <textarea name="site_story" placeholder="Karibu katika harusi yetu...">{{ event.site_story }}</textarea>
-
-      <label>Dress code (optional)</label>
-      <input type="text" name="site_dress_code" value="{{ event.site_dress_code }}" placeholder="Kijani na dhahabu">
-
-      <label>Google Maps link (optional)</label>
-      <input type="url" name="site_map_url" value="{{ event.site_map_url }}" placeholder="https://maps.app.goo.gl/...">
-
-      <label>Contact details (optional)</label>
-      <textarea name="site_contact" placeholder="Mwenyekiti: 07xx xxx xxx">{{ event.site_contact }}</textarea>
-
-      <label>Michango / how to contribute (optional — also used in michango reminders)</label>
-      <textarea name="contribution_info" placeholder="M-Pesa: 0712 345 678 (Jina la Akaunti)&#10;Tigo Pesa: ...">{{ event.contribution_info }}</textarea>
-
-      <label>Colour theme (used when there are no photos, and for all accents)</label>
-      <select name="site_theme" style="width:100%;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem">
-        <option value="emerald" {% if event.site_theme=='emerald' %}selected{% endif %}>Emerald &amp; Gold (default)</option>
-        <option value="burgundy" {% if event.site_theme=='burgundy' %}selected{% endif %}>Burgundy &amp; Gold</option>
-        <option value="navy" {% if event.site_theme=='navy' %}selected{% endif %}>Royal Navy &amp; Gold</option>
-        <option value="rose" {% if event.site_theme=='rose' %}selected{% endif %}>Rose Gold &amp; Plum</option>
-        <option value="bwg" {% if event.site_theme=='bwg' %}selected{% endif %}>Elegant Rose &amp; Sage (premium wedding site)</option>
-      </select>
-      <div class="hint">No photos yet? The page shows an elegant default design with the couple's initials. Add the pre-wedding photos later, any time, and they appear automatically.</div>
-
-      <label>Cover photo (replaces current)</label>
-      <input type="file" name="hero" accept="image/*">
-
-      <label>Add gallery photos (up to 12 total)</label>
-      <input type="file" name="images" accept="image/*" multiple>
-      <div class="hint">Photos are resized automatically, so phone pictures are fine.</div>
-
-      <p><button class="btn" type="submit">Save</button></p>
-    </form>
-  </div>
-
-  {% if event.hero or event.gallery %}
-  <div class="box">
-    <h1>Current photos</h1>
-    <div class="thumbs">
-      {% if event.hero %}
-      <div class="thumb"><img src="{{ event.hero }}" alt="">
-        <div class="hint">Cover</div>
-        <form method="post" action="{{ url_for('event_site_remove_image', event_id=event.id) }}">
-          <input type="hidden" name="url" value="{{ event.hero }}"><button class="btn sm">Remove</button></form></div>
-      {% endif %}
-      {% for u in event.gallery %}
-      <div class="thumb"><img src="{{ u }}" alt="">
-        <form method="post" action="{{ url_for('event_site_remove_image', event_id=event.id) }}">
-          <input type="hidden" name="url" value="{{ u }}"><button class="btn sm">Remove</button></form></div>
-      {% endfor %}
-    </div>
-  </div>
-  {% endif %}
-</div></body>
-</html>
+<div class="pg"><div class="w">
+<div class="b"><h1>Event website — {{ event.name }}</h1>
+<p>Public link: <code>{{ public_url }}</code>{% if vals.site_enabled %} · <a href="{{ public_url }}" target="_blank">Open ↗</a>{% else %} <b>(website is OFF)</b>{% endif %}</p>
+<div class="sum"><b>From Event settings</b> (change in <a href="{{ url_for('event_edit', event_id=event.id) }}">Edit Event</a>):<br>
+Name shown on the website: <b>{{ event.title }}</b> · Event type: <b>{{ event.etype }}</b> · {{ event.day }} {{ event.date }} · {{ event.venue }}</div>
+<form method="post" enctype="multipart/form-data">
+{% for title, fields in sections %}<h3>{{ title }}</h3>
+{% for key, label, kind, store in fields %}
+{% if kind == 'check' %}<label><input type="checkbox" name="{{ key }}" {% if vals[key] %}checked{% endif %}> {{ label }}</label>
+{% else %}<label for="{{ key }}">{{ label }}</label>
+{% if kind == 'area' %}<textarea id="{{ key }}" name="{{ key }}">{{ vals[key] }}</textarea>
+{% else %}<input id="{{ key }}" name="{{ key }}" type="{{ 'datetime-local' if kind == 'dt' else 'text' }}" value="{{ vals[key] }}">{% endif %}{% endif %}
+{% endfor %}{% if title == 'Headline' %}
+<label>Cover photo (replaces the current one)</label><input type="file" name="hero" accept="image/*"><div class="h">Wide photo, at least 1600px. Without one the page uses a soft rose-and-sage background.</div>{% endif %}
+{% if title == 'Story / welcome' %}<label>Add gallery photos (up to 12 in total)</label><input type="file" name="images" accept="image/*" multiple><div class="h">The first gallery photo is used as the portrait unless you give a portrait URL. Photos are resized automatically.</div>{% endif %}
+{% endfor %}
+<div class="bar"><button class="btn" type="submit">Save event website</button></div></form></div>
+{% if event.hero or event.gallery %}<div class="b"><h1>Current photos</h1><div class="th">
+{% if event.hero %}<div class="t"><img src="{{ event.hero }}" alt=""><div class="h">Cover</div><form method="post" action="{{ url_for('event_site_remove_image', event_id=event.id) }}"><input type="hidden" name="url" value="{{ event.hero }}"><button class="btn sm">Remove</button></form></div>{% endif %}
+{% for u in event.gallery %}<div class="t"><img src="{{ u }}" alt=""><form method="post" action="{{ url_for('event_site_remove_image', event_id=event.id) }}"><input type="hidden" name="url" value="{{ u }}"><button class="btn sm">Remove</button></form></div>{% endfor %}</div></div>{% endif %}
+</div></div>
+{% endblock %}

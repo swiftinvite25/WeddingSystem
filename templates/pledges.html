@@ -1,19 +1,39 @@
-<!DOCTYPE html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Michango — {{ event_name }}</title>
+{% extends "base.html" %}
+{% set title = "Michango" %}
+{% block content %}
 <style>
-body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;color:#1f2937}.w{max-width:1100px;margin:0 auto;padding:1rem}
-.box{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:1rem;margin-bottom:1rem}h1{font-size:1.3rem;color:#185a3f;margin:.2rem 0 .8rem}h3{margin:.2rem 0 .6rem;font-size:1rem}
-.t{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;text-align:center}.t b{display:block;font-size:1.2rem;color:#185a3f}.t span{font-size:.72rem;color:#6b7280}
-table{width:100%;border-collapse:collapse;font-size:.88rem}td,th{padding:.45rem .3rem;border-bottom:1px solid #eee;text-align:left;vertical-align:middle}th{font-size:.68rem;color:#6b7280;text-transform:uppercase}
-input[type=number],input[type=search]{padding:.45rem;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem}input[type=number]{width:105px}input[type=search]{width:100%;margin-bottom:.6rem}
-button,.b{background:#185a3f;color:#fff;border:0;border-radius:6px;padding:.45rem .7rem;font-size:.8rem;cursor:pointer}button.g{background:#6b7280}
-.f{padding:.7rem 1rem;border-radius:8px;margin-bottom:.8rem;background:#dcfce7}.ok{color:#15803d}.owe{color:#dc2626}.sc{overflow-x:auto}.hint{color:#6b7280;font-size:.8rem}
-.bd{display:inline-block;padding:.15rem .55rem;border-radius:99px;font-size:.72rem;font-weight:bold}.bd.r{background:#dcfce7;color:#15803d}.bd.w{background:#fee2e2;color:#b91c1c}.bd.n{background:#e5e7eb;color:#4b5563}
-.cfg{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}.cfg label{font-size:.8rem;font-weight:bold;display:block}.cfg input{width:100%}@media(max-width:700px){.t{grid-template-columns:repeat(2,1fr)}.cfg{grid-template-columns:1fr}}
-</style></head><body><div class="w">
-<p><a href="{{ url_for('view_all') }}">← Back</a> · <a href="{{ url_for('send_cards') }}">Send Cards</a> · <a href="{{ url_for('reminders_page') }}">Reminders</a> · <a href="{{ url_for('guest_links_page') }}">Guest Links</a></p>
-{% for m in get_flashed_messages() %}<div class="f">{{ m }}</div>{% endfor %}
+.pg .w{max-width:1100px;margin:0 auto;padding:1rem}
+.pg .box{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:1rem;margin-bottom:1rem}
+.pg h1{font-size:1.3rem;color:#185a3f;margin:.2rem 0 .8rem}
+.pg h3{margin:.2rem 0 .6rem;font-size:1rem}
+.pg .t{display:grid;grid-template-columns:repeat(5,1fr);gap:.6rem;text-align:center}
+.pg .t b{display:block;font-size:1.2rem;color:#185a3f}
+.pg .t span{font-size:.72rem;color:#6b7280}
+.pg table{width:100%;border-collapse:collapse;font-size:.88rem}
+.pg td,.pg th{padding:.45rem .3rem;border-bottom:1px solid #eee;text-align:left;vertical-align:middle}
+.pg th{font-size:.68rem;color:#6b7280;text-transform:uppercase}
+.pg input[type=number],.pg input[type=search]{padding:.45rem;border:1px solid #d1d5db;border-radius:6px;font-size:.9rem}
+.pg input[type=number]{width:105px}
+.pg input[type=search]{width:100%;margin-bottom:.6rem}
+.pg button,.pg .b{background:#185a3f;color:#fff;border:0;border-radius:6px;padding:.45rem .7rem;font-size:.8rem;cursor:pointer}
+.pg button.g{background:#6b7280}
+.pg .f{padding:.7rem 1rem;border-radius:8px;margin-bottom:.8rem;background:#dcfce7}
+.pg .ok{color:#15803d}
+.pg .owe{color:#dc2626}
+.pg .sc{overflow-x:auto}
+.pg .hint{color:#6b7280;font-size:.8rem}
+.pg .bd{display:inline-block;padding:.15rem .55rem;border-radius:99px;font-size:.72rem;font-weight:bold}
+.pg .bd.r{background:#dcfce7;color:#15803d}
+.pg .bd.w{background:#fee2e2;color:#b91c1c}
+.pg .bd.n{background:#e5e7eb;color:#4b5563}
+.pg .cfg{display:grid;grid-template-columns:repeat(3,1fr);gap:.8rem}
+.pg .cfg label{font-size:.8rem;font-weight:bold;display:block}
+.pg .cfg input{width:100%}
+@media(max-width:700px){.pg .t{grid-template-columns:repeat(2,1fr)}
+.pg .cfg{grid-template-columns:1fr}}
+</style>
+<div class="pg"><div class="w">
+
 <div class="box"><h1>Michango — {{ event_name }}</h1>
  <div class="t"><div><b id="tp">0</b><span>Pledged (TSh)</span></div><div><b id="td">0</b><span>Paid</span></div><div><b id="tb">0</b><span>Outstanding</span></div><div><b id="cr">0</b><span>Cards released</span></div><div><b id="cw">0</b><span>Waiting</span></div></div></div>
 
@@ -60,4 +80,5 @@ rows.forEach(r=>{refresh(r);const id=r.dataset.id;
   const x=await post('/pledges/save/'+id,{add:n});if(x.success){paid.set(r,x.paid);r.querySelector('.pl').value=x.pledge;refresh(r);totals();
    if(cfg.gate&&stat(r)[0]==='r'&&r.dataset.sent==='0')alert('This guest now qualifies. Go to Send Cards to send their card.')}else alert('Failed')}});
 totals();q.oninput=()=>{const v=q.value.toLowerCase();rows.forEach(r=>r.style.display=r.dataset.s.includes(v)?'':'none')};
-</script></body></html>
+</script></div>
+{% endblock %}

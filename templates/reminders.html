@@ -1,29 +1,26 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Reminders — {{ event_name }}</title>
+{% extends "base.html" %}
+{% set title = "Reminders" %}
+{% block content %}
 <style>
-  body{font-family:Arial,sans-serif;background:#f3f4f6;margin:0;color:#1f2937}
-  .wrap{max-width:720px;margin:0 auto;padding:1rem}
-  .box{background:#fff;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #e5e7eb}
-  h1{font-size:1.3rem;color:#185a3f;margin:.2rem 0 .6rem}
-  label{display:block;margin:.5rem 0;font-size:.95rem}
-  input[type=text]{width:100%;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem}
-  .btn{background:#185a3f;color:#fff;border:0;padding:.7rem 1.3rem;border-radius:8px;font-size:1rem;cursor:pointer;margin-right:.4rem}
-  .btn.grey{background:#6b7280}.btn.red{background:#dc2626}.btn:disabled{opacity:.5}
-  pre{background:#f9fafb;border:1px dashed #d1d5db;padding:.8rem;border-radius:8px;white-space:pre-wrap;font-family:inherit}
-  .bar{height:12px;background:#e5e7eb;border-radius:6px;overflow:hidden}
-  .bar>div{height:100%;width:0;background:#185a3f;transition:width .2s}
-  .hint{color:#6b7280;font-size:.82rem}
-  #log{max-height:220px;overflow:auto;font-size:.82rem;margin-top:.6rem}
-  .ok{color:#15803d}.bad{color:#dc2626}
-  .warn{background:#fef9c3;padding:.7rem;border-radius:8px}
+.pg .wrap{max-width:720px;margin:0 auto;padding:1rem}
+.pg .box{background:#fff;border-radius:12px;padding:1.2rem;margin-bottom:1rem;border:1px solid #e5e7eb}
+.pg h1{font-size:1.3rem;color:#185a3f;margin:.2rem 0 .6rem}
+.pg label{display:block;margin:.5rem 0;font-size:.95rem}
+.pg input[type=text]{width:100%;padding:.6rem;border:1px solid #d1d5db;border-radius:8px;font-size:.95rem}
+.pg .btn{background:#185a3f;color:#fff;border:0;padding:.7rem 1.3rem;border-radius:8px;font-size:1rem;cursor:pointer;margin-right:.4rem}
+.pg .btn.grey{background:#6b7280}
+.pg .btn.red{background:#dc2626}
+.pg .btn:disabled{opacity:.5}
+.pg pre{background:#f9fafb;border:1px dashed #d1d5db;padding:.8rem;border-radius:8px;white-space:pre-wrap;font-family:inherit}
+.pg .bar{height:12px;background:#e5e7eb;border-radius:6px;overflow:hidden}
+.pg .bar>div{height:100%;width:0;background:#185a3f;transition:width .2s}
+.pg .hint{color:#6b7280;font-size:.82rem}
+.pg #log{max-height:220px;overflow:auto;font-size:.82rem;margin-top:.6rem}
+.pg .ok{color:#15803d}
+.pg .bad{color:#dc2626}
+.pg .warn{background:#fef9c3;padding:.7rem;border-radius:8px}
 </style>
-</head>
-<body><div class="wrap">
-  <p><a href="{{ url_for('view_all') }}">← Back</a></p>
+<div class="pg"><div class="wrap">
   <div class="box">
     <h1>Send Reminders — {{ event_name }}</h1>
     <div class="hint">{{ with_phone }} guests with phone numbers · {{ declined }} declined · {{ entered }} already checked in · {{ owing }} still owe a pledge · <a href="{{ url_for('pledges_page') }}">Manage pledges</a></div>
@@ -105,5 +102,5 @@ $('btnSend').onclick = async () => {
 $('btnStop').onclick = () => { stop = true; };
 preview();
 </script>
-</body>
-</html>
+</div>
+{% endblock %}

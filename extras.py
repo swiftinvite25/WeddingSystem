@@ -4,6 +4,7 @@
 # (see APPLY_THESE_CHANGES.md)
 
 import os
+import types
 import csv
 import json
 import time
@@ -741,3 +742,19 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             name = ev.name if ev else "No Event"
             on = bool(ev and getattr(ev, "site_enabled", False))
         return render_template("guest_links.html", rows=rows, event_name=name, site_on=on)
+
+    # ── Template helper: card release status for the active event ────────
+    @app.context_processor
+    def inject_contrib():
+        if not session.get("logged_in"):
+            return {}
+        try:
+            with get_db_session() as db:
+                ev = get_active_event(db)
+                cfg = types.SimpleNamespace(contrib_gate=bool(getattr(ev, "contrib_gate", False)),
+                                            min_single=getattr(ev, "min_single", 0) or 0,
+                                            min_double=getattr(ev, "min_double", 0) or 0,
+                                            min_group=getattr(ev, "min_group", 0) or 0) if ev else None
+        except Exception:
+            return {}
+        return {"contrib_gate": bool(cfg and cfg.contrib_gate), "card_state": (lambda g: card_status(g, cfg))}
