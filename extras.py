@@ -134,7 +134,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
                  f"Tunakukumbusha kwa upendo kuhusu ahadi yako ya TSh {pledge:,} kwa ajili ya {label} ya {weds.upper()}."]
         if paid > 0:
             lines.append(f"Umeshalipa: TSh {paid:,}")
-        lines.append(f"Salio: TSh {max(pledge - paid, 0):,}")
+        lines.append(f"Bado: TSh {max(pledge - paid, 0):,}")
         _ok, _why, _base = card_status(guest, event)
         if _base and not _ok:
             lines.append(f"Kiwango cha chini ili upokee kadi: TSh {_base:,} (bado TSh {max(_base - paid, 0):,}).")
