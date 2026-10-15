@@ -68,6 +68,8 @@ def _run_migrations(engine):
             ("min_group",         "INTEGER DEFAULT 0"),
             ("contrib_gate",      "BOOLEAN DEFAULT FALSE"),
             ("gate_scan",         "BOOLEAN DEFAULT FALSE"),
+            ("price_single",      "INTEGER DEFAULT 0"),
+            ("price_double",      "INTEGER DEFAULT 0"),
         ]:
             if col_def[0] not in ev_cols:
                 try:
@@ -172,6 +174,10 @@ class Event(Base):
     min_group    = Column(Integer, default=0)
     contrib_gate = Column(Boolean, default=False)   # only send cards to guests who qualify
     gate_scan    = Column(Boolean, default=False)   # also refuse check-in for guests who do not qualify
+
+    # Billing rates (TSh per card) used by the client report
+    price_single = Column(Integer, default=0)
+    price_double = Column(Integer, default=0)
 
     # Status
     is_active   = Column(Boolean, default=True)

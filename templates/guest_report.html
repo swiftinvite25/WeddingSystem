@@ -1,186 +1,87 @@
 {% extends "base.html" %}
-{% block title %}Guest Report{% endblock %}
-
+{% set title = "Guest Report" %}
 {% block content %}
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-  body { font-family: 'Inter', sans-serif; background: #f5f7fa; }
-  .rp-wrap { max-width: 1000px; margin: 0 auto; padding: 2rem 1.25rem 4rem; }
-
-  .rp-header {
-    background: #fff; border-radius: 12px; padding: 1.5rem 2rem;
-    margin-bottom: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,.06);
-    display: flex; justify-content: space-between; align-items: center;
-    flex-wrap: wrap; gap: 1rem;
-  }
-  .rp-header h1 { font-size: 1.5rem; font-weight: 700; color: #111; margin: 0 0 .2rem; }
-  .rp-header p  { color: #6b7280; font-size: .85rem; margin: 0; }
-  .btn-row { display: flex; gap: .6rem; flex-wrap: wrap; }
-  .btn-rp {
-    display: inline-flex; align-items: center; gap: .35rem;
-    padding: .5rem 1.1rem; border-radius: 8px; font-size: .84rem;
-    font-weight: 600; border: none; cursor: pointer; text-decoration: none;
-    transition: filter .15s;
-  }
-  .btn-rp:hover { filter: brightness(.93); }
-  .btn-green  { background: #185a3f; color: #fff; }
-  .btn-gold   { background: #c9a84c; color: #fff; }
-  .btn-outline{ background: #fff; color: #374151; border: 1.5px solid #d1d5db; }
-
-  .stat-row {
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr));
-    gap: .85rem; margin-bottom: 1.5rem;
-  }
-  .stat-card {
-    background: #fff; border-radius: 10px; padding: 1.2rem 1rem 1rem;
-    box-shadow: 0 1px 4px rgba(0,0,0,.06); border-top: 4px solid #185a3f;
-    text-align: center;
-  }
-  .stat-card.gold { border-color: #c9a84c; }
-  .stat-card.red  { border-color: #dc2626; }
-  .stat-num { font-size: 2rem; font-weight: 700; color: #185a3f; line-height: 1; margin-bottom: .25rem; }
-  .stat-card.gold .stat-num { color: #b07d1e; }
-  .stat-card.red  .stat-num { color: #dc2626; }
-  .stat-lbl { font-size: .73rem; color: #6b7280; font-weight: 500; text-transform: uppercase; letter-spacing: .04em; }
-
-  .sec-hd {
-    display: flex; align-items: center; gap: .75rem;
-    font-size: 1rem; font-weight: 600; color: #111; margin: 1.75rem 0 .75rem;
-  }
-  .sec-hd::after { content: ''; flex: 1; height: 1px; background: #e5e7eb; }
-  .pill { font-size: .75rem; font-weight: 600; padding: .15rem .65rem; border-radius: 2rem; background: #e8f4ef; color: #185a3f; }
-  .pill.red { background: #fee2e2; color: #dc2626; }
-
-  .table-wrap { background: #fff; border-radius: 10px; box-shadow: 0 1px 4px rgba(0,0,0,.06); overflow: hidden; margin-bottom: 1.5rem; }
-  .rp-table   { width: 100%; border-collapse: collapse; }
-  .rp-table thead th {
-    background: #185a3f; color: #fff; font-size: .78rem; font-weight: 600;
-    text-transform: uppercase; letter-spacing: .04em; padding: .75rem 1rem; text-align: left;
-  }
-  .rp-table tbody tr { border-bottom: 1px solid #f0f0f0; }
-  .rp-table tbody tr:last-child { border-bottom: none; }
-  .rp-table tbody tr:hover { background: #f9fafb; }
-  .rp-table tbody tr:nth-child(even) { background: #fafafa; }
-  .rp-table tbody tr:nth-child(even):hover { background: #f3f4f6; }
-  .rp-table td { padding: .65rem 1rem; font-size: .875rem; color: #374151; }
-  .td-num  { font-weight: 700; color: #185a3f; width: 70px; }
-  .td-type { font-size: .75rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #6b7280; }
-  .empty-row td { text-align: center; color: #9ca3af; font-style: italic; padding: 2rem; }
-
-  .sk { background: linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%);
-        background-size: 200% 100%; animation: shim 1.3s infinite;
-        border-radius: 4px; height: 1.4rem; width: 70%; display: inline-block; }
-  @keyframes shim { to { background-position: -200% 0; } }
+.rp .card-s{background:#fff;border-radius:12px;box-shadow:0 1px 4px rgba(0,0,0,.07);padding:1.1rem 1.2rem;height:100%}
+.rp .num{font-size:1.9rem;font-weight:700;color:#185a3f;line-height:1}.rp .lbl{font-size:.72rem;color:#6b7280;text-transform:uppercase;letter-spacing:.05em;margin-top:.3rem}
+.rp .num.g{color:#b07d1e}.rp .num.r{color:#dc2626}.rp .sub{font-size:.78rem;color:#9ca3af}
+.rp .bill-total{font-size:2.2rem;font-weight:800;color:#185a3f}.rp table th{font-size:.72rem;text-transform:uppercase;letter-spacing:.04em;color:#fff;background:#185a3f;white-space:nowrap}
+.rp .tw{max-height:520px;overflow:auto;background:#fff;border-radius:10px;box-shadow:0 1px 4px rgba(0,0,0,.07)}.rp .tw th{position:sticky;top:0;z-index:1}
+.rp h5{font-weight:700;margin:0}.rp .nm{font-weight:600}.rp .tt{font-size:.72rem;text-transform:uppercase;color:#6b7280;letter-spacing:.04em}
 </style>
-
-<div class="rp-wrap">
-
-  <div class="rp-header">
-    <div>
-      <h1>📋 Guest Report</h1>
-      <p id="rp-sub">Loading guest data…</p>
-    </div>
-    <div class="btn-row">
-      <a href="/download_client_report" class="btn-rp btn-gold" target="_blank">⬇ Client PDF</a>
-      <button class="btn-rp btn-green" onclick="location.href='{{ url_for('download_excel') }}'">📊 Excel</button>
-      <a href="{{ url_for('export_guests_simple', format='pdf') }}" class="btn-rp btn-gold">📋 Guest List (PDF)</a>
-      <a href="{{ url_for('export_guests_simple', format='csv') }}" class="btn-rp btn-outline">📋 Guest List (CSV)</a>
-      <a href="{{ url_for('view_all') }}" class="btn-rp btn-outline">← Back</a>
+<div class="rp">
+  <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+    <div><h2 class="mb-0">Event report</h2><div class="text-muted small" id="sub">Loading…</div></div>
+    <div class="d-flex flex-wrap gap-2">
+      <a id="pdfBtn" class="btn btn-warning fw-semibold" href="{{ url_for('client_report_pdf') }}">⬇ Client report (PDF)</a>
+      {% if session.get('role') == 'admin' %}<a class="btn btn-success" href="{{ url_for('download_excel') }}">Excel</a>{% endif %}
+      <a class="btn btn-outline-secondary" href="{{ url_for('export_guests_simple', format='pdf') }}">Guest list (PDF)</a>
+      <a class="btn btn-outline-secondary" href="{{ url_for('export_guests_simple', format='csv') }}">Guest list (CSV)</a>
     </div>
   </div>
 
-  <!-- Stat cards -->
-  <div class="stat-row" id="stat-row">
-    <div class="stat-card"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
-    <div class="stat-card"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
-    <div class="stat-card red"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
-    <div class="stat-card gold"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
-    <div class="stat-card gold"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
-    <div class="stat-card gold"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
-    <div class="stat-card"><div class="sk"></div><div class="stat-lbl">Loading</div></div>
+  <div class="row g-3 mb-4" id="stats"></div>
+
+  <div class="card-s mb-4">
+    <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <h5>💰 Billing</h5>
+      <div class="btn-group btn-group-sm" role="group">
+        <input type="radio" class="btn-check" name="basis" id="b1" value="issued" checked><label class="btn btn-outline-success" for="b1">All cards issued</label>
+        <input type="radio" class="btn-check" name="basis" id="b2" value="attended"><label class="btn btn-outline-success" for="b2">Only cards that attended</label>
+      </div>
+    </div>
+    <div class="row g-3 align-items-end mb-3">
+      <div class="col-6 col-md-3"><label class="form-label small mb-1">Single card (TSh)</label><input type="number" min="0" id="rs" class="form-control"></div>
+      <div class="col-6 col-md-3"><label class="form-label small mb-1">Double card (TSh)</label><input type="number" min="0" id="rd" class="form-control"></div>
+      {% if session.get('role') == 'admin' %}<div class="col-12 col-md-3"><button class="btn btn-outline-primary w-100" id="saveRates">Save rates</button></div>{% endif %}
+      <div class="col-12 col-md-3 text-md-end"><div class="sub">Total to bill</div><div class="bill-total" id="total">—</div></div>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-2"><thead><tr><th>Item</th><th class="text-end">Quantity</th><th class="text-end">Rate</th><th class="text-end">Amount</th></tr></thead><tbody id="lines"></tbody></table></div>
+    <div class="sub mb-2">A family/group card counts as double cards: every 2 people = 1 double card (rounded up). Example: a card for 20 people = 10 double cards.</div>
+    <div id="famBox" class="d-none"><details><summary class="small fw-semibold">Family / group card conversion</summary>
+      <div class="table-responsive mt-2"><table class="table table-sm"><thead><tr><th>#</th><th>Guest</th><th class="text-end">People allowed</th><th class="text-end">= Double cards</th><th class="text-end">People entered</th><th class="text-end">= Double cards</th></tr></thead><tbody id="fam"></tbody></table></div></details></div>
+    <button class="btn btn-sm btn-outline-secondary mt-2" id="copyBill">Copy bill as text</button>
   </div>
 
-  <!-- Checked-in table -->
-  <div class="sec-hd">Checked In <span class="pill" id="pill-in">—</span></div>
-  <div class="table-wrap">
-    <table class="rp-table">
-      <thead>
-        <tr><th>#</th><th>Guest Name</th><th>Card Type</th><th>Entries Used</th><th>Check-in Time</th></tr>
-      </thead>
-      <tbody id="tbody-in">
-        <tr><td colspan="5" style="padding:2rem;text-align:center"><span class="sk" style="width:40%"></span></td></tr>
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Not checked-in table -->
-  <div class="sec-hd">Not Yet Checked In <span class="pill red" id="pill-nin">—</span></div>
-  <div class="table-wrap">
-    <table class="rp-table">
-      <thead>
-        <tr><th>#</th><th>Guest Name</th><th>Card Type</th><th>Allowed Entries</th><th>RSVP</th></tr>
-      </thead>
-      <tbody id="tbody-nin">
-        <tr><td colspan="5" style="padding:2rem;text-align:center"><span class="sk" style="width:40%"></span></td></tr>
-      </tbody>
-    </table>
-  </div>
-
+  <div class="mb-3"><input type="search" id="q" class="form-control" placeholder="Search guests in the lists below…"></div>
+  <div class="d-flex align-items-center gap-2 mb-2"><h5>Checked in</h5><span class="badge bg-success" id="pIn">—</span></div>
+  <div class="tw mb-4"><table class="table table-hover table-sm align-middle mb-0"><thead><tr><th>#</th><th>Guest</th><th>Card</th><th class="text-end">Entered / allowed</th><th>Time</th></tr></thead><tbody id="tIn"></tbody></table></div>
+  <div class="d-flex align-items-center gap-2 mb-2"><h5>Not yet checked in</h5><span class="badge bg-danger" id="pNin">—</span></div>
+  <div class="tw"><table class="table table-hover table-sm align-middle mb-0"><thead><tr><th>#</th><th>Guest</th><th>Card</th><th class="text-end">Allowed</th><th>RSVP</th></tr></thead><tbody id="tNin"></tbody></table></div>
 </div>
-
 <script>
-function rsvpLabel(s) {
-  if (s === 'attending')     return '<span style="color:#185a3f;font-weight:600">✅ Confirmed</span>';
-  if (s === 'not_attending') return '<span style="color:#dc2626;font-weight:600">❌ Declined</span>';
-  return '<span style="color:#9ca3af">—</span>';
-}
-
-async function load() {
-  const d   = await fetch('/guest_report_data').then(r => r.json());
-  const now = new Date().toLocaleString('en-GB', {
-    day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'
-  });
-  document.getElementById('rp-sub').textContent =
-    `As of ${now} · ${d.total_guests} guests registered`;
-
-  document.getElementById('stat-row').innerHTML = [
-    {n: d.total_guests,       l: 'Total Guests',   c: ''},
-    {n: d.entered_guests,     l: 'Checked In',     c: ''},
-    {n: d.not_entered_guests, l: 'Not In Yet',     c: 'red'},
-    {n: d.single_cards,       l: 'Single Cards',   c: 'gold'},
-    {n: d.double_cards,       l: 'Double Cards',   c: 'gold'},
-    {n: d.family_cards,       l: 'Family Cards',   c: 'gold'},
-    {n: d.attending,          l: 'RSVP Confirmed', c: ''},
-  ].map(s => `<div class="stat-card ${s.c}">
-    <div class="stat-num">${s.n}</div>
-    <div class="stat-lbl">${s.l}</div>
-  </div>`).join('');
-
-  document.getElementById('pill-in').textContent  = d.entered_guests;
-  document.getElementById('pill-nin').textContent = d.not_entered_guests;
-
-  const tIn = document.getElementById('tbody-in');
-  tIn.innerHTML = d.entered_list?.length
-    ? d.entered_list.map(g => `<tr>
-        <td class="td-num">${String(g.visual_id||0).padStart(4,'0')}</td>
-        <td><strong>${g.name||'—'}</strong></td>
-        <td class="td-type">${g.card_type||'single'}</td>
-        <td>${g.checked_in_count||'—'} / ${g.group_size||'—'}</td>
-        <td style="color:#6b7280;font-size:.82rem">${g.entry_time||'—'}</td>
-      </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="5">No guests have checked in yet.</td></tr>';
-
-  const tNin = document.getElementById('tbody-nin');
-  tNin.innerHTML = d.not_entered_list?.length
-    ? d.not_entered_list.map(g => `<tr>
-        <td class="td-num">${String(g.visual_id||0).padStart(4,'0')}</td>
-        <td><strong>${g.name||'—'}</strong></td>
-        <td class="td-type">${g.card_type||'single'}</td>
-        <td style="text-align:center">${g.group_size||1}</td>
-        <td>${rsvpLabel(g.rsvp_status)}</td>
-      </tr>`).join('')
-    : '<tr class="empty-row"><td colspan="5">🎉 All guests have checked in!</td></tr>';
-}
+const $=id=>document.getElementById(id),fmt=n=>Number(n||0).toLocaleString('en-US'),
+esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let first=true,last=null,timer=null;
+const basis=()=>document.querySelector('input[name=basis]:checked').value;
+function params(){const q=new URLSearchParams({basis:basis()});if(!first){q.set('single',$('rs').value||0);q.set('double',$('rd').value||0)}return q}
+async function load(){const d=await fetch('/report_summary?'+params()).then(r=>r.json());last=d;
+ if(first){$('rs').value=d.rates.single||'';$('rd').value=d.rates.double||'';first=false}
+ const now=new Date().toLocaleString('en-GB',{day:'2-digit',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'});
+ $('sub').textContent=(d.event.name||'')+' · as of '+now;
+ $('stats').innerHTML=[[d.cards,'Cards issued',''],[d.people_allowed,'People allowed',''],[d.people_entered,'People entered (scanned)',''],[d.cards_attended,'Cards used',''],[d.no_shows,'Cards not used','r'],
+  [d.issued.single,'Single cards','g'],[d.issued.double,'Double cards','g'],[d.issued.family+' ('+d.issued.family_people+' ppl)','Family cards','g'],[d.rsvp_yes,'RSVP confirmed','']]
+  .map(s=>`<div class="col-6 col-md-4 col-lg"><div class="card-s text-center"><div class="num ${s[2]}">${s[0]}</div><div class="lbl">${s[1]}</div></div></div>`).join('');
+ const set=d.rates.single||d.rates.double;
+ $('lines').innerHTML=d.lines.map(l=>`<tr><td>${esc(l.label)}</td><td class="text-end">${fmt(l.qty)}</td><td class="text-end">${l.rate?fmt(l.rate):'—'}</td><td class="text-end">${l.rate?fmt(l.amount):'—'}</td></tr>`).join('')
+  +`<tr class="table-light fw-bold"><td>TOTAL</td><td class="text-end">${fmt(d.total_qty)}</td><td></td><td class="text-end">${set?fmt(d.total):'—'}</td></tr>`;
+ $('total').textContent=set?'TSh '+fmt(d.total):'Set rates';
+ $('famBox').classList.toggle('d-none',!d.family.length);
+ $('fam').innerHTML=d.family.map(r=>`<tr><td>${esc(r.vid)}</td><td>${esc(r.name)}</td><td class="text-end">${r.people}</td><td class="text-end">${r.units}</td><td class="text-end">${r.entered}</td><td class="text-end">${r.units_in}</td></tr>`).join('')
+  +`<tr class="fw-bold table-light"><td></td><td>Total</td><td class="text-end">${d.issued.family_people}</td><td class="text-end">${d.issued.family_units}</td><td class="text-end">${d.attended.family_people}</td><td class="text-end">${d.attended.family_units}</td></tr>`;
+ $('pdfBtn').href='/client_report?'+params();
+ $('pIn').textContent=d.entered_list.length+' cards · '+d.people_entered+' people';$('pNin').textContent=d.not_entered_list.length;
+ $('tIn').innerHTML=d.entered_list.length?d.entered_list.map(g=>`<tr data-s="${esc((g.name+' '+g.vid).toLowerCase())}"><td class="fw-bold text-success">${esc(g.vid)}</td><td class="nm">${esc(g.name)}</td><td class="tt">${esc(g.type)}</td><td class="text-end">${g.used} / ${g.size}</td><td class="text-muted small">${esc(g.time)}</td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-muted py-4">No guests have checked in yet.</td></tr>';
+ const rs={attending:'<span class="text-success fw-semibold">Confirmed</span>',not_attending:'<span class="text-danger fw-semibold">Declined</span>'};
+ $('tNin').innerHTML=d.not_entered_list.length?d.not_entered_list.map(g=>`<tr data-s="${esc((g.name+' '+g.vid).toLowerCase())}"><td class="fw-bold text-success">${esc(g.vid)}</td><td class="nm">${esc(g.name)}</td><td class="tt">${esc(g.type)}</td><td class="text-end">${g.size}</td><td>${rs[g.rsvp]||'<span class="text-muted">—</span>'}</td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-muted py-4">All guests have checked in 🎉</td></tr>';
+ filter()}
+function filter(){const v=$('q').value.trim().toLowerCase();document.querySelectorAll('#tIn tr[data-s],#tNin tr[data-s]').forEach(r=>r.style.display=r.dataset.s.includes(v)?'':'none')}
+$('q').oninput=filter;
+document.querySelectorAll('input[name=basis]').forEach(r=>r.onchange=load);
+['rs','rd'].forEach(i=>$(i).oninput=()=>{first=false;clearTimeout(timer);timer=setTimeout(load,350)});
+const sv=$('saveRates');if(sv)sv.onclick=async()=>{const r=await fetch('/report/rates',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({single:$('rs').value||0,double:$('rd').value||0})}).then(r=>r.json());sv.textContent=r.success?'Saved ✓':'Error';setTimeout(()=>sv.textContent='Save rates',1600)};
+$('copyBill').onclick=async()=>{if(!last)return;const d=last,t=['BILL SUMMARY — '+(d.event.name||''),'Basis: '+(d.basis==='attended'?'cards that attended':'all cards issued'),...d.lines.map(l=>`${l.label}: ${l.qty} × ${fmt(l.rate)} = TSh ${fmt(l.amount)}`),`TOTAL: ${d.total_qty} cards = TSh ${fmt(d.total)}`].join('\n');
+ try{await navigator.clipboard.writeText(t);$('copyBill').textContent='Copied ✓'}catch(e){prompt('Copy:',t)}setTimeout(()=>$('copyBill').textContent='Copy bill as text',1600)};
 load();
 </script>
 {% endblock %}

@@ -385,6 +385,156 @@ def build_ics(title, start, location="", url=""):
         f"LOCATION:{_ics_esc(location)}", f"URL:{url}" if url else "X-NOURL:1", "END:VEVENT", "END:VCALENDAR", ""])
 
 
+# ---------------------------------------------------------------------------
+# Report numbers & billing (family card = 2 people per double-card equivalent)
+# ---------------------------------------------------------------------------
+import math as _math
+from xml.sax.saxutils import escape as _xesc
+
+
+def _hm(dt):
+    if not dt:
+        return ""
+    if getattr(dt, "tzinfo", None) is not None:
+        dt = dt.astimezone(_EAT)
+    return dt.strftime("%H:%M")
+
+
+def _units(n):
+    """People -> double-card equivalents: 20 people = 10, 5 people = 3 (rounded up)."""
+    return max(1, _math.ceil(max(1, int(n or 1)) / 2))
+
+
+def build_report(guests, basis="issued", rate_single=0, rate_double=0):
+    """Single source of truth for the report page, the PDF and the bill.
+    basis 'issued'   = bill every card that was issued.
+    basis 'attended' = bill only cards that were scanned at least once (family units from people who entered)."""
+    ctype = lambda g: (g.card_type or "single").lower() if (g.card_type or "single").lower() in ("single", "double", "family") else "single"
+    size = lambda g: max(1, int(g.group_size or 1))
+    used = lambda g: int(g.checked_in_count or 0)
+    guests = list(guests)
+    singles = [g for g in guests if ctype(g) == "single"]
+    doubles = [g for g in guests if ctype(g) == "double"]
+    fams = [g for g in guests if ctype(g) == "family"]
+    fam_rows = [dict(vid=str(g.visual_id or 0).zfill(4), name=g.name or "", people=size(g), units=_units(size(g)),
+                     entered=used(g), units_in=(_units(used(g)) if used(g) >= 1 else 0)) for g in fams]
+    issued = dict(single=len(singles), double=len(doubles), family=len(fams), family_people=sum(size(g) for g in fams),
+                  family_units=sum(r["units"] for r in fam_rows))
+    attended = dict(single=sum(1 for g in singles if used(g) >= 1), double=sum(1 for g in doubles if used(g) >= 1),
+                    family=sum(1 for g in fams if used(g) >= 1), family_people=sum(used(g) for g in fams),
+                    family_units=sum(r["units_in"] for r in fam_rows))
+    base = attended if basis == "attended" else issued
+    rs, rd = int(rate_single or 0), int(rate_double or 0)
+    lines = [dict(label="Single cards", qty=base["single"], rate=rs, amount=base["single"] * rs),
+             dict(label="Double cards", qty=base["double"], rate=rd, amount=base["double"] * rd)]
+    if issued["family"]:
+        lines.append(dict(label="Family / group cards (2 people = 1 double card)", qty=base["family_units"], rate=rd,
+                          amount=base["family_units"] * rd))
+    entered = [g for g in guests if used(g) >= 1]
+    return dict(
+        basis=basis, issued=issued, attended=attended, lines=lines, rates=dict(single=rs, double=rd),
+        total_qty=sum(l["qty"] for l in lines), total=sum(l["amount"] for l in lines),
+        cards=len(guests), people_allowed=sum(size(g) for g in guests), people_entered=sum(used(g) for g in guests),
+        cards_attended=len(entered), no_shows=len(guests) - len(entered),
+        rsvp_yes=sum(1 for g in guests if g.rsvp_status == "attending"), rsvp_no=sum(1 for g in guests if g.rsvp_status == "not_attending"),
+        pledged=sum(int(getattr(g, "pledge_amount", 0) or 0) for g in guests), paid=sum(int(getattr(g, "paid_amount", 0) or 0) for g in guests),
+        family=fam_rows,
+        entered_list=[dict(vid=str(g.visual_id or 0).zfill(4), name=g.name or "", type=ctype(g), size=size(g), used=used(g),
+                           time=_hm(g.entry_time)) for g in entered],
+        not_entered_list=[dict(vid=str(g.visual_id or 0).zfill(4), name=g.name or "", type=ctype(g), size=size(g),
+                               rsvp=g.rsvp_status or "") for g in guests if used(g) == 0])
+
+
+def _tsh(n):
+    return f"{int(n or 0):,}"
+
+
+def build_client_pdf(ev, rep, generated):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+    GREEN, GOLD, GREY, INK, LIGHT, BORDER = (colors.HexColor(x) for x in ("#185a3f", "#c9a84c", "#6b7280", "#1f2937", "#f0f7f4", "#d1d5db"))
+    W = A4[0] - 36 * mm
+    ps = lambda n, **k: ParagraphStyle(n, fontName=k.pop("fontName", "Helvetica"), **k)
+    S_T, S_M = ps("t", fontName="Helvetica-Bold", fontSize=21, leading=26, textColor=GREEN, alignment=TA_CENTER, spaceAfter=4), ps("m", fontSize=9, leading=12, textColor=GREY, alignment=TA_CENTER, spaceAfter=10)
+    S_H = ps("h", fontName="Helvetica-Bold", fontSize=12.5, textColor=GREEN, spaceBefore=14, spaceAfter=5)
+    S_C, S_CB = ps("c", fontSize=8.6, textColor=INK, leading=11.5), ps("cb", fontName="Helvetica-Bold", fontSize=8.6, textColor=INK, leading=11.5)
+    S_HD, S_N = ps("hd", fontName="Helvetica-Bold", fontSize=8, textColor=colors.white), ps("n", fontSize=8, textColor=GREY, leading=11)
+    S_R = ps("r", fontSize=8.6, textColor=INK, alignment=TA_RIGHT)
+    S_RB = ps("rb", fontName="Helvetica-Bold", fontSize=10, textColor=INK, alignment=TA_RIGHT)
+    P = lambda t, s=S_C: Paragraph(_xesc(str(t)), s)
+    base_style = [("BACKGROUND", (0, 0), (-1, 0), GREEN), ("GRID", (0, 0), (-1, -1), .3, BORDER), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                  ("TOPPADDING", (0, 0), (-1, -1), 4), ("BOTTOMPADDING", (0, 0), (-1, -1), 4), ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#fafafa")])]
+    def table(rows, widths, extra=()):
+        t = Table(rows, colWidths=widths, repeatRows=1)
+        t.setStyle(TableStyle(base_style + list(extra)))
+        return t
+
+    name = (getattr(ev, "weds_names", None) or getattr(ev, "name", "") or "Event") if ev else "Event"
+    meta = " · ".join(x for x in [getattr(ev, "event_day", None), getattr(ev, "event_date", None), getattr(ev, "event_venue", None)] if x) if ev else ""
+    basis_txt = "cards that attended (scanned at least once)" if rep["basis"] == "attended" else "all cards issued"
+    story = [Spacer(1, 4 * mm), Paragraph("Event Report &amp; Invoice Summary", S_T), Paragraph(_xesc(name), ps("nm", fontName="Helvetica-Bold", fontSize=12.5, leading=16, textColor=INK, alignment=TA_CENTER, spaceAfter=2)),
+             Paragraph(_xesc(meta + ("  ·  " if meta else "") + f"Prepared {generated}"), S_M), HRFlowable(width="100%", thickness=1.5, color=GOLD, spaceAfter=6)]
+
+    # 1. Billing
+    story.append(Paragraph("1. Billing summary", S_H))
+    rows = [[Paragraph(h, S_HD) for h in ("Item", "Quantity", "Rate (TSh)", "Amount (TSh)")]]
+    for l in rep["lines"]:
+        rows.append([P(l["label"]), P(l["qty"], S_R), P(_tsh(l["rate"]) if l["rate"] else "—", S_R), P(_tsh(l["amount"]) if l["rate"] else "—", S_R)])
+    rows.append([P("TOTAL", S_CB), P(rep["total_qty"], S_RB), P("", S_R), P(("TSh " + _tsh(rep["total"])) if (rep["rates"]["single"] or rep["rates"]["double"]) else "Rates not set", S_RB)])
+    story.append(table(rows, [W * .50, W * .14, W * .16, W * .20], [("BACKGROUND", (0, -1), (-1, -1), LIGHT), ("LINEABOVE", (0, -1), (-1, -1), 1, GREEN)]))
+    story.append(Spacer(1, 3))
+    story.append(Paragraph(f"Billed on: <b>{basis_txt}</b>. A family/group card is counted as double cards: every 2 people allowed (or entered, when billing on attendance) = 1 double card, rounded up.", S_N))
+    if rep["family"]:
+        story.append(Paragraph("Family / group card conversion", S_H))
+        rows = [[Paragraph(h, S_HD) for h in ("#", "Guest", "People allowed", "= Double cards", "People entered", "= Double cards")]]
+        for r in rep["family"]:
+            rows.append([P(r["vid"]), P(r["name"]), P(r["people"], S_R), P(r["units"], S_R), P(r["entered"], S_R), P(r["units_in"], S_R)])
+        i = rep["issued"]; a = rep["attended"]
+        rows.append([P("", S_CB), P("Total", S_CB), P(i["family_people"], S_RB), P(i["family_units"], S_RB), P(a["family_people"], S_RB), P(a["family_units"], S_RB)])
+        story.append(table(rows, [W * .09, W * .31, W * .15, W * .15, W * .15, W * .15], [("BACKGROUND", (0, -1), (-1, -1), LIGHT)]))
+
+    # 2. Attendance
+    story.append(Paragraph("2. Cards and attendance", S_H))
+    i, a = rep["issued"], rep["attended"]
+    rows = [[Paragraph(h, S_HD) for h in ("Card type", "Cards issued", "Cards used (scanned)", "People allowed", "People entered")]]
+    sp = lambda n: n
+    rows.append([P("Single"), P(i["single"], S_R), P(a["single"], S_R), P(i["single"], S_R), P(a["single"], S_R)])
+    rows.append([P("Double"), P(i["double"], S_R), P(a["double"], S_R), P(i["double"] * 2, S_R), P("—", S_R)])
+    rows.append([P("Family / group"), P(i["family"], S_R), P(a["family"], S_R), P(i["family_people"], S_R), P(a["family_people"], S_R)])
+    rows.append([P("TOTAL", S_CB), P(rep["cards"], S_RB), P(rep["cards_attended"], S_RB), P(rep["people_allowed"], S_RB), P(rep["people_entered"], S_RB)])
+    story.append(table(rows, [W * .24, W * .17, W * .21, W * .19, W * .19], [("BACKGROUND", (0, -1), (-1, -1), LIGHT)]))
+    story.append(Spacer(1, 3))
+    story.append(Paragraph(f"Total people who entered (all scans): <b>{rep['people_entered']}</b> of {rep['people_allowed']} allowed · cards not used: <b>{rep['no_shows']}</b> · RSVP confirmed: {rep['rsvp_yes']} · declined: {rep['rsvp_no']}.", S_N))
+    if rep["pledged"]:
+        story.append(Paragraph(f"Contributions: pledged TSh {_tsh(rep['pledged'])} · received TSh {_tsh(rep['paid'])} · outstanding TSh {_tsh(max(rep['pledged'] - rep['paid'], 0))}.", S_N))
+
+    # 3/4 lists
+    story.append(Paragraph(f"3. Guests checked in — {len(rep['entered_list'])} card(s), {rep['people_entered']} people", S_H))
+    rows = [[Paragraph(h, S_HD) for h in ("#", "Guest", "Card", "Entered / allowed", "Time")]]
+    rows += [[P(g["vid"], S_CB), P(g["name"]), P(g["type"].title()), P(f'{g["used"]} / {g["size"]}', S_R), P(g["time"])] for g in rep["entered_list"]] or [[P("No guests have checked in yet."), "", "", "", ""]]
+    story.append(table(rows, [W * .1, W * .42, W * .14, W * .18, W * .16], [("SPAN", (0, 1), (-1, 1))] if not rep["entered_list"] else []))
+    story.append(Paragraph(f"4. Not yet checked in — {len(rep['not_entered_list'])} card(s)", S_H))
+    rows = [[Paragraph(h, S_HD) for h in ("#", "Guest", "Card", "Allowed", "RSVP")]]
+    lab = {"attending": "Confirmed", "not_attending": "Declined"}
+    rows += [[P(g["vid"], S_CB), P(g["name"]), P(g["type"].title()), P(g["size"], S_R), P(lab.get(g["rsvp"], "—"))] for g in rep["not_entered_list"]] or [[P("All guests have checked in."), "", "", "", ""]]
+    story.append(table(rows, [W * .1, W * .42, W * .14, W * .16, W * .18], [("SPAN", (0, 1), (-1, 1))] if not rep["not_entered_list"] else []))
+    story += [Spacer(1, 8), HRFlowable(width="100%", thickness=.4, color=BORDER), Paragraph("Generated automatically by SwiftInvite. Guest data is confidential.", ps("ft", fontSize=7.5, textColor=GREY, alignment=TA_CENTER, spaceBefore=4))]
+
+    def deco(c, d):
+        c.saveState(); w, h = A4
+        c.setFillColor(GREEN); c.rect(0, h - 10 * mm, w, 10 * mm, fill=1, stroke=0)
+        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 8.5); c.drawCentredString(w / 2, h - 6.8 * mm, "EVENT REPORT — CONFIDENTIAL")
+        c.setFillColor(GREY); c.setFont("Helvetica", 7); c.drawString(18 * mm, 6 * mm, f"SwiftInvite · {generated}"); c.drawRightString(w - 18 * mm, 6 * mm, f"Page {d.page}")
+        c.restoreState()
+    buf = BytesIO()
+    SimpleDocTemplate(buf, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=18 * mm, bottomMargin=14 * mm, title="Event Report", author="SwiftInvite").build(story, onFirstPage=deco, onLaterPages=deco)
+    return buf.getvalue()
+
+
 def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                     upload_to_supabase, delete_from_supabase,
                     login_required, admin_required,
@@ -758,3 +908,47 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
         except Exception:
             return {}
         return {"contrib_gate": bool(cfg and cfg.contrib_gate), "card_state": (lambda g: card_status(g, cfg))}
+
+    # ── Report, billing and client PDF ──────────────────────────────────
+    def _report_inputs():
+        basis = "attended" if request.args.get("basis") == "attended" else "issued"
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            gs = db.query(Guest).filter_by(event_id=ev.id if ev else None).order_by(Guest.visual_id).all()
+            rs, rd = int(getattr(ev, "price_single", 0) or 0), int(getattr(ev, "price_double", 0) or 0)
+            if "single" in request.args: rs = _num(request.args["single"])
+            if "double" in request.args: rd = _num(request.args["double"])
+            rep = build_report(gs, basis, rs, rd)
+            info = dict(name=(ev.weds_names or ev.name) if ev else "", day=getattr(ev, "event_day", "") or "",
+                        date=getattr(ev, "event_date", "") or "", venue=getattr(ev, "event_venue", "") or "",
+                        slug=getattr(ev, "slug", "event"))
+            ev_snapshot = types.SimpleNamespace(weds_names=info["name"], name=info["name"], event_day=info["day"], event_date=info["date"], event_venue=info["venue"])
+        return rep, info, ev_snapshot
+
+    @app.route("/report_summary")
+    @login_required
+    def report_summary():
+        rep, info, _ev = _report_inputs()
+        rep["event"] = info
+        return jsonify(rep)
+
+    @app.route("/report/rates", methods=["POST"])
+    @admin_required
+    def report_rates():
+        d = request.get_json() or {}
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            if not ev:
+                return jsonify(success=False, error="No event"), 400
+            ev.price_single, ev.price_double = _num(d.get("single")), _num(d.get("double"))
+            db.commit()
+            return jsonify(success=True, single=ev.price_single, double=ev.price_double)
+
+    @app.route("/client_report")
+    @login_required
+    def client_report_pdf():
+        rep, info, ev = _report_inputs()
+        stamp = now_eat().strftime("%d %B %Y, %H:%M")
+        pdf = build_client_pdf(ev, rep, stamp)
+        return app.response_class(pdf, mimetype="application/pdf", headers={
+            "Content-Disposition": f"attachment; filename=Event_Report_{info['slug']}_{now_eat().strftime('%Y%m%d_%H%M')}.pdf"})

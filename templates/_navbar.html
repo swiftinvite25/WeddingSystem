@@ -38,7 +38,7 @@
           <a class="nav-link dropdown-toggle {{ 'active' if ep == 'guest_report' }}" href="#" role="button" data-bs-toggle="dropdown" data-toggle="dropdown" aria-expanded="false">{{ '5 · ' if admin }}Reports</a>
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('guest_report') }}">Live guest report</a></li>
-            <li><a class="dropdown-item" href="{{ url_for('download_client_report') }}">Client report (PDF)</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('client_report_pdf') }}">Client report (PDF)</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_guests_simple', format='pdf') }}">Guest list (PDF)</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_guests_simple', format='csv') }}">Guest list (CSV)</a></li>
             {% if admin %}<li><a class="dropdown-item" href="{{ url_for('download_excel') }}">Excel report</a></li>
