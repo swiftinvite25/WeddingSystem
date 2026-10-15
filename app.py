@@ -498,19 +498,35 @@ def build_sms_message(guest, event=None) -> str:
         f"Karibu sana!"
     )
 
+
+def _sms_ascii(text: str) -> str:
+    """Keep the SMS in the plain GSM alphabet (curly quotes / accents would make it bill as 70 chars per part)."""
+    import unicodedata
+    t = (text or "").replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"')
+    t = t.replace("\u2013", "-").replace("\u2014", "-")
+    return unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode("ascii")
+
+
 def build_thank_you_sms(guest, event=None) -> str:
-    weds  = (event.weds_names  if event and event.weds_names  else DEFAULT_WEDS_NAMES) or ""
-    day   = (event.event_day   if event and event.event_day   else DEFAULT_EVENT_DAY)  or ""
-    date  = (event.event_date  if event and event.event_date  else DEFAULT_EVENT_DATE) or ""
-    return (
-        f"Habari {guest.name},\n\n"
-        f"Familia ya {weds} pamoja na kamati ya maandalizi, "
-        f"tunapenda kutoa shukrani zetu za dhati kwa kuwa pamoja nasi "
-        f"kufanikisha tukio letu la {day.upper()} {date.upper()}.\n\n"
-        f"Hakika shughuli ilipendeza kwa sababu ya ushirikiano wako. "
-        f"Ahsanteni sana na Mungu awabariki.\n\n"
-        f"Kwa huduma zetu za kadi za kidigitali, wasiliana nasi: +255674114407"
-    )
+    weds = _sms_ascii((event.weds_names if event and event.weds_names else DEFAULT_WEDS_NAMES) or "")
+    day  = _sms_ascii((event.event_day  if event and event.event_day  else DEFAULT_EVENT_DAY)  or "")
+    date = _sms_ascii((event.event_date if event and event.event_date else DEFAULT_EVENT_DATE) or "")
+    when = " ".join(p for p in (day.upper(), date.upper()) if p)
+    name = _sms_ascii(guest.name or "").strip()
+    first = name.split()[0] if name else ""
+    siku = f" siku ya {when}" if when else ""
+    contact = "Kwa huduma zetu za kadi za kidigitali, WASILIANA NASI: +255674114407"
+    options = [
+        f"Habari {name},\nFamilia ya {weds} inakushukuru kwa dhati kwa kuwa nasi{siku}. "
+        f"Shughuli ilipendeza kwa ushirikiano wako. Mungu akubariki!\n\n{contact}",
+        f"Habari {name},\nAsante kwa kuwa nasi kwenye {weds}{siku}. Mungu akubariki!\n\n{contact}",
+        f"Habari {first},\nAsante kwa kuwa nasi kwenye {weds}. Mungu akubariki!\n\n{contact}",
+        f"Asante sana {first}, Mungu akubariki!\n\n{contact}",
+    ]
+    for msg in options:            # first version that fits in 2 SMS parts (300 characters)
+        if len(msg) <= 300:
+            return msg
+    return options[-1]
 # ---------------------------------------------------------------------------
 # Auth
 # ---------------------------------------------------------------------------
