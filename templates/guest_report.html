@@ -45,9 +45,9 @@
 
   <div class="mb-3"><input type="search" id="q" class="form-control" placeholder="Search guests in the lists below…"></div>
   <div class="d-flex align-items-center gap-2 mb-2"><h5>Checked in</h5><span class="badge bg-success" id="pIn">—</span></div>
-  <div class="tw mb-4"><table class="table table-hover table-sm align-middle mb-0"><thead><tr><th>#</th><th>Guest</th><th>Card</th><th class="text-end">Entered / allowed</th><th>Time</th></tr></thead><tbody id="tIn"></tbody></table></div>
+  <div class="tw mb-4 cards-wrap"><table class="table table-hover table-sm align-middle mb-0 table-cards"><thead><tr><th>#</th><th>Guest</th><th>Card</th><th class="text-end">Entered / allowed</th><th>Time</th></tr></thead><tbody id="tIn"></tbody></table></div>
   <div class="d-flex align-items-center gap-2 mb-2"><h5>Not yet checked in</h5><span class="badge bg-danger" id="pNin">—</span></div>
-  <div class="tw"><table class="table table-hover table-sm align-middle mb-0"><thead><tr><th>#</th><th>Guest</th><th>Card</th><th class="text-end">Allowed</th><th>RSVP</th></tr></thead><tbody id="tNin"></tbody></table></div>
+  <div class="tw cards-wrap"><table class="table table-hover table-sm align-middle mb-0 table-cards"><thead><tr><th>#</th><th>Guest</th><th>Card</th><th class="text-end">Allowed</th><th>RSVP</th></tr></thead><tbody id="tNin"></tbody></table></div>
 </div>
 <script>
 const $=id=>document.getElementById(id),fmt=n=>Number(n||0).toLocaleString('en-US'),
@@ -71,9 +71,9 @@ async function load(){const d=await fetch('/report_summary?'+params()).then(r=>r
   +`<tr class="fw-bold table-light"><td></td><td>Total</td><td class="text-end">${d.issued.family_people}</td><td class="text-end">${d.issued.family_units}</td><td class="text-end">${d.attended.family_people}</td><td class="text-end">${d.attended.family_units}</td></tr>`;
  $('pdfBtn').href='/client_report?'+params();
  $('pIn').textContent=d.entered_list.length+' cards · '+d.people_entered+' people';$('pNin').textContent=d.not_entered_list.length;
- $('tIn').innerHTML=d.entered_list.length?d.entered_list.map(g=>`<tr data-s="${esc((g.name+' '+g.vid).toLowerCase())}"><td class="fw-bold text-success">${esc(g.vid)}</td><td class="nm">${esc(g.name)}</td><td class="tt">${esc(g.type)}</td><td class="text-end">${g.used} / ${g.size}</td><td class="text-muted small">${esc(g.time)}</td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-muted py-4">No guests have checked in yet.</td></tr>';
+ $('tIn').innerHTML=d.entered_list.length?d.entered_list.map(g=>`<tr data-s="${esc((g.name+' '+g.vid).toLowerCase())}"><td class="fw-bold text-success" data-label="Card no.">${esc(g.vid)}</td><td class="nm cell-title">${esc(g.name)}</td><td class="tt" data-label="Card">${esc(g.type)}</td><td class="text-end" data-label="Entered / allowed">${g.used} / ${g.size}</td><td class="text-muted small" data-label="Time">${esc(g.time)}</td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-muted py-4" style="display:block">No guests have checked in yet.</td></tr>';
  const rs={attending:'<span class="text-success fw-semibold">Confirmed</span>',not_attending:'<span class="text-danger fw-semibold">Declined</span>'};
- $('tNin').innerHTML=d.not_entered_list.length?d.not_entered_list.map(g=>`<tr data-s="${esc((g.name+' '+g.vid).toLowerCase())}"><td class="fw-bold text-success">${esc(g.vid)}</td><td class="nm">${esc(g.name)}</td><td class="tt">${esc(g.type)}</td><td class="text-end">${g.size}</td><td>${rs[g.rsvp]||'<span class="text-muted">—</span>'}</td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-muted py-4">All guests have checked in 🎉</td></tr>';
+ $('tNin').innerHTML=d.not_entered_list.length?d.not_entered_list.map(g=>`<tr data-s="${esc((g.name+' '+g.vid).toLowerCase())}"><td class="fw-bold text-success" data-label="Card no.">${esc(g.vid)}</td><td class="nm cell-title">${esc(g.name)}</td><td class="tt" data-label="Card">${esc(g.type)}</td><td class="text-end" data-label="Allowed">${g.size}</td><td data-label="RSVP">${rs[g.rsvp]||'<span class="text-muted">—</span>'}</td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-muted py-4">All guests have checked in 🎉</td></tr>';
  filter()}
 function filter(){const v=$('q').value.trim().toLowerCase();document.querySelectorAll('#tIn tr[data-s],#tNin tr[data-s]').forEach(r=>r.style.display=r.dataset.s.includes(v)?'':'none')}
 $('q').oninput=filter;

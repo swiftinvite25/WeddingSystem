@@ -1,315 +1,87 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="utf-8"/>
-  <title>Scan / Check-In</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1"/>
-  <link href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css" rel="stylesheet">
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-  <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-    * { box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: #f5f7fa; min-height: 100vh; }
-    .page-wrap { max-width: 560px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
-
-    .page-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-    .page-head h1 { font-size: 1.4rem; font-weight: 700; color: #111; margin: 0; }
-    .btn-back { display: inline-flex; align-items: center; gap: .3rem; padding: .45rem 1rem;
-                border-radius: 8px; border: 1.5px solid #d1d5db; background: #fff;
-                color: #374151; font-size: .84rem; font-weight: 600; text-decoration: none; }
-
-    /* tabs */
-    .tab-bar { display: flex; background: #e5e7eb; border-radius: 10px; padding: 4px; gap: 4px; margin-bottom: 1.5rem; }
-    .tab-btn { flex: 1; padding: .55rem; border: none; border-radius: 7px; background: transparent;
-               font-family: 'Inter', sans-serif; font-size: .875rem; font-weight: 600;
-               color: #6b7280; cursor: pointer; transition: all .15s; }
-    .tab-btn.active { background: #fff; color: #185a3f; box-shadow: 0 1px 3px rgba(0,0,0,.1); }
-
-    .panel { background: #fff; border-radius: 12px; padding: 1.5rem;
-             box-shadow: 0 1px 4px rgba(0,0,0,.06); display: none; }
-    .panel.active { display: block; }
-
-    #qr-reader { border-radius: 10px; overflow: hidden; }
-    #qr-reader video { border-radius: 10px; }
-    .scan-hint { font-size: .82rem; color: #6b7280; text-align: center; margin-top: .75rem; }
-
-    .manual-label { font-size: .8rem; font-weight: 600; text-transform: uppercase;
-                    letter-spacing: .05em; color: #6b7280; margin-bottom: .4rem; }
-    .num-input-wrap { display: flex; gap: .5rem; }
-    .num-input { flex: 1; padding: .75rem 1rem; border-radius: 8px; border: 1.5px solid #d1d5db;
-                 font-family: 'Inter', sans-serif; font-size: 1.1rem; font-weight: 600;
-                 color: #111; letter-spacing: .1em; text-align: center; outline: none; }
-    .num-input:focus { border-color: #185a3f; }
-    .btn-checkin { padding: .75rem 1.4rem; border-radius: 8px; border: none;
-                   background: #185a3f; color: #fff; font-family: 'Inter', sans-serif;
-                   font-size: .95rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .btn-checkin:disabled { opacity: .5; cursor: not-allowed; }
-
-    #result-wrap, #scan-result-wrap { margin-top: 1.25rem; }
-    .result-card { border-radius: 10px; padding: 1.1rem 1.25rem; animation: fadeIn .3s; }
-    @keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform: none; } }
-    .result-card.success { background: #e8f4ef; border: 1.5px solid #185a3f22; }
-    .result-card.error   { background: #fee2e2; border: 1.5px solid #dc262622; }
-    .result-card.warning { background: #fef3c7; border: 1.5px solid #d9770622; }
-    .result-icon { font-size: 1.5rem; margin-bottom: .4rem; }
-    .result-name { font-size: 1.1rem; font-weight: 700; color: #111; margin-bottom: .15rem; }
-    .result-detail { font-size: .85rem; color: #374151; }
-    .result-card.success .result-name { color: #185a3f; }
-    .result-card.error   .result-name { color: #dc2626; }
-    .result-card.warning .result-name { color: #92400e; }
-    .badge-entries { display: inline-block; background: #185a3f; color: #fff;
-                     font-size: .75rem; font-weight: 600; padding: .2rem .6rem;
-                     border-radius: 2rem; margin-top: .4rem; }
-
-    .log-title { font-size: .8rem; font-weight: 600; text-transform: uppercase;
-                 letter-spacing: .05em; color: #6b7280; margin: 1.5rem 0 .5rem; }
-    .log-item { display: flex; align-items: center; justify-content: space-between;
-                padding: .55rem .75rem; background: #fff; border-radius: 8px;
-                border: 1px solid #e5e7eb; margin-bottom: .4rem; font-size: .84rem; }
-    .log-name { font-weight: 600; color: #111; }
-    .log-time { font-size: .75rem; color: #9ca3af; }
-    .log-dot { width: 8px; height: 8px; border-radius: 50%; background: #185a3f;
-               margin-right: .5rem; flex-shrink: 0; }
-  </style>
-</head>
-<body>
-{% include "_navbar.html" %}
-
-<div class="page-wrap">
-  <div class="page-head">
-    <h1>🎫 Guest Check-In</h1>
-    <a href="/" class="btn-back">← Dashboard</a>
+{% extends "base.html" %}
+{% set title = "Check-In" %}
+{% block content %}
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+.scan{max-width:560px;margin:0 auto}
+.scan .seg{display:flex;background:#e5e7eb;border-radius:14px;padding:4px;margin:.6rem 0 .9rem}
+.scan .seg button{flex:1;border:0;background:transparent;padding:.7rem;border-radius:11px;font-weight:700;color:#6b7280;min-height:48px}
+.scan .seg button.on{background:#fff;color:#185a3f;box-shadow:0 1px 4px rgba(0,0,0,.15)}
+.scan .live{background:#fff;border-radius:99px;padding:.3rem .9rem;font-size:.82rem;font-weight:700;color:#185a3f;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+#qr-reader{border-radius:18px;overflow:hidden;background:#111;border:0!important;min-height:240px}#qr-reader video{width:100%!important;object-fit:cover;border-radius:18px}
+.scan .res{border-radius:16px;padding:1.1rem 1.2rem;margin-top:.9rem;display:flex;gap:.9rem;align-items:flex-start;animation:pop .22s}
+@keyframes pop{from{opacity:0;transform:scale(.97)}}
+.scan .res .ic{font-size:2.3rem;line-height:1}.scan .res .nm{font-size:1.4rem;font-weight:800;line-height:1.2}.scan .res .ds{font-size:.92rem;color:#374151}
+.scan .res.ok{background:#dcfce7;border:2px solid #16a34a}.scan .res.warn{background:#fef3c7;border:2px solid #d97706}.scan .res.err{background:#fee2e2;border:2px solid #dc2626}
+.scan .rem{display:inline-block;background:#185a3f;color:#fff;border-radius:99px;padding:.15rem .75rem;font-weight:700;font-size:.82rem;margin-top:.4rem}
+.scan .numrow{display:flex;gap:.5rem}.scan .numrow input{flex:1;text-align:center;font-size:1.7rem!important;font-weight:800;letter-spacing:.12em;min-height:62px;min-width:0}
+.scan .numrow button{min-width:112px;min-height:62px}.scan .big{width:100%;min-height:58px;font-size:1.1rem;margin-top:.8rem}
+.scan .logi{display:flex;justify-content:space-between;align-items:center;background:#fff;border-radius:12px;padding:.6rem .85rem;margin-bottom:.4rem;box-shadow:0 1px 3px rgba(0,0,0,.07);font-size:.9rem}
+.scan .dot{width:9px;height:9px;border-radius:50%;display:inline-block;margin-right:.5rem}
+</style>
+<div class="scan">
+  <div class="d-flex justify-content-between align-items-center gap-2">
+    <h2 class="mb-0">Check-in</h2>
+    <div class="d-flex align-items-center gap-2"><div class="live" id="live">…</div><button class="btn btn-sm btn-outline-secondary" id="mute" title="Sound on/off" data-no-lock>🔊</button></div>
   </div>
+  <div class="seg"><button id="tabScan" class="on">📷 Scan QR</button><button id="tabNum">✏️ Card number</button></div>
 
-  <!-- Tabs -->
-  <div class="tab-bar">
-    <button class="tab-btn active" id="tab-manual" onclick="switchTab('manual')">✏️ Card Number</button>
-    <button class="tab-btn" id="tab-scan" onclick="switchTab('scan')">📷 Scan QR Code</button>
-  </div>
-
-  
-  <!-- Manual entry -->
-  <div class="panel active" id="panel-manual">
-    <div class="manual-label">Enter Guest Card Number</div>
-    <div class="num-input-wrap">
-      <input class="num-input" id="card-input" type="number"
-             placeholder="e.g. 0042" min="1" max="99999"
-             onkeydown="if(event.key==='Enter') doSearch()" autofocus/>
-      <button class="btn-checkin" id="search-btn" onclick="doSearch()">🔍 Search</button>
-    </div>
-    <div id="result-wrap"></div>
-  </div>
-
-  <!-- QR scan -->
-  <div class="panel" id="panel-scan">
+  <div id="pScan">
     <div id="qr-reader"></div>
-    <p class="scan-hint">Point camera at the QR code on the guest's card</p>
-    <div id="scan-result-wrap"></div>
+    <div class="text-center text-muted small mt-2" id="camHint">Point the camera at the QR code on the guest's card</div>
+  </div>
+  <div id="pNum" hidden>
+    <label class="form-label small text-uppercase text-muted mb-1">Guest card number</label>
+    <div class="numrow"><input id="card" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="0042" autocomplete="off"><button class="btn btn-success" id="go">Search</button></div>
   </div>
 
-  <!-- Recent log -->
-  <div class="log-title">Recent Check-ins</div>
-  <div id="log-list"><p style="color:#9ca3af;font-size:.82rem;text-align:center">No check-ins yet this session</p></div>
+  <div id="result" aria-live="assertive"></div>
+  <h6 class="mt-4 text-uppercase text-muted small">Recent check-ins</h6>
+  <div id="log"><div class="text-muted small text-center py-2">No check-ins yet this session</div></div>
 </div>
-
 <script>
-// ═══════════════════════════════════════════════════════════════════════════
-// CHECK-IN — always live server call
-// ═══════════════════════════════════════════════════════════════════════════
+const $=id=>document.getElementById(id),esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let scanner=null,running=false,tab='scan',mute=false,last='',cool=false,pending=null,hideT=null;const log=[];
+const pad=n=>String(n||0).padStart(4,'0');
+function beep(ok){if(mute)return;try{const c=new(window.AudioContext||window.webkitAudioContext)(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.frequency.value=ok?880:220;g.gain.value=.12;o.start();o.stop(c.currentTime+(ok?.12:.35))}catch(e){}}
+const buzz=ok=>navigator.vibrate&&navigator.vibrate(ok?60:[120,60,120]);
+function show(type,icon,name,lines,extra=''){$('result').innerHTML=`<div class="res ${type}"><div class="ic">${icon}</div><div><div class="nm">${esc(name)}</div><div class="ds">${lines}</div>${extra}</div></div>`;
+ clearTimeout(hideT);hideT=setTimeout(()=>$('result').innerHTML='',8000);$('result').scrollIntoView({block:'nearest',behavior:'smooth'})}
+function outcome(d){const g=d.guest||{};
+ if(d.success){const r=g.remaining_entries??'—';beep(true);buzz(true);show('ok','✅',g.name||'Guest',`${esc((g.card_type||'').toUpperCase())} · <b>#${pad(g.visual_id)}</b>`,`<span class="rem">${r} ${r===1?'entry':'entries'} remaining</span>`)}
+ else if(d.already_entered){beep(false);buzz(false);show('warn','⚠️','Already fully checked in',`${esc(g.name||'')} — all entries used`)}
+ else{beep(false);buzz(false);show('err','❌','Not allowed',esc(d.message||'Unknown error'))}
+ addLog(g.name||'?',g.visual_id,!!d.success);stats()}
+function addLog(n,v,ok){log.unshift({n,v,ok,t:new Date().toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'})});if(log.length>15)log.pop();
+ $('log').innerHTML=log.map(l=>`<div class="logi"><span><span class="dot" style="background:${l.ok?'#185a3f':'#dc2626'}"></span><b>${esc(l.n)}</b> <span class="text-muted">#${pad(l.v)}</span></span><span class="text-muted">${l.t}</span></div>`).join('')}
+async function stats(){try{const d=await fetch('/scan_stats').then(r=>r.json());$('live').textContent=`👥 ${d.people_in} / ${d.people_allowed} inside`}catch(e){}}
+const post=b=>fetch('/update_status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
+async function checkIn(b){try{outcome(await post(b))}catch(e){show('err','📶','No connection','Please check your internet and try again.')}}
 
-async function checkIn(key, resultElId, isVisualId = false) {
-  const body = isVisualId ? { visual_id: key } : { qr_code_id: key };
-  try {
-    const res  = await fetch('/update_status', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-    const data = await res.json();
-    showResult(data, resultElId);
-    addLog(data.guest?.name || '?', data.guest?.visual_id || 0, data.success);
-  } catch (err) {
-    showResult({ success: false, message: 'Network error — please check your connection.' }, resultElId);
-  }
-}
+function setTab(t){tab=t;$('tabScan').classList.toggle('on',t==='scan');$('tabNum').classList.toggle('on',t==='num');$('pScan').hidden=t!=='scan';$('pNum').hidden=t!=='num';$('result').innerHTML='';
+ if(t==='scan')start();else{stop();setTimeout(()=>$('card').focus(),50)}}
+$('tabScan').onclick=()=>setTab('scan');$('tabNum').onclick=()=>setTab('num');
+$('mute').onclick=()=>{mute=!mute;$('mute').textContent=mute?'🔇':'🔊'};
 
-// ═══════════════════════════════════════════════════════════════════════════
-// UI HELPERS
-// ═══════════════════════════════════════════════════════════════════════════
+function start(){if(running||typeof Html5Qrcode==='undefined')return;scanner=new Html5Qrcode('qr-reader');
+ scanner.start({facingMode:'environment'},{fps:10,aspectRatio:1,qrbox:(w,h)=>{const s=Math.floor(Math.min(w,h)*.72);return{width:s,height:s}}},
+  async code=>{if(cool||code===last)return;last=code;cool=true;setTimeout(()=>{cool=false;last=''},3000);await checkIn({qr_code_id:code})},()=>{})
+ .then(()=>{running=true;$('camHint').textContent="Point the camera at the QR code on the guest's card"})
+ .catch(err=>{scanner=null;$('qr-reader').innerHTML=`<div class="p-4 text-center text-white">📷 Camera unavailable.<br><small>${esc(err)}</small><br><button class="btn btn-light mt-3" onclick="document.getElementById('qr-reader').innerHTML='';start()">Try again</button><br><button class="btn btn-link text-white mt-1" onclick="setTab('num')">Use card number instead</button></div>`})}
+function stop(){if(scanner&&running){scanner.stop().then(()=>{running=false;scanner=null}).catch(()=>{})}}
+document.addEventListener('visibilitychange',()=>{if(document.hidden)stop();else if(tab==='scan')start()});addEventListener('beforeunload',stop);
 
-function showResult(data, targetId) {
-  const el = document.getElementById(targetId);
-  if (!el) return;
-
-  if (data.success) {
-    const g = data.guest || {};
-    const remaining = g.remaining_entries ?? '—';
-    el.innerHTML = `<div class="result-card success">
-      <div class="result-icon">✅</div>
-      <div class="result-name">${g.name || 'Guest'}</div>
-      <div class="result-detail">
-        Card ${(g.card_type || '').toUpperCase()} · <strong>#${String(g.visual_id || 0).padStart(4, '0')}</strong>
-      </div>
-      <span class="badge-entries">${remaining} ${remaining === 1 ? 'entry' : 'entries'} remaining</span>
-    </div>`;
-  } else if (data.already_entered) {
-    const g = data.guest || {};
-    el.innerHTML = `<div class="result-card warning">
-      <div class="result-icon">⚠️</div>
-      <div class="result-name">Already Fully Checked In</div>
-      <div class="result-detail">${g.name || ''} — all entries used</div>
-    </div>`;
-  } else {
-    el.innerHTML = `<div class="result-card error">
-      <div class="result-icon">❌</div>
-      <div class="result-name">Check-In Failed</div>
-      <div class="result-detail">${data.message || 'Unknown error'}</div>
-    </div>`;
-  }
-  setTimeout(() => { if (el) el.innerHTML = ''; }, 5000);
-}
-
-// ── Recent log ────────────────────────────────────────────────────────────
-const log = [];
-function addLog(name, cardNum, ok) {
-  const now = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  log.unshift({ name, cardNum, ok, time: now });
-  if (log.length > 15) log.pop();
-  renderLog();
-}
-function renderLog() {
-  const el = document.getElementById('log-list');
-  if (!log.length) {
-    el.innerHTML = '<p style="color:#9ca3af;font-size:.82rem;text-align:center">No check-ins yet this session</p>';
-    return;
-  }
-  el.innerHTML = log.map(l => `
-    <div class="log-item">
-      <div style="display:flex;align-items:center">
-        <div class="log-dot" style="background:${l.ok ? '#185a3f' : '#dc2626'}"></div>
-        <span class="log-name">${l.name}</span>
-        <span style="margin-left:.5rem;font-size:.75rem;color:#9ca3af">#${String(l.cardNum).padStart(4, '0')}</span>
-      </div>
-      <span class="log-time">${l.time}</span>
-    </div>`).join('');
-}
-
-// ── Tabs ──────────────────────────────────────────────────────────────────
-let scanner = null, scannerRunning = false;
-
-function switchTab(tab) {
-  document.getElementById('tab-manual').classList.toggle('active', tab === 'manual');
-  document.getElementById('tab-scan').classList.toggle('active', tab === 'scan');
-  document.getElementById('panel-manual').classList.toggle('active', tab === 'manual');
-  document.getElementById('panel-scan').classList.toggle('active', tab === 'scan');
-  if (tab === 'scan' && !scannerRunning) startScanner();
-  else if (tab === 'manual' && scannerRunning) stopScanner();
-}
-
-// ── Manual search (shows guest before checking in) ────────────────────────
-let pendingVisualId = null;
-
-async function doSearch() {
-  const input = document.getElementById('card-input');
-  const raw   = input.value.trim();
-  if (!raw) { input.focus(); return; }
-  const num = parseInt(raw, 10);
-  if (isNaN(num) || num < 1) {
-    document.getElementById('result-wrap').innerHTML =
-      `<div class="result-card error"><div class="result-name">Invalid number</div>
-       <div class="result-detail">Please enter a valid card number</div></div>`;
-    return;
-  }
-
-  const btn = document.getElementById('search-btn');
-  btn.disabled = true; btn.textContent = '⏳';
-
-  try {
-    const res  = await fetch(`/lookup_guest?visual_id=${num}`);
-    const data = await res.json();
-
-    if (data.found) {
-      pendingVisualId = data.visual_id;  // use the actual full visual_id returned
-      document.getElementById('result-wrap').innerHTML = `
-        <div class="result-card success" style="margin-top:1rem;">
-          <div class="result-icon">👤</div>
-          <div class="result-name">${data.name}</div>
-          <div class="result-detail">
-            Card ${(data.card_type || '').toUpperCase()} · 
-            <strong>#${String(data.visual_id).padStart(4, '0')}</strong>
-          </div>
-          <div class="result-detail" style="margin-top:.3rem;">
-            ${data.checked_in_count}/${data.group_size} entries used · 
-            <strong>${data.remaining} remaining</strong>
-          </div>
-          ${data.remaining <= 0 
-            ? `<div style="margin-top:.6rem;color:#92400e;font-weight:600;">⚠️ All entries already used</div>`
-            : `<button class="btn-checkin" style="margin-top:.8rem;width:100%;" 
-                       onclick="confirmCheckin()">✅ Confirm Check-In</button>`
-          }
-        </div>`;
-    } else {
-      pendingVisualId = null;
-      document.getElementById('result-wrap').innerHTML =
-        `<div class="result-card error">
-          <div class="result-icon">❌</div>
-          <div class="result-name">Guest Not Found</div>
-          <div class="result-detail">No guest with card number ${num}</div>
-        </div>`;
-    }
-  } catch (err) {
-    document.getElementById('result-wrap').innerHTML =
-      `<div class="result-card error"><div class="result-name">Network Error</div>
-       <div class="result-detail">Could not reach server</div></div>`;
-  }
-
-  btn.disabled = false; btn.textContent = '🔍 Search';
-}
-
-async function confirmCheckin() {
-  if (!pendingVisualId) return;
-  const res  = await fetch('/update_status', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ visual_id: pendingVisualId }),
-  });
-  const data = await res.json();
-  showResult(data, 'result-wrap');
-  addLog(data.guest?.name || '?', data.guest?.visual_id || 0, data.success);
-  pendingVisualId = null;
-  document.getElementById('card-input').value = '';
-  document.getElementById('card-input').focus();
-}
-
-// ── QR scanner ────────────────────────────────────────────────────────────
-let lastScanned = '', scanCooldown = false;
-
-function startScanner() {
-  scanner = new Html5Qrcode("qr-reader");
-  scanner.start(
-    { facingMode: "environment" },
-    { fps: 10, qrbox: { width: 260, height: 260 } },
-    async (decoded) => {
-      if (scanCooldown || decoded === lastScanned) return;
-      lastScanned = decoded; scanCooldown = true;
-      setTimeout(() => { scanCooldown = false; lastScanned = ''; }, 3000);
-      await checkIn(decoded, 'scan-result-wrap', false);
-    },
-    () => {}
-  ).then(() => { scannerRunning = true; })
-   .catch(err => {
-     document.getElementById('qr-reader').innerHTML =
-       `<div style="padding:2rem;text-align:center;color:#dc2626">
-          Camera access denied or unavailable.<br><small>${err}</small></div>`;
-   });
-}
-
-function stopScanner() {
-  if (scanner) scanner.stop().then(() => { scannerRunning = false; scanner = null; }).catch(() => {});
-}
-window.addEventListener('beforeunload', stopScanner);
+async function search(){const raw=$('card').value.trim(),n=parseInt(raw,10);if(!raw||isNaN(n)||n<1){$('card').focus();return show('err','❌','Invalid number','Please enter the card number.')}
+ const b=$('go');b.disabled=true;b.textContent='…';
+ try{const d=await fetch('/lookup_guest?visual_id='+n).then(r=>r.json());
+  if(d.found){pending=d.visual_id;const used=d.remaining<=0;
+   show(used?'warn':'ok','👤',d.name,`${esc((d.card_type||'').toUpperCase())} · <b>#${pad(d.visual_id)}</b><br>${d.checked_in_count}/${d.group_size} entries used · <b>${d.remaining} remaining</b>`,
+    used?'<div class="mt-2 fw-bold">⚠️ All entries already used</div>':'<button class="btn btn-success big" id="confirm">✅ Confirm check-in</button>');
+   clearTimeout(hideT);const c=$('confirm');if(c)c.onclick=async()=>{c.disabled=true;await checkIn({visual_id:pending});pending=null;$('card').value='';$('card').focus()}}
+  else show('err','❌','Guest not found',`No guest with card number ${n}`)}
+ catch(e){show('err','📶','No connection','Could not reach the server.')}
+ b.disabled=false;b.textContent='Search'}
+$('go').onclick=search;$('card').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+stats();start();
 </script>
-
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
-</html>
+{% endblock %}

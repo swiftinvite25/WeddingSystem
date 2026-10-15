@@ -1,67 +1,30 @@
 {% extends "base.html" %}
+{% set title = "Add Guest" %}
 {% block content %}
-<div class="card mx-auto shadow-sm" style="max-width:640px;">
-  <div class="card-body">
-    <h2 class="card-title text-center mb-3">Add New Guest</h2>
-
-    {% with messages = get_flashed_messages(with_categories=true) %}
-      {% if messages %}
-        {% for category, message in messages %}
-          <div class="alert alert-{{ category }}">{{ message }}</div>
-        {% endfor %}
-      {% endif %}
-    {% endwith %}
-
+<div class="card mx-auto" style="max-width:560px">
+  <div class="card-body p-3 p-sm-4">
+    <h2 class="text-center mb-3">Add new guest</h2>
     <form method="POST" action="{{ url_for('add_guest') }}">
-      <div class="form-group">
-        <label for="name">Name</label>
-        <input required autofocus class="form-control" id="name" name="name" placeholder="Guest name">
-      </div>
-
-      <div class="form-group">
-        <label for="phone">Phone <small class="text-muted">(use format like 07xxxxxxxx or +2557xxxxxxxx)</small></label>
-        <input required class="form-control" id="phone" name="phone" placeholder="07XXXXXXXX">
-        <small class="form-text text-muted">Phone is used to detect duplicates — please enter the primary contact number.</small>
-      </div>
-
-      <div class="form-group">
-        <label for="card_type">Card Type</label>
-        <select id="card_type" name="card_type" class="form-control" required>
-          <option value="single">Single</option>
-          <option value="double">Double</option>
-          <option value="family">Family / Group</option>
-        </select>
-      </div>
-
-      <div class="form-group" id="group_size_wrap" style="display:none;">
-        <label for="group_size">Group size (for Family)</label>
-        <input id="group_size" name="group_size" class="form-control" placeholder="Number of allowed entries (e.g. 5)">
-        <small class="form-text text-muted">Optional. Default family size is 5 if left blank.</small>
-      </div>
-
-      <div class="d-flex mt-3">
-        <button type="submit" class="btn btn-primary mr-2">Add Guest</button>
-        <a href="{{ url_for('view_all') }}" class="btn btn-secondary">Back to Dashboard</a>
+      <div class="mb-3"><label class="form-label" for="name">Name</label>
+        <input required autofocus autocomplete="off" class="form-control" id="name" name="name" placeholder="Guest name"></div>
+      <div class="mb-3"><label class="form-label" for="phone">Phone</label>
+        <input required class="form-control" id="phone" name="phone" type="tel" inputmode="tel" autocomplete="off" placeholder="07XXXXXXXX or +2557XXXXXXXX">
+        <div class="form-text">Used to detect duplicates — enter the guest's main number.</div></div>
+      <div class="mb-3"><label class="form-label" for="card_type">Card type</label>
+        <select id="card_type" name="card_type" class="form-select" required>
+          <option value="single">Single (1 person)</option><option value="double">Double (2 people)</option><option value="family">Family / Group</option></select></div>
+      <div class="mb-3" id="gwrap" hidden><label class="form-label" for="group_size">Group size</label>
+        <input id="group_size" name="group_size" type="number" inputmode="numeric" min="1" class="form-control" placeholder="Number of allowed entries, e.g. 5">
+        <div class="form-text">Optional. If left blank a family card allows 5.</div></div>
+      <div class="d-grid gap-2 d-sm-flex mt-4">
+        <button type="submit" class="btn btn-success flex-fill">Add guest</button>
+        <a href="{{ url_for('view_all') }}" class="btn btn-outline-secondary flex-fill">Back to guests</a>
       </div>
     </form>
   </div>
 </div>
-
 <script>
-  const cardTypeEl = document.getElementById('card_type');
-  const groupWrap = document.getElementById('group_size_wrap');
-
-  function toggleGroupSize() {
-    if (cardTypeEl.value === 'family') {
-      groupWrap.style.display = '';
-      document.getElementById('group_size').required = false;
-    } else {
-      groupWrap.style.display = 'none';
-      document.getElementById('group_size').value = '';
-    }
-  }
-  cardTypeEl.addEventListener('change', toggleGroupSize);
-  // initial
-  toggleGroupSize();
+const ct=document.getElementById('card_type'),gw=document.getElementById('gwrap'),gs=document.getElementById('group_size');
+function t(){const f=ct.value==='family';gw.hidden=!f;if(!f)gs.value=''}ct.addEventListener('change',t);t();
 </script>
 {% endblock %}

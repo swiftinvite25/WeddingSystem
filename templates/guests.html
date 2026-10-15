@@ -8,7 +8,7 @@
     <h2 class="mb-0">Guests</h2>
     <div class="text-muted small">{{ active_event_name }} · {{ guests|length }} guest{{ '' if guests|length == 1 else 's' }} · {{ guests | selectattr('has_entered') | list | length }} checked in</div>
   </div>
-  <div class="d-flex flex-wrap gap-2">
+  <div class="d-flex flex-wrap gap-2 action-grid">
     {% if admin %}
       <a href="{{ url_for('add_guest') }}" class="btn btn-success">+ Add guest</a>
       <a href="{{ url_for('upload_csv') }}" class="btn btn-primary">Upload CSV</a>
@@ -35,10 +35,10 @@
   </div>
 </div>
 
-<input id="guestSearch" class="form-control mb-3" type="search" placeholder="Search by name, phone or card number…">
+<div class="sticky-search"><input id="guestSearch" class="form-control" type="search" placeholder="🔍 Search by name, phone or card number…"></div>
 
-<div class="table-responsive bg-white rounded shadow-sm">
-<table class="table table-hover align-middle mb-0" id="guestTable">
+<div class="table-responsive bg-white rounded shadow-sm cards-wrap">
+<table class="table table-hover align-middle mb-0 table-cards" id="guestTable">
   <thead class="table-light"><tr>
     <th>#</th><th>Name</th><th>Phone</th><th>Card</th>
     {% if show_money %}<th class="text-end">Pledge</th><th class="text-end">Paid</th><th class="text-end">Balance</th><th>Card status</th>{% endif %}
@@ -47,20 +47,20 @@
   {% for guest in guests %}
     {% set pl = guest.pledge_amount or 0 %}{% set pd = guest.paid_amount or 0 %}
     <tr data-s="{{ ((guest.name or '') ~ ' ' ~ (guest.phone or '') ~ ' ' ~ (guest.visual_id or ''))|lower }}">
-      <td>{{ guest.visual_id or 'N/A' }}</td>
-      <td class="fw-semibold">{{ guest.name }}</td>
-      <td>{{ guest.phone }}</td>
-      <td>{{ (guest.card_type or '')|capitalize }}</td>
+      <td data-label="Card no.">{{ guest.visual_id or 'N/A' }}</td>
+      <td class="fw-semibold cell-title">{{ guest.name }}</td>
+      <td data-label="Phone">{{ guest.phone }}</td>
+      <td data-label="Card type">{{ (guest.card_type or '')|capitalize }}</td>
       {% if show_money %}
-      <td class="text-end">{{ '{:,}'.format(pl) }}</td><td class="text-end">{{ '{:,}'.format(pd) }}</td>
-      <td class="text-end {{ 'text-danger' if pl > pd else 'text-success' if pl > 0 }}">{{ '{:,}'.format([pl - pd, 0]|max) }}</td>
-      <td>{% if contrib_gate %}{% set st = card_state(guest) %}{% if st[0] %}<span class="badge bg-success">Released</span>{% else %}<span class="badge bg-danger">Waiting</span>{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      <td class="text-end" data-label="Pledge">{{ '{:,}'.format(pl) }}</td><td class="text-end" data-label="Paid">{{ '{:,}'.format(pd) }}</td>
+      <td data-label="Balance" class="text-end {{ 'text-danger' if pl > pd else 'text-success' if pl > 0 }}">{{ '{:,}'.format([pl - pd, 0]|max) }}</td>
+      <td data-label="Card status">{% if contrib_gate %}{% set st = card_state(guest) %}{% if st[0] %}<span class="badge bg-success">Released</span>{% else %}<span class="badge bg-danger">Waiting</span>{% endif %}{% else %}<span class="text-muted">—</span>{% endif %}</td>
       {% endif %}
-      <td>{% if guest.rsvp_status == 'attending' %}<span class="badge bg-success">Nitakuwepo</span>{% elif guest.rsvp_status == 'not_attending' %}<span class="badge bg-secondary">Sitakuwepo</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
-      <td>{% if guest.checked_in_count and guest.checked_in_count >= guest.group_size %}<span class="badge bg-success">Yes</span>{% elif guest.checked_in_count %}<span class="badge bg-warning text-dark">{{ guest.checked_in_count }}/{{ guest.group_size }}</span>{% else %}<span class="text-muted">No</span>{% endif %}
+      <td data-label="RSVP">{% if guest.rsvp_status == 'attending' %}<span class="badge bg-success">Nitakuwepo</span>{% elif guest.rsvp_status == 'not_attending' %}<span class="badge bg-secondary">Sitakuwepo</span>{% else %}<span class="text-muted">—</span>{% endif %}</td>
+      <td data-label="Entered">{% if guest.checked_in_count and guest.checked_in_count >= guest.group_size %}<span class="badge bg-success">Yes</span>{% elif guest.checked_in_count %}<span class="badge bg-warning text-dark">{{ guest.checked_in_count }}/{{ guest.group_size }}</span>{% else %}<span class="text-muted">No</span>{% endif %}
         {% if guest.entry_time %}<div class="small text-muted">{{ guest.entry_time.strftime('%H:%M') }}</div>{% endif %}</td>
-      <td class="text-nowrap">
-        {% if guest.visual_id %}<a href="{{ url_for('download_card_by_id', visual_id=guest.visual_id) }}" class="btn btn-sm btn-success">Card</a>{% endif %}
+      <td class="text-nowrap cell-actions">
+        {% if guest.visual_id %}<a href="{{ url_for('download_card_by_id', visual_id=guest.visual_id) }}" class="btn btn-sm btn-success">🎫 Card</a>{% endif %}
         <a href="https://wa.me/{{ to_whatsapp_number(guest.phone) }}" target="_blank" rel="noopener" class="btn btn-sm btn-outline-success">WhatsApp</a>
         {% if admin %}
         <a href="{{ url_for('edit_guest', guest_id=guest.id) }}" class="btn btn-sm btn-outline-primary">Edit</a>

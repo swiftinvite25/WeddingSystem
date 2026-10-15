@@ -1,795 +1,129 @@
 {% extends "base.html" %}
+{% set title = "Send Cards" %}
 {% block content %}
+{% set ns = namespace(waiting=0) %}
+{% if contrib_gate %}{% for g in guests %}{% if not card_state(g)[0] %}{% set ns.waiting = ns.waiting + 1 %}{% endif %}{% endfor %}{% endif %}
+<style>
+.sc .st{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:.65rem .4rem;text-align:center;height:100%}.sc .st b{display:block;font-size:1.35rem;line-height:1.1}.sc .st span{font-size:.66rem;text-transform:uppercase;letter-spacing:.04em;color:#6b7280}
+.sc .chips{display:flex;gap:.4rem;overflow-x:auto;padding-bottom:.3rem;margin-bottom:.6rem;scrollbar-width:none}.sc .chips::-webkit-scrollbar{display:none}.sc .chips .btn{white-space:nowrap;flex:none}
+.sc .go{min-height:58px;font-size:1.05rem}.sc details>summary{cursor:pointer;font-weight:600;list-style:none;padding:.4rem 0}.sc details>summary::-webkit-details-marker{display:none}
+</style>
+<div class="sc">
+<h2 class="mb-1">Send cards</h2><p class="text-muted small mb-3">Send each guest their personal card by WhatsApp and SMS.</p>
 
-<div class="container py-4">
-  <h2 class="mb-1">Send Invitation Cards</h2>
-  <p class="text-muted mb-4">Send each guest their personalised card via WhatsApp and SMS.</p>
-
-  <!-- Summary Cards -->
-  <div class="row mb-4">
-    <div class="col-6 col-md-2 mb-3">
-      <div class="card text-center shadow-sm">
-        <div class="card-body py-3">
-          <h3 class="mb-0">{{ total }}</h3>
-          <small class="text-muted">Total</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-2 mb-3">
-      <div class="card text-center shadow-sm border-success">
-        <div class="card-body py-3">
-          <h3 class="mb-0 text-success">{{ sent }}</h3>
-          <small class="text-muted">WhatsApp Sent</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-2 mb-3">
-      <div class="card text-center shadow-sm border-danger">
-        <div class="card-body py-3">
-          <h3 class="mb-0 text-danger">{{ failed }}</h3>
-          <small class="text-muted">WA Failed</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-2 mb-3">
-      <div class="card text-center shadow-sm border-warning">
-        <div class="card-body py-3">
-          <h3 class="mb-0 text-warning">{{ pending }}</h3>
-          <small class="text-muted">WA Pending</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-2 mb-3">
-      <div class="card text-center shadow-sm border-primary">
-        <div class="card-body py-3">
-          <h3 class="mb-0 text-primary">{{ attending }}</h3>
-          <small class="text-muted">Attending ✅</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-2 mb-3">
-      <div class="card text-center shadow-sm border-secondary">
-        <div class="card-body py-3">
-          <h3 class="mb-0 text-secondary">{{ not_attending }}</h3>
-          <small class="text-muted">Declined ❌</small>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Africa's Talking SMS Stats Row -->
+<div class="row g-2 mb-3">
+  <div class="col-4 col-md-2"><div class="st"><b>{{ total }}</b><span>Guests</span></div></div>
+  <div class="col-4 col-md-2"><div class="st"><b class="text-success">{{ sent }}</b><span>WA sent</span></div></div>
+  <div class="col-4 col-md-2"><div class="st"><b class="text-danger">{{ failed }}</b><span>WA failed</span></div></div>
+  <div class="col-4 col-md-2"><div class="st"><b class="text-warning">{{ pending }}</b><span>WA pending</span></div></div>
+  <div class="col-4 col-md-2"><div class="st"><b class="text-primary">{{ attending }}</b><span>Attending</span></div></div>
+  <div class="col-4 col-md-2"><div class="st"><b class="text-secondary">{{ not_attending }}</b><span>Declined</span></div></div>
   {% if at_configured %}
-  <div class="row mb-4">
-    <div class="col-6 col-md-3 mb-3">
-      <div class="card text-center shadow-sm border-success">
-        <div class="card-body py-3">
-          <h3 class="mb-0 text-success">{{ at_sms_sent_count }}</h3>
-          <small class="text-muted">📱 SMS Sent</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3 mb-3">
-      <div class="card text-center shadow-sm border-danger">
-        <div class="card-body py-3">
-          <h3 class="mb-0 text-danger">{{ at_sms_failed_count }}</h3>
-          <small class="text-muted">📱 SMS Failed</small>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3 mb-3">
-      <div class="card text-center shadow-sm border-warning">
-        <div class="card-body py-3">
-          <h3 class="mb-0 text-warning">{{ total - at_sms_sent_count }}</h3>
-          <small class="text-muted">📱 SMS Pending</small>
-        </div>
-      </div>
-    </div>
-  </div>
+  <div class="col-4 col-md-2"><div class="st"><b class="text-success">{{ at_sms_sent_count }}</b><span>SMS sent</span></div></div>
+  <div class="col-4 col-md-2"><div class="st"><b class="text-danger">{{ at_sms_failed_count }}</b><span>SMS failed</span></div></div>
+  <div class="col-4 col-md-2"><div class="st"><b class="text-warning">{{ total - at_sms_sent_count }}</b><span>SMS pending</span></div></div>
   {% endif %}
-
-  <!-- Bulk Actions -->
-  <div class="card shadow-sm mb-4">
-    <div class="card-body d-flex flex-wrap gap-2 align-items-center">
-
-      <!-- UNIFIED: WhatsApp + SMS together -->
-      <button class="btn btn-dark fw-semibold" id="btn-unified-pending" onclick="bulkUnified(false)">
-        🚀 Send All (WA + SMS) Pending
-      </button>
-      <button class="btn btn-outline-dark" id="btn-unified-all" onclick="bulkUnified(true)">
-        🔄 Resend All (WA + SMS)
-      </button>
-
-      <div class="vr mx-1"></div>
-
-      <!-- WhatsApp only -->
-      <button class="btn btn-success" id="btn-send-pending" onclick="bulkSend(false)">
-        📤 WhatsApp Pending ({{ pending }})
-      </button>
-      <button class="btn btn-outline-warning" id="btn-send-all" onclick="bulkSend(true)">
-        🔄 WhatsApp Resend All
-      </button>
-
-      <div class="vr mx-1"></div>
-
-      <!-- Africa's Talking SMS only -->
-      {% if at_configured %}
-      <button class="btn btn-info text-white" id="btn-sms-pending" onclick="bulkAtSms(false)">
-        📱 SMS Pending ({{ total - at_sms_sent_count }})
-      </button>
-      <button class="btn btn-outline-info" id="btn-sms-all" onclick="bulkAtSms(true)">
-        🔄 SMS Resend All
-      </button>
-
-      <div class="vr mx-1"></div>
-
-      <!-- Thank-you SMS -->
-      <button class="btn btn-warning fw-semibold" id="btn-thankyou" onclick="bulkThankYou(false)">
-        🙏 Thank-You SMS Pending
-      </button>
-      <button class="btn btn-outline-warning" id="btn-thankyou-all" onclick="bulkThankYou(true)">
-        🔄 Thank-You Resend All
-      </button>
-      {% endif %}
-
-      <a href="{{ url_for('view_all') }}" class="btn btn-outline-secondary ms-auto">← Back</a>
-    </div>
-  </div>
-
-  <!-- Unified progress bar -->
-  <div id="unified-progress-wrap" class="mb-4" style="display:none;">
-    <div class="d-flex justify-content-between mb-1">
-      <small id="unified-progress-label">Sending WhatsApp + SMS…</small>
-      <small id="unified-progress-count"></small>
-    </div>
-    <div class="progress mb-2" style="height:20px;">
-      <div class="progress-bar progress-bar-striped progress-bar-animated bg-dark"
-           id="unified-progress-bar" role="progressbar" style="width:0%"></div>
-    </div>
-    <div id="unified-bulk-result"></div>
-  </div>
-
-  <!-- WhatsApp progress bar -->
-  <div id="progress-wrap" class="mb-4" style="display:none;">
-    <div class="d-flex justify-content-between mb-1">
-      <small id="progress-label">Sending WhatsApp…</small>
-      <small id="progress-count"></small>
-    </div>
-    <div class="progress" style="height:20px;">
-      <div class="progress-bar progress-bar-striped progress-bar-animated bg-success"
-           id="progress-bar" role="progressbar" style="width:0%"></div>
-    </div>
-    <div id="bulk-result" class="mt-2"></div>
-  </div>
-
-  <!-- SMS progress bar -->
-  <div id="sms-progress-wrap" class="mb-4" style="display:none;">
-    <div class="d-flex justify-content-between mb-1">
-      <small id="sms-progress-label">Sending SMS via Africa's Talking…</small>
-      <small id="sms-progress-count"></small>
-    </div>
-    <div class="progress" style="height:20px;">
-      <div class="progress-bar progress-bar-striped progress-bar-animated bg-info"
-           id="sms-progress-bar" role="progressbar" style="width:0%"></div>
-    </div>
-    <div id="sms-bulk-result" class="mt-2"></div>
-  </div>
-
-  <!-- Thank-you SMS progress bar -->
-  <div id="thankyou-progress-wrap" class="mb-4" style="display:none;">
-    <div class="d-flex justify-content-between mb-1">
-      <small id="thankyou-progress-label">Sending Thank-You SMS…</small>
-      <small id="thankyou-progress-count"></small>
-    </div>
-    <div class="progress" style="height:20px;">
-      <div class="progress-bar progress-bar-striped progress-bar-animated bg-warning"
-           id="thankyou-progress-bar" role="progressbar" style="width:0%"></div>
-    </div>
-    <div id="thankyou-bulk-result" class="mt-2"></div>
-  </div>
-
-  <!-- Filter tabs -->
-  <div class="mb-3 d-flex gap-2 flex-wrap">
-    <button class="btn btn-sm btn-outline-secondary active" onclick="filterTable('all', this)">All</button>
-    <button class="btn btn-sm btn-outline-danger"   onclick="filterTable('wa-failed',   this)">WA Failed</button>
-    <button class="btn btn-sm btn-outline-warning"  onclick="filterTable('wa-pending',  this)">WA Pending</button>
-    <button class="btn btn-sm btn-outline-danger"   onclick="filterTable('sms-failed',  this)">SMS Failed</button>
-    <button class="btn btn-sm btn-outline-info"     onclick="filterTable('sms-pending', this)">SMS Pending</button>
-    <button class="btn btn-sm btn-outline-primary"  onclick="filterTable('attending',   this)">Attending</button>
-  </div>
-
-  <!-- Guest Table -->
-  <div class="card shadow-sm">
-    <div class="card-body p-0">
-      <div class="table-responsive">
-        <table class="table table-hover mb-0" id="guest-table">
-          <thead class="table-light">
-            <tr>
-              <th>#</th>
-              <th>Name</th>
-              <th>Phone</th>
-              <th>Card</th>
-              <th>WhatsApp</th>
-              <th>SMS</th>
-              <th>RSVP</th>
-              <th>Thank-You</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {% for guest in guests %}
-            <tr id="row-{{ guest.id }}"
-                data-wa-sent="{{ 'sent' if guest.whatsapp_sent else ('failed' if guest.whatsapp_error else 'pending') }}"
-                data-sms-sent="{{ 'sent' if guest.at_sms_sent else ('failed' if guest.at_sms_error else 'pending') }}"
-                data-rsvp="{{ guest.rsvp_status or 'none' }}">
-              <td>{{ (guest.visual_id or 0)|string|zfill(4) }}</td>
-              <td>{{ guest.name }}</td>
-              <td>{{ guest.phone }}</td>
-              <td>{{ (guest.card_type or 'single') | title }}</td>
-
-              <!-- WhatsApp status -->
-              <td id="wa-status-{{ guest.id }}">
-                {% if guest.whatsapp_sent %}
-                  <span class="badge bg-success">Sent
-                    {% if guest.whatsapp_sent_at %}
-                      <small>({{ guest.whatsapp_sent_at | fmt_eat('%d %b %H:%M') }})</small>
-                    {% endif %}
-                  </span>
-                {% elif guest.whatsapp_error %}
-                  <span class="badge bg-danger" title="{{ guest.whatsapp_error }}">Failed</span>
-                {% else %}
-                  <span class="badge bg-secondary">Pending</span>
-                {% endif %}
-              </td>
-
-              <!-- Africa's Talking SMS status -->
-              <td id="sms-status-{{ guest.id }}">
-                {% if guest.at_sms_sent %}
-                  <span class="badge bg-info text-white">Sent
-                    {% if guest.at_sms_sent_at %}
-                      <small>({{ guest.at_sms_sent_at | fmt_eat('%d %b %H:%M') }})</small>
-                    {% endif %}
-                  </span>
-                {% elif guest.at_sms_error %}
-                  <span class="badge bg-danger" title="{{ guest.at_sms_error }}">Failed</span>
-                {% else %}
-                  <span class="badge bg-secondary">Pending</span>
-                {% endif %}
-              </td>
-
-              <!-- RSVP -->
-              <td id="rsvp-{{ guest.id }}">
-                {% if guest.rsvp_status == 'attending' %}
-                  <span class="badge bg-primary">✅ Attending</span>
-                {% elif guest.rsvp_status == 'not_attending' %}
-                  <span class="badge bg-secondary">❌ Declined</span>
-                {% else %}
-                  <span class="badge bg-light text-muted">—</span>
-                {% endif %}
-              </td>
-              
-              <!-- Thank-You SMS -->
-              <td id="ty-status-{{ guest.id }}">
-                {% if guest.thank_you_sms_sent %}
-                  <span class="badge bg-warning text-dark">Sent</span>
-                {% else %}
-                  <span class="badge bg-light text-muted">Pending</span>
-                {% endif %}
-              </td>
-
-              <!-- Actions -->
-              <td>
-                <div class="d-flex gap-1 flex-wrap">
-                  <!-- Unified single -->
-                  <button class="btn btn-sm btn-dark" id="unified-btn-{{ guest.id }}"
-                          onclick="sendUnified({{ guest.id }})">
-                    🚀
-                  </button>
-                  <!-- WhatsApp only -->
-                  <button class="btn btn-sm btn-success" id="wa-btn-{{ guest.id }}"
-                          onclick="sendSingle({{ guest.id }})">
-                    {% if guest.whatsapp_sent %}↺ WA{% else %}▶ WA{% endif %}
-                  </button>
-                  <!-- Africa's Talking SMS only -->
-                  {% if at_configured %}
-                  <button class="btn btn-sm btn-info text-white" id="sms-btn-{{ guest.id }}"
-                          onclick="sendAtSms({{ guest.id }})">
-                    {% if guest.at_sms_sent %}↺ SMS{% else %}▶ SMS{% endif %}
-                  </button>
-                  <!-- Thank-you SMS single -->
-                  <button class="btn btn-sm btn-warning" id="ty-btn-{{ guest.id }}"
-                          onclick="sendThankYouSingle({{ guest.id }})"
-                          title="Send Thank-You SMS">
-                    🙏
-                  </button>
-                  {% endif %}
-                </div>
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  </div>
-
 </div>
 
+{% if contrib_gate %}<div class="alert alert-{{ 'warning' if ns.waiting else 'success' }}">
+  {% if ns.waiting %}⏳ <b>{{ ns.waiting }}</b> guest(s) have not reached the minimum contribution and are <b>skipped</b>. <a href="{{ url_for('pledges_page') }}" class="alert-link">Open Michango</a>{% else %}✅ Every guest has qualified for a card.{% endif %}</div>{% endif %}
+
+<div class="card mb-3"><div class="card-body">
+  <button class="btn btn-dark w-100 go bulk" onclick="bulkUnified(false)">🚀 Send pending cards (WhatsApp + SMS)</button>
+  <div class="row g-2 mt-1"><div class="col-12 col-sm-6"><button class="btn btn-outline-dark w-100 bulk" onclick="bulkUnified(true)">🔄 Resend to all</button></div>
+  <div class="col-12 col-sm-6"><a href="{{ url_for('view_all') }}" class="btn btn-outline-secondary w-100">← Back to guests</a></div></div>
+  <details class="mt-2"><summary>More send options ▾</summary>
+    <div class="row g-2 mt-1">
+      <div class="col-6"><button class="btn btn-success w-100 bulk" onclick="bulkOne('wa',false)">📤 WhatsApp pending ({{ pending }})</button></div>
+      <div class="col-6"><button class="btn btn-outline-success w-100 bulk" onclick="bulkOne('wa',true)">🔄 WhatsApp resend all</button></div>
+      {% if at_configured %}
+      <div class="col-6"><button class="btn btn-info text-white w-100 bulk" onclick="bulkOne('sms',false)">📱 SMS pending ({{ total - at_sms_sent_count }})</button></div>
+      <div class="col-6"><button class="btn btn-outline-info w-100 bulk" onclick="bulkOne('sms',true)">🔄 SMS resend all</button></div>
+      {% endif %}
+    </div></details>
+</div></div>
+
+{% if at_configured %}
+<div class="card mb-3"><div class="card-body">
+  <div class="fw-bold mb-1">🙏 After the event: thank-you SMS</div>
+  <div class="row g-2"><div class="col-6"><button class="btn btn-warning w-100 bulk" onclick="bulkOne('ty',false)">Send pending</button></div>
+  <div class="col-6"><button class="btn btn-outline-warning w-100 bulk" onclick="bulkOne('ty',true)">Resend to all</button></div></div>
+</div></div>
+{% endif %}
+
+<div id="prog" class="card mb-3" hidden><div class="card-body">
+  <div class="d-flex justify-content-between mb-1"><small id="plabel"></small><small id="pcount"></small></div>
+  <div class="progress mb-2" style="height:18px"><div id="pbar" class="progress-bar progress-bar-striped progress-bar-animated bg-success" style="width:0%"></div></div>
+  <div id="pres"></div></div></div>
+
+<div class="chips">
+  <button class="btn btn-sm btn-outline-secondary active" onclick="filt('all',this)">All</button>
+  <button class="btn btn-sm btn-outline-danger" onclick="filt('wa-failed',this)">WA failed</button>
+  <button class="btn btn-sm btn-outline-warning" onclick="filt('wa-pending',this)">WA pending</button>
+  <button class="btn btn-sm btn-outline-danger" onclick="filt('sms-failed',this)">SMS failed</button>
+  <button class="btn btn-sm btn-outline-info" onclick="filt('sms-pending',this)">SMS pending</button>
+  <button class="btn btn-sm btn-outline-primary" onclick="filt('attending',this)">Attending</button>
+  {% if contrib_gate %}<button class="btn btn-sm btn-outline-dark" onclick="filt('waiting',this)">Waiting (contribution)</button>{% endif %}
+</div>
+
+<div class="card cards-wrap"><div class="card-body p-0"><div class="table-responsive cards-wrap">
+<table class="table table-hover align-middle mb-0 table-cards" id="guest-table">
+<thead class="table-light"><tr><th>#</th><th>Name</th><th>Phone</th><th>Card</th>{% if contrib_gate %}<th>Contribution</th>{% endif %}<th>WhatsApp</th><th>SMS</th><th>RSVP</th><th>Thank-you</th><th>Actions</th></tr></thead>
+<tbody>
+{% for guest in guests %}
+<tr id="row-{{ guest.id }}" data-wa="{{ 'sent' if guest.whatsapp_sent else ('failed' if guest.whatsapp_error else 'pending') }}" data-sms="{{ 'sent' if guest.at_sms_sent else ('failed' if guest.at_sms_error else 'pending') }}" data-rsvp="{{ guest.rsvp_status or 'none' }}" data-waiting="{{ 1 if contrib_gate and not card_state(guest)[0] else 0 }}">
+  <td data-label="Card no.">{{ (guest.visual_id or 0)|string|zfill(4) }}</td>
+  <td class="fw-semibold cell-title">{{ guest.name }}</td>
+  <td data-label="Phone">{{ guest.phone }}</td>
+  <td data-label="Card type">{{ (guest.card_type or 'single')|title }}</td>
+  {% if contrib_gate %}<td data-label="Contribution">{% if card_state(guest)[0] %}<span class="badge bg-success">Released</span>{% else %}<span class="badge bg-danger">Waiting</span>{% endif %}</td>{% endif %}
+  <td data-label="WhatsApp" id="wa-status-{{ guest.id }}">{% if guest.whatsapp_sent %}<span class="badge bg-success">Sent{% if guest.whatsapp_sent_at %} <small>({{ guest.whatsapp_sent_at|fmt_eat('%d %b %H:%M') }})</small>{% endif %}</span>{% elif guest.whatsapp_error %}<span class="badge bg-danger" title="{{ guest.whatsapp_error }}">Failed</span>{% else %}<span class="badge bg-secondary">Pending</span>{% endif %}</td>
+  <td data-label="SMS" id="sms-status-{{ guest.id }}">{% if guest.at_sms_sent %}<span class="badge bg-info text-white">Sent{% if guest.at_sms_sent_at %} <small>({{ guest.at_sms_sent_at|fmt_eat('%d %b %H:%M') }})</small>{% endif %}</span>{% elif guest.at_sms_error %}<span class="badge bg-danger" title="{{ guest.at_sms_error }}">Failed</span>{% else %}<span class="badge bg-secondary">Pending</span>{% endif %}</td>
+  <td data-label="RSVP">{% if guest.rsvp_status == 'attending' %}<span class="badge bg-primary">✅ Attending</span>{% elif guest.rsvp_status == 'not_attending' %}<span class="badge bg-secondary">❌ Declined</span>{% else %}<span class="badge bg-light text-muted">—</span>{% endif %}</td>
+  <td data-label="Thank-you" id="ty-status-{{ guest.id }}">{% if guest.thankyou_sms_sent %}<span class="badge bg-warning text-dark">Sent</span>{% else %}<span class="badge bg-light text-muted">Pending</span>{% endif %}</td>
+  <td class="cell-actions"><div class="d-flex gap-1 flex-wrap">
+    <button class="btn btn-sm btn-dark" onclick="single('both',{{ guest.id }},this)" title="WhatsApp + SMS">🚀 Send</button>
+    <button class="btn btn-sm btn-success" onclick="single('wa',{{ guest.id }},this)">{{ '↺' if guest.whatsapp_sent else '▶' }} WA</button>
+    {% if at_configured %}<button class="btn btn-sm btn-info text-white" onclick="single('sms',{{ guest.id }},this)">{{ '↺' if guest.at_sms_sent else '▶' }} SMS</button>
+    <button class="btn btn-sm btn-warning" onclick="single('ty',{{ guest.id }},this)" title="Thank-you SMS">🙏</button>{% endif %}
+  </div></td>
+</tr>
+{% else %}<tr><td colspan="10" class="text-center text-muted py-4">No guests yet.</td></tr>
+{% endfor %}
+</tbody></table></div></div></div>
+</div>
 <script>
-// ── helpers ───────────────────────────────────────────────────────────────
-function waBadge(wa) {
-  if (wa === 'sent')    return '<span class="badge bg-success">Sent ✓</span>';
-  if (wa === 'invalid') return '<span class="badge bg-warning text-dark">Not on WA</span>';
-  return                       '<span class="badge bg-danger">Failed</span>';
-}
-function smsBadge(sms) {
-  if (sms === 'sent')           return '<span class="badge bg-info text-white">Sent ✓</span>';
-  if (sms === 'not_configured') return '<span class="badge bg-secondary">N/A</span>';
-  if (sms === 'skipped')        return '<span class="badge bg-light text-muted">Skipped</span>';
-  return                               '<span class="badge bg-danger">Failed</span>';
-}
-
-function disableAllBulkBtns(disabled) {
-  ['btn-unified-pending','btn-unified-all','btn-send-pending','btn-send-all',
-   'btn-sms-pending','btn-sms-all','btn-thankyou','btn-thankyou-all'].forEach(id => {
-    const el = document.getElementById(id); if (el) el.disabled = disabled;
-  });
-}
-
-// ── Single unified (WA + SMS) ─────────────────────────────────────────────
-async function sendUnified(guestId) {
-  const uBtn  = document.getElementById(`unified-btn-${guestId}`);
-  const waEl  = document.getElementById(`wa-status-${guestId}`);
-  const smsEl = document.getElementById(`sms-status-${guestId}`);
-
-  uBtn.disabled = true; uBtn.textContent = '⏳';
-  waEl.innerHTML  = '<span class="badge bg-info">Sending…</span>';
-  smsEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-
-  try {
-    const res  = await fetch(`/send_unified_single/${guestId}`, { method: 'POST' });
-    const data = await res.json();
-    waEl.innerHTML   = waBadge(data.wa);
-    smsEl.innerHTML  = smsBadge(data.sms);
-    uBtn.textContent = data.overall !== 'failed' ? '✓' : '✗';
-    const row = document.getElementById(`row-${guestId}`);
-    if (row) {
-      row.dataset.waSent  = data.wa  === 'sent' ? 'sent' : (data.wa  === 'skipped' ? 'pending' : 'failed');
-      row.dataset.smsSent = data.sms === 'sent' ? 'sent' : (data.sms === 'skipped' ? 'pending' : 'failed');
-    }
-  } catch (err) {
-    waEl.innerHTML  = '<span class="badge bg-danger">Error</span>';
-    smsEl.innerHTML = '<span class="badge bg-danger">Error</span>';
-    uBtn.textContent = '✗';
-  }
-  uBtn.disabled = false;
-}
-
-// ── Bulk unified (WA + SMS) — per-guest loop ──────────────────────────────
-async function bulkUnified(resend) {
-  const wrap  = document.getElementById('unified-progress-wrap');
-  const bar   = document.getElementById('unified-progress-bar');
-  const label = document.getElementById('unified-progress-label');
-  const count = document.getElementById('unified-progress-count');
-  const result= document.getElementById('unified-bulk-result');
-
-  disableAllBulkBtns(true);
-  wrap.style.display = 'block';
-  bar.style.width    = '5%';
-  label.textContent  = 'Loading guest list…';
-  result.innerHTML   = '';
-
-  let guestIds = [];
-  try {
-    const res  = await fetch(`/pending_guest_ids?resend=${resend}&channel=both`);
-    const data = await res.json();
-    guestIds   = data.guest_ids;
-  } catch (err) {
-    result.innerHTML = `<div class="alert alert-danger">Failed to load guest list: ${err}</div>`;
-    disableAllBulkBtns(false);
-    return;
-  }
-
-  if (guestIds.length === 0) {
-    result.innerHTML = `<div class="alert alert-info">No pending guests to send to.</div>`;
-    wrap.style.display = 'none';
-    disableAllBulkBtns(false);
-    return;
-  }
-
-  const total = guestIds.length;
-  let waSent = 0, waFailed = 0, smsSent = 0, smsFailed = 0;
-  const errors = [];
-
-  for (let i = 0; i < total; i++) {
-    const gid = guestIds[i];
-    label.textContent  = `Sending ${i + 1} of ${total}…`;
-    count.textContent  = `WA ${waSent}/${total} · SMS ${smsSent}/${total}`;
-    bar.style.width    = `${Math.round(((i + 1) / total) * 100)}%`;
-
-    const waEl  = document.getElementById(`wa-status-${gid}`);
-    const smsEl = document.getElementById(`sms-status-${gid}`);
-    if (waEl)  waEl.innerHTML  = '<span class="badge bg-info">Sending…</span>';
-    if (smsEl) smsEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-
-    try {
-      const res  = await fetch(`/send_unified_one/${gid}`, { method: 'POST' });
-      const data = await res.json();
-      if (data.wa  === 'sent')                              waSent++;
-      else if (data.wa  === 'failed' || data.wa === 'invalid') waFailed++;
-      if (data.sms === 'sent')                              smsSent++;
-      else if (data.sms === 'failed')                       smsFailed++;
-      if (data.overall === 'failed') errors.push({ name: `ID ${gid}`, error: data.error || data.message || 'Failed' });
-      if (waEl)  waEl.innerHTML  = waBadge(data.wa);
-      if (smsEl) smsEl.innerHTML = smsBadge(data.sms);
-    } catch (err) {
-      waFailed++;
-      errors.push({ name: `ID ${gid}`, error: String(err) });
-      if (waEl)  waEl.innerHTML  = '<span class="badge bg-danger">Error</span>';
-      if (smsEl) smsEl.innerHTML = '<span class="badge bg-danger">Error</span>';
-    }
-  }
-
-  bar.style.width   = '100%';
-  count.textContent = `WA ${waSent}/${total} · SMS ${smsSent}/${total}`;
-  label.textContent = 'Done!';
-
-  const hasErrors = errors.length > 0;
-  let html = `<div class="alert alert-${hasErrors ? 'warning' : 'success'} mt-2">
-    📤 WhatsApp sent: <strong>${waSent}</strong> &nbsp; failed: <strong>${waFailed}</strong><br>
-    📱 SMS sent: <strong>${smsSent}</strong> &nbsp; failed: <strong>${smsFailed}</strong>
-  </div>`;
-  if (hasErrors) {
-    html += `<ul class="list-group mt-2">`;
-    errors.forEach(e => { html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`; });
-    html += `</ul>`;
-  }
-  result.innerHTML = html;
-  disableAllBulkBtns(false);
-  setTimeout(() => location.reload(), 3500);
-}
-
-// ── Single WhatsApp ───────────────────────────────────────────────────────
-async function sendSingle(guestId) {
-  const btn      = document.getElementById(`wa-btn-${guestId}`);
-  const statusEl = document.getElementById(`wa-status-${guestId}`);
-  btn.disabled = true; btn.textContent = '⏳';
-  statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-  try {
-    const res  = await fetch(`/send_card_single/${guestId}`, { method: 'POST' });
-    const data = await res.json();
-    if (data.success) {
-      statusEl.innerHTML = '<span class="badge bg-success">Sent ✓</span>';
-      btn.textContent    = '↺ WA';
-    } else {
-      statusEl.innerHTML = `<span class="badge bg-danger" title="${data.message}">Failed</span>`;
-      btn.textContent    = '▶ WA';
-    }
-  } catch (err) {
-    statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
-    btn.textContent    = '▶ WA';
-  }
-  btn.disabled = false;
-}
-
-// ── Bulk WhatsApp — per-guest loop ────────────────────────────────────────
-async function bulkSend(resend) {
-  const wrap  = document.getElementById('progress-wrap');
-  const bar   = document.getElementById('progress-bar');
-  const label = document.getElementById('progress-label');
-  const count = document.getElementById('progress-count');
-  const result= document.getElementById('bulk-result');
-  const btnP  = document.getElementById('btn-send-pending');
-  const btnA  = document.getElementById('btn-send-all');
-
-  disableAllBulkBtns(true);
-  wrap.style.display = 'block';
-  bar.style.width    = '5%';
-  label.textContent  = 'Loading guest list…';
-  result.innerHTML   = '';
-
-  let guestIds = [];
-  try {
-    const res  = await fetch(`/pending_guest_ids?resend=${resend}&channel=wa`);
-    const data = await res.json();
-    guestIds   = data.guest_ids;
-  } catch (err) {
-    result.innerHTML = `<div class="alert alert-danger">Failed to load guest list: ${err}</div>`;
-    disableAllBulkBtns(false);
-    return;
-  }
-
-  if (guestIds.length === 0) {
-    result.innerHTML = `<div class="alert alert-info">No pending guests.</div>`;
-    wrap.style.display = 'none';
-    disableAllBulkBtns(false);
-    return;
-  }
-
-  const total = guestIds.length;
-  let sent = 0, failed = 0;
-  const errors = [];
-
-  for (let i = 0; i < total; i++) {
-    const gid = guestIds[i];
-    label.textContent = `Sending ${i + 1} of ${total}…`;
-    count.textContent = `${sent} / ${total}`;
-    bar.style.width   = `${Math.round(((i + 1) / total) * 100)}%`;
-
-    const statusEl = document.getElementById(`wa-status-${gid}`);
-    if (statusEl) statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-
-    try {
-      const res  = await fetch(`/send_card_single/${gid}`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        sent++;
-        if (statusEl) statusEl.innerHTML = '<span class="badge bg-success">Sent ✓</span>';
-      } else {
-        failed++;
-        errors.push({ name: `ID ${gid}`, error: data.message || 'Failed' });
-        if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Failed</span>';
-      }
-    } catch (err) {
-      failed++;
-      errors.push({ name: `ID ${gid}`, error: String(err) });
-      if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
-    }
-  }
-
-  bar.style.width   = '100%';
-  count.textContent = `${sent} / ${total}`;
-  label.textContent = 'Done!';
-
-  let html = `<div class="alert alert-${failed > 0 ? 'warning' : 'success'} mt-2">
-    ✅ WhatsApp Sent: <strong>${sent}</strong> &nbsp; ❌ Failed: <strong>${failed}</strong>
-  </div>`;
-  if (errors.length) {
-    html += `<ul class="list-group mt-2">`;
-    errors.forEach(e => { html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`; });
-    html += `</ul>`;
-  }
-  result.innerHTML = html;
-  disableAllBulkBtns(false);
-  setTimeout(() => location.reload(), 3000);
-}
-
-// ── Single SMS ────────────────────────────────────────────────────────────
-async function sendAtSms(guestId) {
-  const btn      = document.getElementById(`sms-btn-${guestId}`);
-  const statusEl = document.getElementById(`sms-status-${guestId}`);
-  btn.disabled = true; btn.textContent = '⏳';
-  statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-  try {
-    const res  = await fetch(`/send_at_sms_single/${guestId}`, { method: 'POST' });
-    const data = await res.json();
-    if (data.success) {
-      statusEl.innerHTML = '<span class="badge bg-info text-white">Sent ✓</span>';
-      btn.textContent    = '↺ SMS';
-    } else {
-      statusEl.innerHTML = `<span class="badge bg-danger" title="${data.message}">Failed</span>`;
-      btn.textContent    = '▶ SMS';
-    }
-  } catch (err) {
-    statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
-    btn.textContent    = '▶ SMS';
-  }
-  btn.disabled = false;
-}
-
-// ── Single Thank-You SMS ──────────────────────────────────────────────────
-async function sendThankYouSingle(guestId) {
-  const btn      = document.getElementById(`ty-btn-${guestId}`);
-  const statusEl = document.getElementById(`ty-status-${guestId}`);
-  btn.disabled = true; btn.textContent = '⏳';
-  if (statusEl) statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-  try {
-    const res  = await fetch(`/send_thankyou_sms_one/${guestId}`, { method: 'POST' });
-    const data = await res.json();
-    btn.textContent = data.success ? '🙏' : '✗';
-    if (statusEl) statusEl.innerHTML = data.success
-      ? '<span class="badge bg-warning text-dark">Sent ✓</span>'
-      : `<span class="badge bg-danger" title="${data.error || ''}">Failed</span>`;
-  } catch (err) {
-    btn.textContent = '✗';
-    if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
-  }
-  btn.disabled = false;
-}
-
-// ── Bulk SMS — per-guest loop ─────────────────────────────────────────────
-async function bulkAtSms(resend) {
-  const wrap  = document.getElementById('sms-progress-wrap');
-  const bar   = document.getElementById('sms-progress-bar');
-  const label = document.getElementById('sms-progress-label');
-  const count = document.getElementById('sms-progress-count');
-  const result= document.getElementById('sms-bulk-result');
-
-  disableAllBulkBtns(true);
-  wrap.style.display = 'block';
-  bar.style.width    = '5%';
-  label.textContent  = 'Loading guest list…';
-  result.innerHTML   = '';
-
-  let guestIds = [];
-  try {
-    const res  = await fetch(`/pending_guest_ids?resend=${resend}&channel=sms`);
-    const data = await res.json();
-    guestIds   = data.guest_ids;
-  } catch (err) {
-    result.innerHTML = `<div class="alert alert-danger">Failed to load guest list: ${err}</div>`;
-    disableAllBulkBtns(false);
-    return;
-  }
-
-  if (guestIds.length === 0) {
-    result.innerHTML = `<div class="alert alert-info">No pending guests.</div>`;
-    wrap.style.display = 'none';
-    disableAllBulkBtns(false);
-    return;
-  }
-
-  const total = guestIds.length;
-  let sent = 0, failed = 0;
-  const errors = [];
-
-  for (let i = 0; i < total; i++) {
-    const gid = guestIds[i];
-    label.textContent = `Sending ${i + 1} of ${total}…`;
-    count.textContent = `${sent} / ${total}`;
-    bar.style.width   = `${Math.round(((i + 1) / total) * 100)}%`;
-
-    const statusEl = document.getElementById(`sms-status-${gid}`);
-    if (statusEl) statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-
-    try {
-      const res  = await fetch(`/send_at_sms_single/${gid}`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        sent++;
-        if (statusEl) statusEl.innerHTML = '<span class="badge bg-info text-white">Sent ✓</span>';
-      } else {
-        failed++;
-        errors.push({ name: `ID ${gid}`, error: data.message || 'Failed' });
-        if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Failed</span>';
-      }
-    } catch (err) {
-      failed++;
-      errors.push({ name: `ID ${gid}`, error: String(err) });
-      if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
-    }
-  }
-
-  bar.style.width   = '100%';
-  count.textContent = `${sent} / ${total}`;
-  label.textContent = 'Done!';
-
-  let html = `<div class="alert alert-${failed > 0 ? 'warning' : 'success'} mt-2">
-    📱 SMS Sent: <strong>${sent}</strong> &nbsp; ❌ Failed: <strong>${failed}</strong>
-  </div>`;
-  if (errors.length) {
-    html += `<ul class="list-group mt-2">`;
-    errors.forEach(e => { html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`; });
-    html += `</ul>`;
-  }
-  result.innerHTML = html;
-  disableAllBulkBtns(false);
-  setTimeout(() => location.reload(), 3000);
-}
-
-// ── Bulk Thank-You SMS — per-guest loop ───────────────────────────────────
-async function bulkThankYou() {
-  const wrap  = document.getElementById('thankyou-progress-wrap');
-  const bar   = document.getElementById('thankyou-progress-bar');
-  const label = document.getElementById('thankyou-progress-label');
-  const count = document.getElementById('thankyou-progress-count');
-  const result= document.getElementById('thankyou-bulk-result');
-
-  if (!confirm('Send Thank-You SMS to ALL guests? This will send to everyone regardless of previous SMS status.')) return;
-
-  disableAllBulkBtns(true);
-  wrap.style.display = 'block';
-  bar.style.width    = '5%';
-  label.textContent  = 'Loading guest list…';
-  result.innerHTML   = '';
-
-  // Get all guest IDs (resend=true so it sends to everyone)
-  let guestIds = [], evId = null;
-  try {
-    const res  = await fetch('/send_thankyou_sms_bulk', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ resend }),
-      });
-    const statusEl = document.getElementById(`ty-status-${gid}`);
-      if (statusEl) statusEl.innerHTML = '<span class="badge bg-info">Sending…</span>';
-
-      try {
-        const res  = await fetch(`/send_thankyou_sms_one/${gid}`, { method: 'POST' });
-        const data = await res.json();
-        if (data.success) {
-          sent++;
-          if (statusEl) statusEl.innerHTML = '<span class="badge bg-warning text-dark">Sent ✓</span>';
-        } else {
-          failed++;
-          errors.push({ name: data.name || `ID ${gid}`, error: data.error || 'Failed' });
-          if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Failed</span>';
-        }
-      } catch (err) {
-        failed++;
-        errors.push({ name: `ID ${gid}`, error: String(err) });
-        if (statusEl) statusEl.innerHTML = '<span class="badge bg-danger">Error</span>';
-      }
-    const data = await res.json();
-    guestIds   = data.guest_ids;
-    evId       = data.ev_id;
-  } catch (err) {
-    result.innerHTML = `<div class="alert alert-danger">Failed to load guest list: ${err}</div>`;
-    disableAllBulkBtns(false);
-    return;
-  }
-
-  if (guestIds.length === 0) {
-    result.innerHTML = `<div class="alert alert-info">No guests found.</div>`;
-    wrap.style.display = 'none';
-    disableAllBulkBtns(false);
-    return;
-  }
-
-  const total = guestIds.length;
-  let sent = 0, failed = 0;
-  const errors = [];
-
-  for (let i = 0; i < total; i++) {
-    const gid = guestIds[i];
-    label.textContent = `Sending ${i + 1} of ${total}…`;
-    count.textContent = `${sent} / ${total}`;
-    bar.style.width   = `${Math.round(((i + 1) / total) * 100)}%`;
-
-    try {
-      const res  = await fetch(`/send_thankyou_sms_one/${gid}`, { method: 'POST' });
-      const data = await res.json();
-      if (data.success) {
-        sent++;
-      } else {
-        failed++;
-        errors.push({ name: data.name || `ID ${gid}`, error: data.error || 'Failed' });
-      }
-    } catch (err) {
-      failed++;
-      errors.push({ name: `ID ${gid}`, error: String(err) });
-    }
-  }
-
-  bar.style.width   = '100%';
-  count.textContent = `${sent} / ${total}`;
-  label.textContent = 'Done!';
-
-  let html = `<div class="alert alert-${failed > 0 ? 'warning' : 'success'} mt-2">
-    🙏 Thank-You SMS Sent: <strong>${sent}</strong> &nbsp; ❌ Failed: <strong>${failed}</strong>
-  </div>`;
-  if (errors.length) {
-    html += `<ul class="list-group mt-2">`;
-    errors.forEach(e => { html += `<li class="list-group-item list-group-item-danger"><strong>${e.name}</strong>: ${e.error}</li>`; });
-    html += `</ul>`;
-  }
-  result.innerHTML = html;
-  disableAllBulkBtns(false);
-}
-
-// ── Table filter ──────────────────────────────────────────────────────────
-function filterTable(filter, btn) {
-  document.querySelectorAll('.btn[onclick^="filterTable"]').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.querySelectorAll('#guest-table tbody tr').forEach(row => {
-    let show = true;
-    if      (filter === 'wa-failed')  show = row.dataset.waSent  === 'failed';
-    else if (filter === 'wa-pending') show = row.dataset.waSent  === 'pending';
-    else if (filter === 'sms-failed') show = row.dataset.smsSent === 'failed';
-    else if (filter === 'sms-pending')show = row.dataset.smsSent === 'pending';
-    else if (filter === 'attending')  show = row.dataset.rsvp    === 'attending';
-    row.style.display = show ? '' : 'none';
-  });
-}
+const $=id=>document.getElementById(id),J=(u,o)=>fetch(u,o).then(r=>r.json()),post=(u,b)=>J(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b||{})}),
+esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const B=(c,t,ti)=>`<span class="badge bg-${c}"${ti?` title="${esc(ti)}"`:''}>${t}</span>`,set=(id,h)=>{const e=$(id);if(e)e.innerHTML=h};
+const waB=s=>s==='sent'?B('success','Sent ✓'):s==='invalid'?B('warning text-dark','Not on WA'):s==='skipped'?B('light text-muted','Skipped'):B('danger','Failed');
+const smsB=s=>s==='sent'?B('info text-white','Sent ✓'):s==='not_configured'?B('secondary','N/A'):s==='skipped'?B('light text-muted','Skipped'):B('danger','Failed');
+const sending=id=>set(id,B('info','Sending…'));
+const steps={
+ async both(id,c){sending('wa-status-'+id);sending('sms-status-'+id);const d=await post('/send_unified_one/'+id);set('wa-status-'+id,waB(d.wa));set('sms-status-'+id,smsB(d.sms));
+  c.w=(c.w||0)+(d.wa==='sent');c.s=(c.s||0)+(d.sms==='sent');return{ok:d.success!==false,err:d.error||d.message}},
+ async wa(id,c){sending('wa-status-'+id);const d=await post('/send_card_single/'+id);set('wa-status-'+id,d.success?B('success','Sent ✓'):B('danger','Failed',d.message));return{ok:!!d.success,err:d.message}},
+ async sms(id,c){sending('sms-status-'+id);const d=await post('/send_at_sms_single/'+id);set('sms-status-'+id,d.success?B('info text-white','Sent ✓'):B('danger','Failed',d.message));return{ok:!!d.success,err:d.message}},
+ async ty(id,c){sending('ty-status-'+id);const d=await post('/send_thankyou_sms_one/'+id);set('ty-status-'+id,d.success?B('warning text-dark','Sent ✓'):B('danger','Failed',d.error));return{ok:!!d.success,err:d.error,name:d.name}}};
+const idsFor=(ch,r)=>ch==='ty'?async()=>(await post('/send_thankyou_sms_bulk',{resend:r})).guest_ids:async()=>(await J(`/pending_guest_ids?resend=${r}&channel=${ch==='both'?'both':ch}`)).guest_ids;
+const NAMES={both:'Sending cards',wa:'WhatsApp',sms:'SMS',ty:'Thank-you SMS'};
+const busy=on=>document.querySelectorAll('.bulk').forEach(b=>b.disabled=on);
+async function runBulk(kind,resend){
+ if(resend&&!confirm(kind==='ty'?'Send the thank-you SMS to ALL guests again?':'Resend to ALL guests? This sends and bills the messages again.'))return;
+ busy(true);const p=$('prog'),bar=$('pbar');p.hidden=false;bar.classList.add('progress-bar-animated');bar.style.width='4%';$('plabel').textContent='Loading guest list…';$('pcount').textContent='';$('pres').innerHTML='';p.scrollIntoView({behavior:'smooth',block:'nearest'});
+ let ids=[];try{ids=await idsFor(kind,resend)()}catch(e){$('pres').innerHTML=`<div class="alert alert-danger">Could not load the guest list: ${esc(e)}</div>`;busy(false);return}
+ if(!ids.length){$('pres').innerHTML='<div class="alert alert-info mb-0">Nobody to send to right now.</div>';bar.style.width='0';busy(false);return}
+ const c={},errs=[];let ok=0,fail=0;
+ for(let i=0;i<ids.length;i++){$('plabel').textContent=`${NAMES[kind]}: ${i+1} of ${ids.length}`;bar.style.width=Math.round((i+1)/ids.length*100)+'%';
+  try{const r=await steps[kind](ids[i],c);if(r.ok)ok++;else{fail++;errs.push({n:r.name||'ID '+ids[i],e:r.err||'Failed'})}}catch(e){fail++;errs.push({n:'ID '+ids[i],e:String(e)})}
+  $('pcount').textContent=`✔ ${ok} · ✖ ${fail}`}
+ $('plabel').textContent='Done!';bar.classList.remove('progress-bar-animated');
+ const sum=kind==='both'?`📤 WhatsApp sent <b>${c.w||0}</b> · 📱 SMS sent <b>${c.s||0}</b> · problems <b>${fail}</b>`:`✅ Sent <b>${ok}</b> · ❌ Failed <b>${fail}</b>`;
+ $('pres').innerHTML=`<div class="alert alert-${fail?'warning':'success'} mb-2">${sum}</div>`+(errs.length?`<ul class="list-group small">${errs.map(e=>`<li class="list-group-item list-group-item-danger"><b>${esc(e.n)}</b>: ${esc(e.e)}</li>`).join('')}</ul>`:'');
+ busy(false);if(!errs.length)setTimeout(()=>location.reload(),2500)}
+const bulkUnified=r=>runBulk('both',r),bulkOne=(k,r)=>runBulk(k,r);
+async function single(kind,id,btn){const t=btn.textContent;btn.disabled=true;btn.textContent='⏳';try{await steps[kind](id,{})}catch(e){}btn.textContent=t;btn.disabled=false}
+function filt(f,btn){document.querySelectorAll('.chips .btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
+ document.querySelectorAll('#guest-table tbody tr[id]').forEach(r=>{const d=r.dataset;r.style.display=({all:1,'wa-failed':d.wa==='failed','wa-pending':d.wa==='pending','sms-failed':d.sms==='failed','sms-pending':d.sms==='pending',attending:d.rsvp==='attending',waiting:d.waiting==='1'})[f]?'':'none'})}
 </script>
-
 {% endblock %}

@@ -4,6 +4,7 @@
   <div class="container">
     <a class="navbar-brand fw-bold font-weight-bold" href="{{ url_for('view_all') }}">🎉 SwiftInvite</a>
     {% if session.get('logged_in') %}
+    <span class="ev-pill d-lg-none">📅 {{ active_event_name | default('Select Event') }}</span>
     <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-toggle="collapse" data-bs-target="#navMain" data-target="#navMain" aria-controls="navMain" aria-expanded="false" aria-label="Menu"><span class="navbar-toggler-icon"></span></button>
     <div class="collapse navbar-collapse" id="navMain">
       <ul class="navbar-nav me-auto mr-auto">

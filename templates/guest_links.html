@@ -22,10 +22,10 @@
 <p class="h">Each guest has their own link. When they open it they see their name and the <b>Nitakuwepo / Sitakuwepo</b> buttons, and their answer is saved here. Use these to test the RSVP buttons, or to send a link by WhatsApp. SMS messages do not contain the link.</p>
 {% if not site_on %}<p class="warn">The event website is OFF. Turn it on in Event Website, otherwise these links show "Page not found".</p>{% endif %}
 <input type="search" id="q" placeholder="Search name or phone…">
-<div class="sc"><table><thead><tr><th>#</th><th>Guest</th><th>RSVP</th><th>Personal link</th></tr></thead><tbody>
-{% for r in rows %}<tr data-s="{{ (r.name ~ ' ' ~ r.phone)|lower }}"><td>{{ r.vid }}</td><td>{{ r.name }}<br><span class="h">{{ r.phone }}</span></td>
-<td>{% if r.rsvp == 'attending' %}<span class="y">Nitakuwepo</span>{% elif r.rsvp == 'not_attending' %}<span class="n">Sitakuwepo</span>{% else %}<span class="h">—</span>{% endif %}</td>
-<td><button class="cp" data-u="{{ r.url }}">Copy link</button> <a class="bt g" href="{{ r.url }}" target="_blank" rel="noopener">Open</a>
+<div class="sc cards-wrap"><table class="table-cards"><thead><tr><th>#</th><th>Guest</th><th>RSVP</th><th>Personal link</th></tr></thead><tbody>
+{% for r in rows %}<tr data-s="{{ (r.name ~ ' ' ~ r.phone)|lower }}"><td data-label="Card no.">{{ r.vid }}</td><td class="cell-title">{{ r.name }}<br><span class="h">{{ r.phone }}</span></td>
+<td data-label="RSVP">{% if r.rsvp == 'attending' %}<span class="y">Nitakuwepo</span>{% elif r.rsvp == 'not_attending' %}<span class="n">Sitakuwepo</span>{% else %}<span class="h">—</span>{% endif %}</td>
+<td class="cell-actions"><button class="cp" data-u="{{ r.url }}">Copy link</button> <a class="bt g" href="{{ r.url }}" target="_blank" rel="noopener">Open</a>
 <a class="bt wa" target="_blank" rel="noopener" href="https://wa.me/{{ r.phone }}?text={{ ('Habari ' ~ r.name ~ ', karibu kwenye ukurasa wa mwaliko wako na uthibitishe kuhudhuria: ' ~ r.url)|urlencode }}">WhatsApp</a></td></tr>{% endfor %}
 </tbody></table></div></div></div>
 <script>document.querySelectorAll('.cp').forEach(b=>b.onclick=async()=>{try{await navigator.clipboard.writeText(b.dataset.u);b.textContent='Copied ✓'}catch(e){prompt('Copy this link:',b.dataset.u)}setTimeout(()=>b.textContent='Copy link',1800)});
