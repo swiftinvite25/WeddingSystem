@@ -133,14 +133,15 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         info   = (getattr(event, "contribution_info", None) or "").strip() if event else ""
         
         lines = [
-            f"KUMBUSHO LA AHADI: Habari {guest.name}, tunakukumbusha ahadi ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
+            f"KUMBUSHO LA AHADI: Habari {guest.name}, ",
+            f"Tunakukumbusha ahadi yako ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
             f"Umelipa: TSh {paid:,}" if paid > 0 else "Umelipa: TSh 0",
             f"BADO: TSh {max(pledge - paid, 0):,}"
-            f""
+            f" "
         ]
         if info:
             lines.append(f"Malipo:\n{info}")
-        lines.append("Toa taarifa baada ya kulipa. Asante & Mungu akubariki.")
+        lines.append("Tafadhali toa taarifa baada ya kulipa. Asante & Mungu akubariki.")
         return "\n".join(lines)
 
 
