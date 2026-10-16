@@ -134,7 +134,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         lines = ["*KUMBUSHO LA AHADI*", f"Habari {guest.name},", "",
                  f"Tunakukumbusha kwa upendo kuhusu ahadi yako ya TSh {pledge:,} kwa ajili ya {label} ya {weds.upper()}."]
         if paid > 0:
-            lines.append(f"*Umeshalipa*: TSh {paid:,}")
+            lines.append(f"Umeshalipa: TSh {paid:,}")
         lines.append(f"*Bado*: TSh {max(pledge - paid, 0):,}")
         _ok, _why, _base = card_status(guest, event)
         if _base and not _ok:
@@ -170,7 +170,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         f"Namba ya Kadi: {str(guest.visual_id or 0).zfill(4)} - {(guest.card_type or 'Single').title()}",
         "Usisahau kuja na kadi yako.",
     ]
-    parts += ["*Karibu sana!*"]
+    parts += ["Karibu sana!"]
     return "\n".join(parts)
 
 
@@ -651,7 +651,12 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             return jsonify(success=False, error="Unknown reminder type"), 400
         with get_db_session() as db:
             ev = get_active_event(db)
-            text = build_reminder_sms(_Sample(), ev, kind, d.get("when_text", ""))
+            g = db.get(Guest, int(d["guest_id"])) if d.get("guest_id") else None
+            if d.get("guest_id") and not g:
+                return jsonify(success=False, error="Guest not found"), 404
+            if g and kind == "personal" and (g.pledge_amount or 0) <= (g.paid_amount or 0):
+                return jsonify(success=False, error=f"{g.name} has no outstanding balance.")
+            text = build_reminder_sms(g or _Sample(), ev, kind, d.get("when_text", ""))
         return jsonify(success=True, text=text, length=len(text),
                        segments=max(1, -(-len(text) // 153)) if len(text) > 160 else 1)
 
@@ -1049,3 +1054,23 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             ok, msg = _wa_call("/register", {"messaging_product": "whatsapp", "pin": pin}, as_json=True)
             flash("Number registered. Refresh this page to see the new status." if ok else f"Registration failed: {msg}", "success" if ok else "danger")
         return redirect(url_for("whatsapp_status"))
+
+    @app.route("/reminder_guests")
+    @admin_required
+    def reminder_guests():
+        q = (request.args.get("q") or "").strip().lower()
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            gs = db.query(Guest).filter_by(event_id=ev.id if ev else None).order_by(Guest.visual_id).all()
+            out = []
+            for g in gs:
+                hay = f"{g.name or ''} {g.phone or ''} {g.visual_id or ''}".lower()
+                if q and q not in hay:
+                    continue
+                pl, pd = int(g.pledge_amount or 0), int(g.paid_amount or 0)
+                out.append(dict(id=g.id, vid=str(g.visual_id or 0).zfill(4), name=g.name or "", phone=g.phone or "",
+                                ctype=(g.card_type or "single").title(), pledge=pl, paid=pd, balance=max(pl - pd, 0),
+                                last=_hm(g.reminder_sms_sent_at) if getattr(g, "reminder_sms_sent_at", None) else ""))
+                if len(out) >= 15:
+                    break
+        return jsonify(guests=out)

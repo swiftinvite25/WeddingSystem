@@ -54,6 +54,13 @@
   </div>
 </div>
 
+  <div class="box">
+    <b>Send to one guest</b> <span class="hint">uses the reminder type and headline chosen above</span>
+    <input type="search" id="oneQ" placeholder="Search a guest by name, phone or card number…" style="margin-top:.6rem">
+    <div id="oneList" class="hint">Type to search…</div>
+    <div id="oneMsg" style="margin-top:.5rem"></div>
+  </div>
+
 <script>
 const $ = id => document.getElementById(id);
 const kind = () => document.querySelector('input[name=kind]:checked').value;
@@ -101,6 +108,24 @@ $('btnSend').onclick = async () => {
 };
 $('btnStop').onclick = () => { stop = true; };
 preview();
+
+// ── single guest ──
+let oneT=null;
+async function oneSearch(){const q=$('oneQ').value.trim();
+  const d=await fetch('/reminder_guests?q='+encodeURIComponent(q)).then(r=>r.json());
+  $('oneList').innerHTML=d.guests.length?d.guests.map(g=>`<div style="display:flex;justify-content:space-between;gap:.6rem;align-items:center;padding:.5rem 0;border-bottom:1px solid #eee">
+    <div><b>${esc(g.name)}</b> <span class="hint">#${esc(g.vid)} · ${esc(g.ctype)} · ${esc(g.phone)}${g.balance?' · owes '+g.balance.toLocaleString('en-US'):''}${g.last?' · last reminder '+esc(g.last):''}</span></div>
+    <button class="btn" data-id="${g.id}">Preview &amp; send</button></div>`).join(''):'No guests found.';
+  document.querySelectorAll('#oneList button').forEach(b=>b.onclick=()=>oneSend(+b.dataset.id,b))}
+async function oneSend(id,btn){const body={kind:kind(),when_text:$('when').value,guest_id:id};btn.disabled=true;
+  const p=await post('/reminder_preview',body);
+  if(!p.success){$('oneMsg').innerHTML='<div class="bad">'+esc(p.error||'Cannot preview')+'</div>';btn.disabled=false;return}
+  if(!confirm('Send this SMS ('+p.segments+' part'+(p.segments>1?'s':'')+')?\n\n'+p.text)){btn.disabled=false;return}
+  btn.textContent='Sending…';const r=await post('/send_reminder_one/'+id,body);
+  $('oneMsg').innerHTML=r.success?'<div class="ok">✓ Reminder sent to '+esc(r.name||'guest')+'</div>':'<div class="bad">✗ '+esc(r.error||'Failed')+'</div>';
+  btn.textContent='Preview & send';btn.disabled=false;oneSearch()}
+$('oneQ').addEventListener('input',()=>{clearTimeout(oneT);oneT=setTimeout(oneSearch,300)});
+function esc(s){return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 </script>
 </div>
 {% endblock %}
