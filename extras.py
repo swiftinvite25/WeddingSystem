@@ -131,16 +131,17 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         pledge = int(getattr(guest, "pledge_amount", 0) or 0)
         paid   = int(getattr(guest, "paid_amount", 0) or 0)
         info   = (getattr(event, "contribution_info", None) or "").strip() if event else ""
-        lines = ["KUMBUSHO LA AHADI", f"Habari {guest.name},", "",
-                 f"Tunakukumbusha kwa upendo kuhusu ahadi yako ya TSh {pledge:,} kwa ajili ya {label} ya {weds.upper()}."]
-        if paid > 0:
-            lines.append(f"Umeshalipa: TSh {paid:,}")
-        lines.append(f"BADO: TSh {max(pledge - paid, 0):,}")
-        _ok, _why, _base = card_status(guest, event)
+        
+        lines = [
+            f"KUMBUSHO LA AHADI: Habari {guest.name}, tunakukumbusha ahadi ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
+            f"Umelipa: TSh {paid:,}" if paid > 0 else "Umelipa: TSh 0",
+            f"BADO: TSh {max(pledge - paid, 0):,}"
+        ]
         if info:
-            lines += ["", "Namna ya kulipa:", info]
-        lines += ["", "Tafadhali toa taarifa baada ya kulipa. Asante sana, Mungu akubariki."]
+            lines.append(f"Malipo:\n{info}")
+        lines.append("Toa taarifa baada ya kulipa. Asante & Mungu akubariki.")
         return "\n".join(lines)
+
 
     if kind == "michango":
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
