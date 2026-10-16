@@ -143,6 +143,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
             lines.append("")  # Blank line before Malipo
             lines.append(f"Malipo:\n{info}")
 
+        lines.append("")
         lines.append("Tafadhali toa taarifa baada ya kulipa. Asante & Mungu akubariki.")
 
         return "\n".join(lines)
