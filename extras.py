@@ -134,7 +134,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
 
         lines = [
             f"KUMBUSHO LA AHADI: Habari {guest.name},",
-            f"Tunakukumbusha ahadi yako ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
+            f"Tunakukumbushakwa upendo ahadi yako ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
             f"Umelipa: TSh {paid:,}" if paid > 0 else "Umelipa: TSh 0",
             f"BADO: TSh {max(pledge - paid, 0):,}",
         ]
