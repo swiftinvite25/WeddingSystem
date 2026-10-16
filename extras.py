@@ -131,11 +131,11 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         pledge = int(getattr(guest, "pledge_amount", 0) or 0)
         paid   = int(getattr(guest, "paid_amount", 0) or 0)
         info   = (getattr(event, "contribution_info", None) or "").strip() if event else ""
-        lines = ["*KUMBUSHO LA AHADI*", f"Habari {guest.name},", "",
+        lines = ["KUMBUSHO LA AHADI", f"Habari {guest.name},", "",
                  f"Tunakukumbusha kwa upendo kuhusu ahadi yako ya TSh {pledge:,} kwa ajili ya {label} ya {weds.upper()}."]
         if paid > 0:
             lines.append(f"Umeshalipa: TSh {paid:,}")
-        lines.append(f"*Bado*: TSh {max(pledge - paid, 0):,}")
+        lines.append(f"BADO: TSh {max(pledge - paid, 0):,}")
         _ok, _why, _base = card_status(guest, event)
         if info:
             lines += ["", "Namna ya kulipa:", info]
@@ -145,7 +145,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
     if kind == "michango":
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
         parts = [
-            "*KUMBUSHO LA MICHANGO*",
+            "KUMBUSHO LA MICHANGO",
             f"Habari {guest.name},",
             "",
             f"Tunakukumbusha kwa upole kuhusu mchango/ahadi yako kwa ajili ya "
@@ -156,7 +156,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         parts += ["", "Asante sana kwa ushirikiano wako. Mungu akubariki."]
         return "\n".join(parts)
 
-    head = f"*KUMBUSHO - {when_text.upper()}*" if when_text else "*KUMBUSHO*"
+    head = f"KUMBUSHO - {when_text.upper()}" if when_text else "KUMBUSHO"
     parts = [
         head,
         f"Habari {guest.name},",
