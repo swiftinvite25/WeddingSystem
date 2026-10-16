@@ -155,7 +155,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
             "KUMBUSHO LA MICHANGO",
             f"Habari {guest.name.upper()},",
             "",
-            f"Tunakukumbusha kwa upole kuhusu mchango/ahadi yako kwa ajili ya "
+            f"Tunakukumbusha ahadi yako kwa ajili ya "
             f"{label} ya {weds.upper()} itakayofanyika {day.upper()}, {date.upper()}.",
         ]
         if info:
