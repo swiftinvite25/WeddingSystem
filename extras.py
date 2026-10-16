@@ -133,8 +133,8 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
 
         lines = [
-            f"KUMBUSHO LA AHADI: Habari {guest.name},",
-            f"Tunakukumbushakwa upendo ahadi yako ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
+            f"KUMBUSHO LA AHADI: Habari {guest.name.upper()},",
+            f"Tunakukumbusha ahadi yako ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
             f"Umelipa: TSh {paid:,}" if paid > 0 else "Umelipa: TSh 0",
             f"BADO: TSh {max(pledge - paid, 0):,}",
         ]
@@ -153,22 +153,22 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
         parts = [
             "KUMBUSHO LA MICHANGO",
-            f"Habari {guest.name},",
+            f"Habari {guest.name.upper()},",
             "",
             f"Tunakukumbusha kwa upole kuhusu mchango/ahadi yako kwa ajili ya "
             f"{label} ya {weds.upper()} itakayofanyika {day.upper()}, {date.upper()}.",
         ]
         if info:
-            parts += ["", "Namna ya kuchangia:", info]
+            parts += ["", "Kuchangia:", info]
         parts += ["", "Asante sana kwa ushirikiano wako. Mungu akubariki."]
         return "\n".join(parts)
 
     head = f"KUMBUSHO - {when_text.upper()}" if when_text else "KUMBUSHO"
     parts = [
         head,
-        f"Habari {guest.name},",
+        f"Habari {guest.name.upper()}",
         f"Tunakukumbusha kuhusu {label} ya {weds.upper()}:",
-        f"{day.upper()}, {date.upper()}",
+        f"Itakayofanyika {day.upper()}, {date.upper()}",
         f"Saa {etime}",
         venue.upper(),
         "",
