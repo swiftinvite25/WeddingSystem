@@ -37,6 +37,21 @@ DEFAULT_TEMPLATE_CONFIG = {
 }
 
 
+TOKEN_HELP = ("WhatsApp access token expired or invalid (Meta error 190). Create a PERMANENT System User token in "
+              "Meta Business Settings and set WHATSAPP_ACCESS_TOKEN on Render once. Also clear any token typed in the Event settings.")
+
+
+def _check_token_error(response):
+    """Turn Meta's token errors into a clear message instead of a bare 400/401."""
+    try:
+        code = response.json().get("error", {}).get("code")
+    except Exception:
+        code = None
+    if code == 190:
+        raise RuntimeError(TOKEN_HELP)
+
+
+
 def _token(event=None):
     """Per-event token, falls back to global env var."""
     if event and getattr(event, 'wa_access_token', None):
@@ -103,6 +118,7 @@ def upload_media(image_bytes: bytes, filename: str,
 
     if not response.ok:
         logging.error(f"Media upload failed: {response.status_code} — {response.text}")
+        _check_token_error(response)
         response.raise_for_status()
 
     result   = response.json()
@@ -220,6 +236,8 @@ def send_template_message(to: str, guest_name: str, card_number: str,
         error_data = response.json() if response.content else {}
         error_code = error_data.get("error", {}).get("code")
         logging.error(f"Template send failed — code: {error_code} — {error_data}")
+        if error_code == 190:
+            raise RuntimeError(TOKEN_HELP)
 
         if response.status_code == 400 and error_code == 131026:
             logging.warning(f"Number not on WhatsApp: {to}")

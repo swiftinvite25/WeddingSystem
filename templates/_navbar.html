@@ -57,6 +57,7 @@
             <li><a class="dropdown-item" href="{{ url_for('event_edit', event_id=aid) }}">Event settings &amp; card template</a></li>
             <li><a class="dropdown-item" href="{{ url_for('event_site_edit', event_id=aid) }}">Event website</a></li>
             <li><a class="dropdown-item" href="{{ url_for('event_layout_editor', event_id=aid) }}">Card layout editor</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('whatsapp_status') }}">WhatsApp status &amp; checklist</a></li>
             <li><hr class="dropdown-divider"></li>
             {% endif %}
             <li><a class="dropdown-item fw-bold font-weight-bold text-success" href="{{ url_for('events_list') }}">Manage events</a></li>

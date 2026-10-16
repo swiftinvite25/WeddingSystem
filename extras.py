@@ -131,14 +131,12 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         pledge = int(getattr(guest, "pledge_amount", 0) or 0)
         paid   = int(getattr(guest, "paid_amount", 0) or 0)
         info   = (getattr(event, "contribution_info", None) or "").strip() if event else ""
-        lines = ["KUMBUSHO LA AHADI", f"Habari {guest.name},", "",
+        lines = ["*KUMBUSHO LA AHADI*", f"Habari {guest.name},", "",
                  f"Tunakukumbusha kwa upendo kuhusu ahadi yako ya TSh {pledge:,} kwa ajili ya {label} ya {weds.upper()}."]
         if paid > 0:
-            lines.append(f"Umeshalipa: TSh {paid:,}")
-        lines.append(f"Bado: TSh {max(pledge - paid, 0):,}")
+            lines.append(f"*Umeshalipa*: TSh {paid:,}")
+        lines.append(f"*Bado*: TSh {max(pledge - paid, 0):,}")
         _ok, _why, _base = card_status(guest, event)
-        if _base and not _ok:
-            lines.append(f"Kiwango cha chini ili upokee kadi: TSh {_base:,} (bado TSh {max(_base - paid, 0):,}).")
         if info:
             lines += ["", "Namna ya kulipa:", info]
         lines += ["", "Tafadhali toa taarifa baada ya kulipa. Asante sana, Mungu akubariki."]
@@ -147,7 +145,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
     if kind == "michango":
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
         parts = [
-            "KUMBUSHO LA MICHANGO",
+            "*KUMBUSHO LA MICHANGO*",
             f"Habari {guest.name},",
             "",
             f"Tunakukumbusha kwa upole kuhusu mchango/ahadi yako kwa ajili ya "
@@ -158,7 +156,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         parts += ["", "Asante sana kwa ushirikiano wako. Mungu akubariki."]
         return "\n".join(parts)
 
-    head = f"KUMBUSHO - {when_text.upper()}" if when_text else "KUMBUSHO"
+    head = f"*KUMBUSHO - {when_text.upper()}*" if when_text else "*KUMBUSHO*"
     parts = [
         head,
         f"Habari {guest.name},",
@@ -952,3 +950,58 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
         pdf = build_client_pdf(ev, rep, stamp)
         return app.response_class(pdf, mimetype="application/pdf", headers={
             "Content-Disposition": f"attachment; filename=Event_Report_{info['slug']}_{now_eat().strftime('%Y%m%d_%H%M')}.pdf"})
+
+    # ── Live numbers for the scan screen ────────────────────────────────
+    @app.route("/scan_stats")
+    @login_required
+    def scan_stats():
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            gs = db.query(Guest).filter_by(event_id=ev.id if ev else None).all()
+            return jsonify(cards=len(gs), cards_in=sum(1 for g in gs if (g.checked_in_count or 0) >= 1),
+                           people_in=sum(int(g.checked_in_count or 0) for g in gs),
+                           people_allowed=sum(max(1, int(g.group_size or 1)) for g in gs))
+
+    # ── WhatsApp health check (admin) ───────────────────────────────────
+    @app.route("/whatsapp_status")
+    @admin_required
+    def whatsapp_status():
+        import requests
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            ev_pid, ev_tok = getattr(ev, "wa_phone_number_id", None), getattr(ev, "wa_access_token", None)
+            pid, tok = ev_pid or os.getenv("WHATSAPP_PHONE_NUMBER_ID") or "", ev_tok or os.getenv("WHATSAPP_ACCESS_TOKEN") or ""
+            ev_name = ev.name if ev else ""
+        info, tier, error, code = {}, "", "", None
+        if not pid or not tok:
+            error = "The Phone Number ID or the access token is not set."
+        else:
+            hdr = {"Authorization": f"Bearer {tok}"}
+            try:
+                r = requests.get(f"https://graph.facebook.com/v21.0/{pid}", headers=hdr, timeout=15, params={
+                    "fields": "display_phone_number,verified_name,name_status,quality_rating,platform_type,account_mode,code_verification_status,status"})
+                d = r.json()
+                if r.ok:
+                    info = d
+                    try:  # separate call: not every token/app may read this field
+                        t = requests.get(f"https://graph.facebook.com/v21.0/{pid}", headers=hdr, timeout=15,
+                                         params={"fields": "whatsapp_business_manager_messaging_limit"}).json()
+                        tier = t.get("whatsapp_business_manager_messaging_limit", "")
+                    except Exception:
+                        pass
+                else:
+                    e = d.get("error", {})
+                    error, code = e.get("message", "Meta rejected the request."), e.get("code")
+            except Exception as exc:
+                error = f"Could not reach Meta: {exc}"
+        ns = (info.get("name_status") or "").upper()
+        advice = {
+            "APPROVED": "Meta approved the display name. If chats still show only the number, follow the checklist below (re-register after a name change, business verification, test on a phone that never chatted with you).",
+            "PENDING_REVIEW": "The display name is still being reviewed by Meta. It cannot show until it is approved.",
+            "AVAILABLE_WITHOUT_REVIEW": "The name can be used without review but is not yet confirmed. Open WhatsApp Manager and confirm the display name.",
+            "DECLINED": "Meta declined the display name. Edit it so it matches your business name and website exactly, then submit again.",
+            "EXPIRED": "The name approval expired. Submit the display name again in WhatsApp Manager.",
+            "NONE": "No display name is registered on this number.",
+        }.get(ns, "")
+        return render_template("whatsapp_status.html", info=info, tier=tier, error=error, code=code, advice=advice, event_name=ev_name,
+                               pid=pid, event_token=bool(ev_tok), event_pid=bool(ev_pid))

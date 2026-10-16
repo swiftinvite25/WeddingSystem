@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% set title = "WhatsApp status" %}
+{% block content %}
+<div class="mx-auto" style="max-width:760px">
+<h2 class="mb-1">WhatsApp status</h2>
+<p class="text-muted small mb-3">Live answers from Meta for the number used by <b>{{ event_name or 'this event' }}</b>.</p>
+
+{% if event_token or event_pid %}<div class="alert alert-warning small">⚠️ This event has its <b>{{ 'token' if event_token else 'Phone Number ID' }}</b> typed in Event settings, which <b>overrides</b> the value on Render. Clear it if you want the Render value to be used.</div>{% endif %}
+
+{% if error %}
+<div class="alert alert-danger"><b>Meta did not accept the request{% if code %} (code {{ code }}){% endif %}.</b><br>{{ error }}
+{% if code == 190 %}<hr class="my-2"><b>The access token is expired or invalid.</b> Create a permanent System User token (steps below), put it in Render as <code>WHATSAPP_ACCESS_TOKEN</code>, and clear the token in Event settings.{% endif %}</div>
+{% else %}
+<div class="card mb-3"><div class="card-body"><div class="row g-3">
+  <div class="col-6"><div class="text-muted small">Number</div><div class="fw-bold">{{ info.display_phone_number or '—' }}</div></div>
+  <div class="col-6"><div class="text-muted small">Display name</div><div class="fw-bold">{{ info.verified_name or '—' }}</div></div>
+  <div class="col-6"><div class="text-muted small">Name status</div><div><span class="badge bg-{{ 'success' if info.name_status == 'APPROVED' else 'warning text-dark' if info.name_status in ('PENDING_REVIEW','AVAILABLE_WITHOUT_REVIEW') else 'danger' }}">{{ info.name_status or '—' }}</span></div></div>
+  <div class="col-6"><div class="text-muted small">Quality rating</div><div><span class="badge bg-{{ 'success' if info.quality_rating == 'GREEN' else 'warning text-dark' if info.quality_rating == 'YELLOW' else 'danger' if info.quality_rating == 'RED' else 'secondary' }}">{{ info.quality_rating or '—' }}</span></div></div>
+  <div class="col-6"><div class="text-muted small">Messaging limit</div><div class="fw-bold">{{ tier or 'see WhatsApp Manager' }}</div></div>
+  <div class="col-6"><div class="text-muted small">Account mode / platform</div><div class="fw-bold">{{ info.account_mode or '—' }} · {{ info.platform_type or '—' }}</div></div>
+  <div class="col-6"><div class="text-muted small">Number registration</div><div class="fw-bold">{{ info.code_verification_status or '—' }}</div></div>
+  <div class="col-6"><div class="text-muted small">Connection</div><div class="fw-bold">{{ info.status or '—' }}</div></div>
+</div>
+{% if advice %}<div class="alert alert-light border mt-3 mb-0 small">{{ advice }}</div>{% endif %}
+{% if info.account_mode == 'SANDBOX' %}<div class="alert alert-danger mt-3 mb-0 small"><b>This is a SANDBOX / test number.</b> It always shows as a test number and can only message numbers you added in Meta. Register your real number.</div>{% endif %}
+</div></div>
+{% endif %}
+
+<div class="card mb-3"><div class="card-body small">
+<h5>Checklist when the name does not show</h5>
+<ol class="mb-0">
+<li>Name status above must be <b>APPROVED</b> and the account mode must be <b>LIVE</b>.</li>
+<li>Business verification must be <b>Verified</b> in Meta Business Settings → Security Center. An unverified business shows only the number.</li>
+<li>If you changed the name, <b>re-register the phone number</b> after approval (within 14 days), otherwise the old name stays.</li>
+<li>Test on a phone that has <b>never chatted with the number and has not saved it</b>. A saved contact name always wins over your display name.</li>
+<li>The name must match your business name and website (for example “SwiftInvite” with a SwiftInvite website or page listed in the verified business).</li>
+<li>Still not showing? Open a Meta Business Support request (message template in the chat).</li>
+</ol></div></div>
+
+<div class="card"><div class="card-body small">
+<h5>Stop regenerating the token (do this once)</h5>
+<ol class="mb-0">
+<li>Meta Business Settings → <b>Users → System users → Add</b> (role: Admin).</li>
+<li><b>Add assets</b>: your app (Full control) and your WhatsApp account (Full control).</li>
+<li><b>Generate token</b> → pick your app → set expiry to <b>Never</b> → tick <code>whatsapp_business_messaging</code> and <code>whatsapp_business_management</code>.</li>
+<li>Copy it once into Render as <code>WHATSAPP_ACCESS_TOKEN</code>. Leave the token boxes in Event settings <b>empty</b>.</li>
+</ol></div></div>
+</div>
+{% endblock %}
