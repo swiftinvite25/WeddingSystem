@@ -124,24 +124,27 @@ def _ev_fields(event):
 
 def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
     weds, day, date, venue, etype, etime = _ev_fields(event)
-    label    = EVENT_TYPE_LABELS.get(etype, etype.upper())
+    label = EVENT_TYPE_LABELS.get(etype, etype.upper())
     when_text = (when_text or "").strip()
 
     if kind == "personal":
         pledge = int(getattr(guest, "pledge_amount", 0) or 0)
-        paid   = int(getattr(guest, "paid_amount", 0) or 0)
-        info   = (getattr(event, "contribution_info", None) or "").strip() if event else ""
-        
+        paid = int(getattr(guest, "paid_amount", 0) or 0)
+        info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
+
         lines = [
-            f"KUMBUSHO LA AHADI: Habari {guest.name}, ",
+            f"KUMBUSHO LA AHADI: Habari {guest.name},",
             f"Tunakukumbusha ahadi yako ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
             f"Umelipa: TSh {paid:,}" if paid > 0 else "Umelipa: TSh 0",
-            f"BADO: TSh {max(pledge - paid, 0):,}"
-            f" "
+            f"BADO: TSh {max(pledge - paid, 0):,}",
         ]
+
         if info:
+            lines.append("")  # Blank line before Malipo
             lines.append(f"Malipo:\n{info}")
+
         lines.append("Tafadhali toa taarifa baada ya kulipa. Asante & Mungu akubariki.")
+
         return "\n".join(lines)
 
 
