@@ -137,6 +137,8 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
             lines.append(f"*Umeshalipa*: TSh {paid:,}")
         lines.append(f"*Bado*: TSh {max(pledge - paid, 0):,}")
         _ok, _why, _base = card_status(guest, event)
+        if _base and not _ok:
+            lines.append(f"Kiwango cha chini ili upokee kadi: TSh {_base:,} (bado TSh {max(_base - paid, 0):,}).")
         if info:
             lines += ["", "Namna ya kulipa:", info]
         lines += ["", "Tafadhali toa taarifa baada ya kulipa. Asante sana, Mungu akubariki."]
@@ -168,7 +170,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         f"Namba ya Kadi: {str(guest.visual_id or 0).zfill(4)} - {(guest.card_type or 'Single').title()}",
         "Usisahau kuja na kadi yako.",
     ]
-    parts += ["Karibu sana!"]
+    parts += ["*Karibu sana!*"]
     return "\n".join(parts)
 
 
@@ -998,10 +1000,52 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
         advice = {
             "APPROVED": "Meta approved the display name. If chats still show only the number, follow the checklist below (re-register after a name change, business verification, test on a phone that never chatted with you).",
             "PENDING_REVIEW": "The display name is still being reviewed by Meta. It cannot show until it is approved.",
-            "AVAILABLE_WITHOUT_REVIEW": "The name can be used without review but is not yet confirmed. Open WhatsApp Manager and confirm the display name.",
+            "AVAILABLE_WITHOUT_REVIEW": "Meta has NOT put this name through display-name review, so it is not approved and will not show in chats. Submit it for review with the button below.",
             "DECLINED": "Meta declined the display name. Edit it so it matches your business name and website exactly, then submit again.",
             "EXPIRED": "The name approval expired. Submit the display name again in WhatsApp Manager.",
             "NONE": "No display name is registered on this number.",
         }.get(ns, "")
         return render_template("whatsapp_status.html", info=info, tier=tier, error=error, code=code, advice=advice, event_name=ev_name,
                                pid=pid, event_token=bool(ev_tok), event_pid=bool(ev_pid))
+
+    # ── WhatsApp fixes: submit the display name / re-register the number ──
+    def _wa_call(path, payload, as_json=False):
+        import requests
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            pid = getattr(ev, "wa_phone_number_id", None) or os.getenv("WHATSAPP_PHONE_NUMBER_ID") or ""
+            tok = getattr(ev, "wa_access_token", None) or os.getenv("WHATSAPP_ACCESS_TOKEN") or ""
+        if not pid or not tok:
+            return False, "Phone Number ID or access token is not set."
+        kw = {"json": payload} if as_json else {"data": payload}
+        try:
+            r = requests.post(f"https://graph.facebook.com/v21.0/{pid}{path}", headers={"Authorization": f"Bearer {tok}"}, timeout=25, **kw)
+            d = r.json()
+        except Exception as exc:
+            return False, f"Could not reach Meta: {exc}"
+        if r.ok and d.get("success", True):
+            return True, "Meta accepted the request."
+        e = d.get("error", {})
+        return False, f"{e.get('message', 'Meta rejected the request.')} (code {e.get('code')})"
+
+    @app.route("/whatsapp_status/name", methods=["POST"])
+    @admin_required
+    def whatsapp_submit_name():
+        name = (request.form.get("name") or "").strip()[:75]
+        if not name:
+            flash("Type the display name first.", "danger")
+        else:
+            ok, msg = _wa_call("", {"new_display_name": name})
+            flash(f"Display name '{name}' submitted for review. {msg} Check back in 1-2 days." if ok else f"Not submitted: {msg}", "success" if ok else "danger")
+        return redirect(url_for("whatsapp_status"))
+
+    @app.route("/whatsapp_status/register", methods=["POST"])
+    @admin_required
+    def whatsapp_register():
+        pin = _re.sub(r"\D", "", request.form.get("pin") or "")
+        if len(pin) != 6:
+            flash("The PIN must be exactly 6 digits (the two-step verification PIN).", "danger")
+        else:
+            ok, msg = _wa_call("/register", {"messaging_product": "whatsapp", "pin": pin}, as_json=True)
+            flash("Number registered. Refresh this page to see the new status." if ok else f"Registration failed: {msg}", "success" if ok else "danger")
+        return redirect(url_for("whatsapp_status"))
