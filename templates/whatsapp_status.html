@@ -20,8 +20,12 @@
   <div class="col-6"><div class="text-muted small">Account mode / platform</div><div class="fw-bold">{{ info.account_mode or '—' }} · {{ info.platform_type or '—' }}</div></div>
   <div class="col-6"><div class="text-muted small">Number registration</div><div class="fw-bold">{{ info.code_verification_status or '—' }}</div></div>
   <div class="col-6"><div class="text-muted small">Connection</div><div class="fw-bold">{{ info.status or '—' }}</div></div>
+  {% if pend and pend.new_display_name %}<div class="col-6"><div class="text-muted small">Submitted name</div><div class="fw-bold">{{ pend.new_display_name }}</div></div>
+  <div class="col-6"><div class="text-muted small">Submitted name review</div><div><span class="badge bg-{{ 'success' if pend.new_name_status == 'APPROVED' else 'warning text-dark' if pend.new_name_status == 'PENDING_REVIEW' else 'danger' }}">{{ pend.new_name_status or '—' }}</span></div></div>{% endif %}
 </div>
-{% if advice %}<div class="alert alert-light border mt-3 mb-0 small">{{ advice }}</div>{% endif %}
+{% if pend and pend.new_name_status == 'APPROVED' and info.name_status != 'APPROVED' %}
+<div class="alert alert-warning mt-3 mb-0"><b>Meta approved your new name, but it is not applied yet.</b> Re-register the number now (below). Meta only allows <b>14 days after the approval</b> for this step.</div>
+{% elif advice %}<div class="alert alert-light border mt-3 mb-0 small">{{ advice }}</div>{% endif %}
 {% if info.account_mode == 'SANDBOX' %}<div class="alert alert-danger mt-3 mb-0 small"><b>This is a SANDBOX / test number.</b> It always shows as a test number and can only message numbers you added in Meta. Register your real number.</div>{% endif %}
 </div></div>
 {% endif %}
@@ -40,6 +44,11 @@
   <div class="col-12 col-sm-4"><button class="btn btn-outline-success w-100">Re-register number</button></div>
   <div class="form-text">Set or change the PIN in WhatsApp Manager → Phone numbers → your number → <b>Two-step verification</b>.</div>
 </form>
+<details class="mt-3"><summary class="fw-semibold">Re-registration says the number is not verified? Verify it first ▾</summary>
+<div class="row g-2 mt-1">
+  <form method="post" action="{{ url_for('whatsapp_request_code') }}" class="col-12 col-sm-6 d-flex gap-2"><select name="method" class="form-select"><option value="SMS">By SMS</option><option value="VOICE">By phone call</option></select><button class="btn btn-outline-secondary">Send code</button></form>
+  <form method="post" action="{{ url_for('whatsapp_verify_code') }}" class="col-12 col-sm-6 d-flex gap-2"><input name="code" class="form-control" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="off"><button class="btn btn-outline-secondary">Verify</button></form>
+</div><div class="form-text">The code goes to the SIM that owns +255 746 014 407. After "Number verified", press Re-register number again.</div></details>
 {% if info.code_verification_status == 'EXPIRED' %}<div class="alert alert-warning mt-3 mb-0">Number registration shows <b>EXPIRED</b>. Do step 2 after the name is approved.</div>{% endif %}
 </div></div>
 {% endif %}

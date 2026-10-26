@@ -122,10 +122,20 @@ def _ev_fields(event):
     return weds, day, date, venue, etype, etime
 
 
-def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
+def _gsm(text: str) -> str:
+    """Keep SMS text in the plain GSM alphabet. Curly quotes or accents would make the SMS bill as
+    70 characters per part instead of 160 (153 when split)."""
+    import unicodedata
+    t = (text or "").replace("\u2019", "'").replace("\u2018", "'").replace("\u201c", '"').replace("\u201d", '"')
+    t = t.replace("\u2013", "-").replace("\u2014", "-")
+    return unicodedata.normalize("NFKD", t).encode("ascii", "ignore").decode("ascii")
+
+
+def _reminder_text(guest, event=None, kind="event", when_text="") -> str:
     weds, day, date, venue, etype, etime = _ev_fields(event)
     label = EVENT_TYPE_LABELS.get(etype, etype.upper())
     when_text = (when_text or "").strip()
+    gname = (getattr(guest, "name", "") or "").upper()
 
     if kind == "personal":
         pledge = int(getattr(guest, "pledge_amount", 0) or 0)
@@ -133,7 +143,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
 
         lines = [
-            f"KUMBUSHO LA AHADI: Habari {guest.name.upper()},",
+            f"KUMBUSHO LA AHADI: Habari {gname},",
             f"Tunakukumbusha ahadi yako ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
             f"Umelipa: TSh {paid:,}" if paid > 0 else "Umelipa: TSh 0",
             f"BADO: TSh {max(pledge - paid, 0):,}",
@@ -148,12 +158,11 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
 
         return "\n".join(lines)
 
-
     if kind == "michango":
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
         parts = [
             "KUMBUSHO LA MICHANGO",
-            f"Habari {guest.name.upper()},",
+            f"Habari {gname},",
             "",
             f"Tunakukumbusha ahadi yako kwa ajili ya "
             f"{label} ya {weds.upper()} itakayofanyika {day.upper()}, {date.upper()}.",
@@ -166,7 +175,7 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
     head = f"KUMBUSHO - {when_text.upper()}" if when_text else "KUMBUSHO"
     parts = [
         head,
-        f"Habari {guest.name.upper()}",
+        f"Habari {gname}",
         f"Tunakukumbusha kuhusu {label} ya {weds.upper()}:",
         f"Itakayofanyika {day.upper()}, {date.upper()}",
         f"Saa {etime}",
@@ -177,6 +186,10 @@ def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
     ]
     parts += ["Karibu sana!"]
     return "\n".join(parts)
+
+
+def build_reminder_sms(guest, event=None, kind="event", when_text="") -> str:
+    return _gsm(_reminder_text(guest, event, kind, when_text))
 
 
 def _clean(v):
@@ -984,7 +997,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             ev_pid, ev_tok = getattr(ev, "wa_phone_number_id", None), getattr(ev, "wa_access_token", None)
             pid, tok = ev_pid or os.getenv("WHATSAPP_PHONE_NUMBER_ID") or "", ev_tok or os.getenv("WHATSAPP_ACCESS_TOKEN") or ""
             ev_name = ev.name if ev else ""
-        info, tier, error, code = {}, "", "", None
+        info, tier, error, code, pend = {}, "", "", None, {}
         if not pid or not tok:
             error = "The Phone Number ID or the access token is not set."
         else:
@@ -1001,6 +1014,12 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                         tier = t.get("whatsapp_business_manager_messaging_limit", "")
                     except Exception:
                         pass
+                    try:  # the name that was submitted and its review result
+                        pend = requests.get(f"https://graph.facebook.com/v21.0/{pid}", headers=hdr, timeout=15,
+                                            params={"fields": "new_display_name,new_name_status"}).json()
+                        pend = {} if pend.get("error") else pend
+                    except Exception:
+                        pass
                 else:
                     e = d.get("error", {})
                     error, code = e.get("message", "Meta rejected the request."), e.get("code")
@@ -1015,7 +1034,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             "EXPIRED": "The name approval expired. Submit the display name again in WhatsApp Manager.",
             "NONE": "No display name is registered on this number.",
         }.get(ns, "")
-        return render_template("whatsapp_status.html", info=info, tier=tier, error=error, code=code, advice=advice, event_name=ev_name,
+        return render_template("whatsapp_status.html", info=info, tier=tier, pend=pend, error=error, code=code, advice=advice, event_name=ev_name,
                                pid=pid, event_token=bool(ev_tok), event_pid=bool(ev_pid))
 
     # ── WhatsApp fixes: submit the display name / re-register the number ──
@@ -1079,3 +1098,22 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                 if len(out) >= 15:
                     break
         return jsonify(guests=out)
+
+    @app.route("/whatsapp_status/request_code", methods=["POST"])
+    @admin_required
+    def whatsapp_request_code():
+        method = "VOICE" if request.form.get("method") == "VOICE" else "SMS"
+        ok, msg = _wa_call("/request_code", {"code_method": method, "language": "en"})
+        flash(f"Code requested by {method}. Check the phone that has this number, then enter the 6-digit code below." if ok else f"Could not request a code: {msg}", "success" if ok else "danger")
+        return redirect(url_for("whatsapp_status"))
+
+    @app.route("/whatsapp_status/verify_code", methods=["POST"])
+    @admin_required
+    def whatsapp_verify_code():
+        code = _re.sub(r"\D", "", request.form.get("code") or "")
+        if len(code) != 6:
+            flash("The verification code must be 6 digits.", "danger")
+        else:
+            ok, msg = _wa_call("/verify_code", {"code": code})
+            flash("Number verified. Now press Re-register number." if ok else f"Verification failed: {msg}", "success" if ok else "danger")
+        return redirect(url_for("whatsapp_status"))
