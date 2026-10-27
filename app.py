@@ -487,7 +487,7 @@ def build_sms_message(guest, event=None) -> str:
         f"Habari {guest.name},\n"
         f"Tafadhali pokea mwaliko wa {type_label} ya:\n"
         f"{weds.upper()}\n"
-        f"{day.upper()}, {date.upper()}\n"
+        f"Itakayofanyika {day.upper()}, {date.upper()}\n"
         f"Saa {ev_time}\n"
         f"{venue.upper()}\n"
         f"\n"
