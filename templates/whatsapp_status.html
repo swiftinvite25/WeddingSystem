@@ -14,12 +14,13 @@
 <div class="card mb-3"><div class="card-body"><div class="row g-3">
   <div class="col-6"><div class="text-muted small">Number</div><div class="fw-bold">{{ info.display_phone_number or '—' }}</div></div>
   <div class="col-6"><div class="text-muted small">Display name</div><div class="fw-bold">{{ info.verified_name or '—' }}</div></div>
-  <div class="col-6"><div class="text-muted small">Name status</div><div><span class="badge bg-{{ 'success' if info.name_status == 'APPROVED' else 'warning text-dark' if info.name_status in ('PENDING_REVIEW','AVAILABLE_WITHOUT_REVIEW') else 'danger' }}">{{ info.name_status or '—' }}</span></div></div>
+  <div class="col-6"><div class="text-muted small">Name status</div><div><span class="badge bg-{{ 'success' if info.name_status in ('APPROVED','AVAILABLE_WITHOUT_REVIEW') else 'warning text-dark' if info.name_status == 'PENDING_REVIEW' else 'danger' }}">{{ info.name_status or '—' }}</span>{% if info.name_status == 'AVAILABLE_WITHOUT_REVIEW' %} <span class="small text-muted">ready to use, nothing pending</span>{% endif %}</div></div>
   <div class="col-6"><div class="text-muted small">Quality rating</div><div><span class="badge bg-{{ 'success' if info.quality_rating == 'GREEN' else 'warning text-dark' if info.quality_rating == 'YELLOW' else 'danger' if info.quality_rating == 'RED' else 'secondary' }}">{{ info.quality_rating or '—' }}</span></div></div>
   <div class="col-6"><div class="text-muted small">Messaging limit</div><div class="fw-bold">{{ tier or 'see WhatsApp Manager' }}</div></div>
   <div class="col-6"><div class="text-muted small">Account mode / platform</div><div class="fw-bold">{{ info.account_mode or '—' }} · {{ info.platform_type or '—' }}</div></div>
   <div class="col-6"><div class="text-muted small">Number registration</div><div class="fw-bold">{{ info.code_verification_status or '—' }}</div></div>
   <div class="col-6"><div class="text-muted small">Connection</div><div class="fw-bold">{{ info.status or '—' }}</div></div>
+  {% if health and health.can_send %}<div class="col-12"><div class="text-muted small">Can this number send messages? (Meta health check)</div><div><span class="badge bg-{{ 'success' if health.can_send == 'AVAILABLE' else 'warning text-dark' if health.can_send == 'LIMITED' else 'danger' }}">{{ health.can_send }}</span>{% for e in health.errors %}<div class="small text-danger mt-1">{{ e }}</div>{% endfor %}</div></div>{% endif %}
   {% if pend and pend.new_display_name %}<div class="col-6"><div class="text-muted small">Submitted name</div><div class="fw-bold">{{ pend.new_display_name }}</div></div>
   <div class="col-6"><div class="text-muted small">Submitted name review</div><div><span class="badge bg-{{ 'success' if pend.new_name_status == 'APPROVED' else 'warning text-dark' if pend.new_name_status == 'PENDING_REVIEW' else 'danger' }}">{{ pend.new_name_status or '—' }}</span></div></div>{% endif %}
 </div>
@@ -34,7 +35,7 @@
 <div class="card mb-3"><div class="card-body small">
 <h5>Fix the display name</h5>
 <form method="post" action="{{ url_for('whatsapp_submit_name') }}" class="row g-2 align-items-end mb-3">
-  <div class="col-12 col-sm-8"><label class="form-label mb-1">1 · Submit the name for Meta review</label>
+  <div class="col-12 col-sm-8"><label class="form-label mb-1">1 · Submit a NEW name for review <span class="text-muted">(only when you want to change it; Meta emails the result)</span></label>
     <input class="form-control" name="name" value="{{ info.verified_name or 'SwiftInvite' }}" maxlength="75"></div>
   <div class="col-12 col-sm-4"><button class="btn btn-success w-100">Submit for review</button></div>
 </form>
@@ -49,14 +50,14 @@
   <form method="post" action="{{ url_for('whatsapp_request_code') }}" class="col-12 col-sm-6 d-flex gap-2"><select name="method" class="form-select"><option value="SMS">By SMS</option><option value="VOICE">By phone call</option></select><button class="btn btn-outline-secondary">Send code</button></form>
   <form method="post" action="{{ url_for('whatsapp_verify_code') }}" class="col-12 col-sm-6 d-flex gap-2"><input name="code" class="form-control" inputmode="numeric" maxlength="6" placeholder="6-digit code" autocomplete="off"><button class="btn btn-outline-secondary">Verify</button></form>
 </div><div class="form-text">The code goes to the SIM that owns +255 746 014 407. After "Number verified", press Re-register number again.</div></details>
-{% if info.code_verification_status == 'EXPIRED' %}<div class="alert alert-warning mt-3 mb-0">Number registration shows <b>EXPIRED</b>. Do step 2 after the name is approved.</div>{% endif %}
+{% if info.code_verification_status == 'EXPIRED' %}<div class="alert alert-light border mt-3 mb-0">Registration code status shows <b>EXPIRED</b>. If the connection above says <b>CONNECTED</b> and messages are being delivered, you can ignore it. Only act on it (step 2) if sending fails or Meta tells you to re-register.</div>{% endif %}
 </div></div>
 {% endif %}
 
 <div class="card mb-3"><div class="card-body small">
 <h5>Checklist when the name does not show</h5>
 <ol class="mb-0">
-<li>Name status above must be <b>APPROVED</b> and the account mode must be <b>LIVE</b>.</li>
+<li>The <b>Display name</b> above must be your approved name (Meta\'s email is the proof of approval) and the account mode must be <b>LIVE</b>. <b>AVAILABLE_WITHOUT_REVIEW</b> is a normal state, not a problem.</li>
 <li>Business verification must be <b>Verified</b> in Meta Business Settings → Security Center. An unverified business shows only the number.</li>
 <li>If you changed the name, <b>re-register the phone number</b> after approval (within 14 days), otherwise the old name stays.</li>
 <li>Test on a phone that has <b>never chatted with the number and has not saved it</b>. A saved contact name always wins over your display name.</li>

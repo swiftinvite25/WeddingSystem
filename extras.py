@@ -997,7 +997,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             ev_pid, ev_tok = getattr(ev, "wa_phone_number_id", None), getattr(ev, "wa_access_token", None)
             pid, tok = ev_pid or os.getenv("WHATSAPP_PHONE_NUMBER_ID") or "", ev_tok or os.getenv("WHATSAPP_ACCESS_TOKEN") or ""
             ev_name = ev.name if ev else ""
-        info, tier, error, code, pend = {}, "", "", None, {}
+        info, tier, error, code, pend, health = {}, "", "", None, {}, {}
         if not pid or not tok:
             error = "The Phone Number ID or the access token is not set."
         else:
@@ -1020,6 +1020,14 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                         pend = {} if pend.get("error") else pend
                     except Exception:
                         pass
+                    try:  # Meta's own "can this number send, and why not" check
+                        h = requests.get(f"https://graph.facebook.com/v21.0/{pid}", headers=hdr, timeout=15,
+                                         params={"fields": "health_status"}).json().get("health_status") or {}
+                        errs = [f"{e.get('error_description') or e.get('error_code')}" + (f" - {e['possible_solution']}" if e.get("possible_solution") else "")
+                                for ent in h.get("entities", []) for e in (ent.get("errors") or [])][:4]
+                        health = {"can_send": h.get("can_send_message", ""), "errors": errs}
+                    except Exception:
+                        pass
                 else:
                     e = d.get("error", {})
                     error, code = e.get("message", "Meta rejected the request."), e.get("code")
@@ -1029,12 +1037,12 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
         advice = {
             "APPROVED": "Meta approved the display name. If chats still show only the number, follow the checklist below (re-register after a name change, business verification, test on a phone that never chatted with you).",
             "PENDING_REVIEW": "The display name is still being reviewed by Meta. It cannot show until it is approved.",
-            "AVAILABLE_WITHOUT_REVIEW": "Meta has NOT put this name through display-name review, so it is not approved and will not show in chats. Submit it for review with the button below.",
+            "AVAILABLE_WITHOUT_REVIEW": "Nothing is pending. Meta's own definition of this value is \"the display name is ready to use without review\" - it is a normal, healthy state and does not change to APPROVED. Meta's approval email is the proof of approval. Check that 'Display name' above shows your approved name.",
             "DECLINED": "Meta declined the display name. Edit it so it matches your business name and website exactly, then submit again.",
             "EXPIRED": "The name approval expired. Submit the display name again in WhatsApp Manager.",
             "NONE": "No display name is registered on this number.",
         }.get(ns, "")
-        return render_template("whatsapp_status.html", info=info, tier=tier, pend=pend, error=error, code=code, advice=advice, event_name=ev_name,
+        return render_template("whatsapp_status.html", info=info, tier=tier, pend=pend, health=health, error=error, code=code, advice=advice, event_name=ev_name,
                                pid=pid, event_token=bool(ev_tok), event_pid=bool(ev_pid))
 
     # ── WhatsApp fixes: submit the display name / re-register the number ──
@@ -1065,7 +1073,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             flash("Type the display name first.", "danger")
         else:
             ok, msg = _wa_call("", {"new_display_name": name})
-            flash(f"Display name '{name}' submitted for review. {msg} Check back in 1-2 days." if ok else f"Not submitted: {msg}", "success" if ok else "danger")
+            flash(f"Display name '{name}' submitted. {msg} Meta will email you the decision; you do not need to submit it again." if ok else f"Not submitted: {msg}", "success" if ok else "danger")
         return redirect(url_for("whatsapp_status"))
 
     @app.route("/whatsapp_status/register", methods=["POST"])
