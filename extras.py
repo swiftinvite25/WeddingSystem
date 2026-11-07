@@ -143,6 +143,7 @@ def _reminder_text(guest, event=None, kind="event", when_text="") -> str:
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
 
         lines = [
+            f"{label} YA {weds.upper()},",
             f"KUMBUSHO LA AHADI: Habari {gname},",
             f"Tunakukumbusha ahadi yako ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
             f"Umelipa: TSh {paid:,}" if paid > 0 else "Umelipa: TSh 0",
@@ -161,7 +162,7 @@ def _reminder_text(guest, event=None, kind="event", when_text="") -> str:
     if kind == "michango":
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
         parts = [
-            f"{label} ya {weds.upper()},",
+            f"{label} YA {weds.upper()},",
             "KUMBUSHO LA MICHANGO",
             f"Habari {gname},",
             "",
@@ -176,6 +177,7 @@ def _reminder_text(guest, event=None, kind="event", when_text="") -> str:
     head = f"KUMBUSHO - {when_text.upper()}" if when_text else "KUMBUSHO"
     parts = [
         head,
+        f"{label} YA {weds.upper()},",
         f"Habari {gname}",
         f"Tunakukumbusha kuhusu {label} ya {weds.upper()}:",
         f"Itakayofanyika {day.upper()}, {date.upper()}",
