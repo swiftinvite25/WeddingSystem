@@ -161,6 +161,7 @@ def _reminder_text(guest, event=None, kind="event", when_text="") -> str:
     if kind == "michango":
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
         parts = [
+            f"{label} ya {weds.upper()},",
             "KUMBUSHO LA MICHANGO",
             f"Habari {gname},",
             "",
