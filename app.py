@@ -28,7 +28,7 @@ def fmt_eat(dt, fmt='%H:%M') -> str:
 from functools import wraps
 from urllib.parse import quote as url_encode
 from whatsapp import send_guest_card
-from extras import register_extras, event_site_url, event_site_path, card_cleared, card_status
+from extras import register_extras, event_site_url, event_site_path, card_cleared, card_status, sms_allowed, recently_sent
 from sms_africastalking import send_sms as at_send_sms, is_configured as at_configured
 import time
 
@@ -1913,8 +1913,17 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
         if not at_configured():
             sms_status = "not_configured"
             messages.append("SMS: Africa's Talking not configured.")
+        elif not sms_allowed(phone):                       # international / malformed number: never sent, never charged
+            sms_status = "invalid"
+            guest.at_sms_error = "Not a Tanzanian mobile number - SMS not sent (not charged)."
+            messages.append("SMS skipped: not a Tanzanian mobile number (not charged).")
+        elif recently_sent(guest.at_sms_sent_at, 10):      # duplicate guard: same guest, last 10 minutes
+            sms_status = "skipped"
+            messages.append("SMS skipped: already sent in the last 10 minutes (duplicate blocked).")
         else:
             try:
+                guest.at_sms_sent_at = now                 # claim first, so a second request cannot send again
+                db.commit()
                 sms_result = at_send_sms(phone, build_sms_message(guest, event=event))
                 if sms_result.get("success"):
                     guest.at_sms_sent    = True
@@ -1923,34 +1932,20 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
                     sms_status = "sent"
                     messages.append("SMS: sent.")
                 else:
-                    err_str = sms_result.get("error", "Unknown SMS error")[:500]
-                    guest.at_sms_sent  = False
-                    guest.at_sms_error = err_str
+                    err_str = str(sms_result.get("error", "Unknown SMS error"))[:500]
+                    guest.at_sms_sent    = False
+                    guest.at_sms_error   = err_str
+                    guest.at_sms_sent_at = None            # release the claim so it can be retried
                     sms_status = "failed"
                     messages.append(f"SMS failed: {err_str}")
             except Exception as e:
                 err_str = str(e)[:500]
-                guest.at_sms_sent  = False
-                guest.at_sms_error = err_str
+                guest.at_sms_sent    = False
+                guest.at_sms_error   = err_str
+                guest.at_sms_sent_at = None
                 sms_status = "failed"
                 messages.append(f"SMS error: {err_str}")
                 logging.error(f"SMS send failed for {guest.name}: {e}", exc_info=True)
-
-    db.commit()
-
-    active = []
-    if send_wa:  active.append(wa_status)
-    if send_sms: active.append(sms_status)
-
-    if any(s == "sent" for s in active):
-        overall = "success"
-    elif all(s in ("failed", "invalid", "not_configured") for s in active):
-        overall = "failed"
-    else:
-        overall = "partial"
-
-    return {"wa": wa_status, "sms": sms_status,
-            "overall": overall, "message": " | ".join(messages)}
 
 
 # ── Per-guest ID list endpoint (used by frontend loop) ───────────────────────
@@ -1963,12 +1958,8 @@ def pending_guest_ids():
     with get_db_session() as db:
         ev  = get_active_event(db)
         eid = ev.id if ev else None
-        if resend:
-            ids = [g.id for g in db.query(Guest)
-                .filter_by(event_id=eid)
-                .order_by(Guest.visual_id).all() if card_cleared(g, ev)]
-        else:
-            q = db.query(Guest).filter(Guest.event_id == eid)
+        q = db.query(Guest).filter(Guest.event_id == eid)
+        if not resend:
             if channel == 'wa':
                 q = q.filter((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None))
             elif channel == 'sms':
@@ -1978,7 +1969,9 @@ def pending_guest_ids():
                     ((Guest.whatsapp_sent == False) | (Guest.whatsapp_sent == None)),
                     ((Guest.at_sms_sent   == False) | (Guest.at_sms_sent   == None))
                 )
-            ids = [g.id for g in q.order_by(Guest.visual_id).all() if card_cleared(g, ev)]
+        ids = [g.id for g in q.order_by(Guest.visual_id).all()
+               if card_cleared(g, ev)
+               and (channel != 'sms' or sms_allowed(to_whatsapp_number(g.phone)))]
     return jsonify(guest_ids=ids, total=len(ids))
 
 
@@ -2144,6 +2137,14 @@ def send_thankyou_sms_one(guest_id):
                 return jsonify(success=False, error="Guest not found"), 404
             ev      = get_active_event(db)
             phone   = to_whatsapp_number(guest.phone)
+
+            if not sms_allowed(phone):
+                return jsonify(success=False, guest_id=guest_id, name=guest.name,
+                               error="Not a Tanzanian mobile number - SMS not sent (not charged).")
+            if recently_sent(guest.thankyou_sms_sent_at, 10):
+                return jsonify(success=False, guest_id=guest_id, name=guest.name,
+                               error="Thank-you SMS already sent in the last 10 minutes (duplicate blocked).")
+
             message = build_thank_you_sms(guest, event=ev)
             result  = at_send_sms(phone, message)
             if result.get("success"):

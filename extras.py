@@ -143,8 +143,9 @@ def _reminder_text(guest, event=None, kind="event", when_text="") -> str:
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
 
         lines = [
-            f"{label} YA {weds.upper()},",
-            f"KUMBUSHO LA AHADI: Habari {gname},",
+            f"KUMBUSHO LA AHADI: {label} YA {weds.upper()}",
+            f"",
+            f"Habari {gname},",
             f"Tunakukumbusha ahadi yako ya TSh {pledge:,} ya {label} ya {weds.upper()}.",
             f"Umelipa: TSh {paid:,}" if paid > 0 else "Umelipa: TSh 0",
             f"BADO: TSh {max(pledge - paid, 0):,}",
@@ -162,8 +163,7 @@ def _reminder_text(guest, event=None, kind="event", when_text="") -> str:
     if kind == "michango":
         info = (getattr(event, "contribution_info", None) or "").strip() if event else ""
         parts = [
-            f"{label} YA {weds.upper()},",
-            "KUMBUSHO LA MICHANGO",
+            f"KUMBUSHO LA MICHANGO: {label} YA {weds.upper()}",
             f"Habari {gname},",
             "",
             f"Tunakukumbusha ahadi yako kwa ajili ya "
@@ -177,7 +177,6 @@ def _reminder_text(guest, event=None, kind="event", when_text="") -> str:
     head = f"KUMBUSHO - {when_text.upper()}" if when_text else "KUMBUSHO"
     parts = [
         head,
-        f"{label} YA {weds.upper()},",
         f"Habari {gname}",
         f"Tunakukumbusha kuhusu {label} ya {weds.upper()}:",
         f"Itakayofanyika {day.upper()}, {date.upper()}",
@@ -213,10 +212,24 @@ def _hours_since(dt):
     if not dt:
         return None
     if dt.tzinfo is None:
-        # The app stores now_eat() into naive DateTime columns, so a naive
-        # value read back is East Africa Time wall-clock, not UTC.
-        dt = dt.replace(tzinfo=timezone(timedelta(hours=3)))
+        # Naive datetimes read from the database are UTC wall-clock (psycopg2 stores aware values
+        # as UTC) - the same rule the app's fmt_eat() uses.
+        dt = dt.replace(tzinfo=timezone.utc)
     return (datetime.now(timezone.utc) - dt).total_seconds() / 3600.0
+
+
+def recently_sent(dt, minutes=10) -> bool:
+    """True if something was sent/claimed within the last <minutes> (duplicate guard)."""
+    h = _hours_since(dt)
+    return h is not None and h < minutes / 60.0
+
+
+def sms_allowed(phone) -> bool:
+    """Only Tanzanian mobile numbers (255 + 6/7 + 8 digits) get SMS, so international or malformed
+    numbers are never sent (and never charged). Override with env SMS_ALLOWED_PATTERN."""
+    import re as _r
+    digits = _r.sub(r"\D", "", str(phone or ""))
+    return bool(_r.fullmatch(os.getenv("SMS_ALLOWED_PATTERN", r"255[67]\d{8}"), digits))
 
 
 # ---------------------------------------------------------------------------
@@ -414,11 +427,12 @@ from xml.sax.saxutils import escape as _xesc
 
 
 def _hm(dt):
+    """Show a stored time in East Africa Time (naive database values are UTC)."""
     if not dt:
         return ""
-    if getattr(dt, "tzinfo", None) is not None:
-        dt = dt.astimezone(_EAT)
-    return dt.strftime("%H:%M")
+    if getattr(dt, "tzinfo", None) is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_EAT).strftime("%H:%M")
 
 
 def _units(n):
@@ -470,7 +484,7 @@ def _tsh(n):
     return f"{int(n or 0):,}"
 
 
-def build_client_pdf(ev, rep, generated):
+def build_client_pdf(ev, rep, generated, summary_only=False):
     from reportlab.lib.pagesizes import A4
     from reportlab.lib.units import mm
     from reportlab.lib import colors
@@ -497,7 +511,7 @@ def build_client_pdf(ev, rep, generated):
     name = (getattr(ev, "weds_names", None) or getattr(ev, "name", "") or "Event") if ev else "Event"
     meta = " · ".join(x for x in [getattr(ev, "event_day", None), getattr(ev, "event_date", None), getattr(ev, "event_venue", None)] if x) if ev else ""
     basis_txt = "cards that attended (scanned at least once)" if rep["basis"] == "attended" else "all cards issued"
-    story = [Spacer(1, 4 * mm), Paragraph("Event Report &amp; Invoice Summary", S_T), Paragraph(_xesc(name), ps("nm", fontName="Helvetica-Bold", fontSize=12.5, leading=16, textColor=INK, alignment=TA_CENTER, spaceAfter=2)),
+    story = [Spacer(1, 4 * mm), Paragraph("Event Summary &amp; Billing" if summary_only else "Event Report &amp; Invoice Summary", S_T), Paragraph(_xesc(name), ps("nm", fontName="Helvetica-Bold", fontSize=12.5, leading=16, textColor=INK, alignment=TA_CENTER, spaceAfter=2)),
              Paragraph(_xesc(meta + ("  ·  " if meta else "") + f"Prepared {generated}"), S_M), HRFlowable(width="100%", thickness=1.5, color=GOLD, spaceAfter=6)]
 
     # 1. Billing
@@ -509,7 +523,13 @@ def build_client_pdf(ev, rep, generated):
     story.append(table(rows, [W * .50, W * .14, W * .16, W * .20], [("BACKGROUND", (0, -1), (-1, -1), LIGHT), ("LINEABOVE", (0, -1), (-1, -1), 1, GREEN)]))
     story.append(Spacer(1, 3))
     story.append(Paragraph(f"Billed on: <b>{basis_txt}</b>. A family/group card is counted as double cards: every 2 people allowed (or entered, when billing on attendance) = 1 double card, rounded up.", S_N))
-    if rep["family"]:
+    if rep["family"] and summary_only:
+        story.append(Paragraph("Family / group card conversion (totals)", S_H))
+        i, a = rep["issued"], rep["attended"]
+        rows = [[Paragraph(h, S_HD) for h in ("Family cards", "People allowed", "= Double cards", "People entered", "= Double cards")],
+                [P(i["family"], S_R), P(i["family_people"], S_R), P(i["family_units"], S_R), P(a["family_people"], S_R), P(a["family_units"], S_R)]]
+        story.append(table(rows, [W * .2, W * .2, W * .2, W * .2, W * .2]))
+    elif rep["family"]:
         story.append(Paragraph("Family / group card conversion", S_H))
         rows = [[Paragraph(h, S_HD) for h in ("#", "Guest", "People allowed", "= Double cards", "People entered", "= Double cards")]]
         for r in rep["family"]:
@@ -533,26 +553,41 @@ def build_client_pdf(ev, rep, generated):
     if rep["pledged"]:
         story.append(Paragraph(f"Contributions: pledged TSh {_tsh(rep['pledged'])} · received TSh {_tsh(rep['paid'])} · outstanding TSh {_tsh(max(rep['pledged'] - rep['paid'], 0))}.", S_N))
 
+    if summary_only:
+        # numbers only: no guest lists
+        allowed, inn = rep["people_allowed"], rep["people_entered"]
+        pct = f"{inn / allowed * 100:.1f}%" if allowed else "-"
+        story.append(Paragraph("3. People and RSVP", S_H))
+        rows = [[Paragraph(h, S_HD) for h in ("Item", "Number")]]
+        for label, val in (("People allowed (all cards)", allowed), ("People who entered (scanned)", inn),
+                           ("People who did not enter", max(allowed - inn, 0)), ("Attendance rate", pct),
+                           ("Cards used (scanned at least once)", rep["cards_attended"]), ("Cards not used", rep["no_shows"]),
+                           ("RSVP confirmed", rep["rsvp_yes"]), ("RSVP declined", rep["rsvp_no"]),
+                           ("No RSVP reply", max(rep["cards"] - rep["rsvp_yes"] - rep["rsvp_no"], 0))):
+            rows.append([P(label), P(val, S_R)])
+        story.append(table(rows, [W * .70, W * .30]))
+        story += [Spacer(1, 8), HRFlowable(width="100%", thickness=.4, color=BORDER), Paragraph("Summary prepared by SwiftInvite for the treasurer. It contains numbers only, no guest names.", ps("ft2", fontSize=7.5, textColor=GREY, alignment=TA_CENTER, spaceBefore=4))]
     # 3/4 lists
-    story.append(Paragraph(f"3. Guests checked in — {len(rep['entered_list'])} card(s), {rep['people_entered']} people", S_H))
-    rows = [[Paragraph(h, S_HD) for h in ("#", "Guest", "Card", "Entered / allowed", "Time")]]
-    rows += [[P(g["vid"], S_CB), P(g["name"]), P(g["type"].title()), P(f'{g["used"]} / {g["size"]}', S_R), P(g["time"])] for g in rep["entered_list"]] or [[P("No guests have checked in yet."), "", "", "", ""]]
-    story.append(table(rows, [W * .1, W * .42, W * .14, W * .18, W * .16], [("SPAN", (0, 1), (-1, 1))] if not rep["entered_list"] else []))
-    story.append(Paragraph(f"4. Not yet checked in — {len(rep['not_entered_list'])} card(s)", S_H))
-    rows = [[Paragraph(h, S_HD) for h in ("#", "Guest", "Card", "Allowed", "RSVP")]]
-    lab = {"attending": "Confirmed", "not_attending": "Declined"}
-    rows += [[P(g["vid"], S_CB), P(g["name"]), P(g["type"].title()), P(g["size"], S_R), P(lab.get(g["rsvp"], "—"))] for g in rep["not_entered_list"]] or [[P("All guests have checked in."), "", "", "", ""]]
-    story.append(table(rows, [W * .1, W * .42, W * .14, W * .16, W * .18], [("SPAN", (0, 1), (-1, 1))] if not rep["not_entered_list"] else []))
-    story += [Spacer(1, 8), HRFlowable(width="100%", thickness=.4, color=BORDER), Paragraph("Generated automatically by SwiftInvite. Guest data is confidential.", ps("ft", fontSize=7.5, textColor=GREY, alignment=TA_CENTER, spaceBefore=4))]
+    if not summary_only:
+        story.append(Paragraph(f"3. Guests checked in — {len(rep['entered_list'])} card(s), {rep['people_entered']} people", S_H))
+        rows = [[Paragraph(h, S_HD) for h in ("#", "Guest", "Card", "Entered / allowed", "Time")]]
+        rows += [[P(g["vid"], S_CB), P(g["name"]), P(g["type"].title()), P(f'{g["used"]} / {g["size"]}', S_R), P(g["time"])] for g in rep["entered_list"]] or [[P("No guests have checked in yet."), "", "", "", ""]]
+        story.append(table(rows, [W * .1, W * .42, W * .14, W * .18, W * .16], [("SPAN", (0, 1), (-1, 1))] if not rep["entered_list"] else []))
+        story.append(Paragraph(f"4. Not yet checked in — {len(rep['not_entered_list'])} card(s)", S_H))
+        rows = [[Paragraph(h, S_HD) for h in ("#", "Guest", "Card", "Allowed", "RSVP")]]
+        lab = {"attending": "Confirmed", "not_attending": "Declined"}
+        rows += [[P(g["vid"], S_CB), P(g["name"]), P(g["type"].title()), P(g["size"], S_R), P(lab.get(g["rsvp"], "—"))] for g in rep["not_entered_list"]] or [[P("All guests have checked in."), "", "", "", ""]]
+        story.append(table(rows, [W * .1, W * .42, W * .14, W * .16, W * .18], [("SPAN", (0, 1), (-1, 1))] if not rep["not_entered_list"] else []))
+        story += [Spacer(1, 8), HRFlowable(width="100%", thickness=.4, color=BORDER), Paragraph("Generated automatically by SwiftInvite. Guest data is confidential.", ps("ft", fontSize=7.5, textColor=GREY, alignment=TA_CENTER, spaceBefore=4))]
 
     def deco(c, d):
         c.saveState(); w, h = A4
         c.setFillColor(GREEN); c.rect(0, h - 10 * mm, w, 10 * mm, fill=1, stroke=0)
-        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 8.5); c.drawCentredString(w / 2, h - 6.8 * mm, "EVENT REPORT — CONFIDENTIAL")
+        c.setFillColor(colors.white); c.setFont("Helvetica-Bold", 8.5); c.drawCentredString(w / 2, h - 6.8 * mm, "EVENT SUMMARY — CONFIDENTIAL" if summary_only else "EVENT REPORT — CONFIDENTIAL")
         c.setFillColor(GREY); c.setFont("Helvetica", 7); c.drawString(18 * mm, 6 * mm, f"SwiftInvite · {generated}"); c.drawRightString(w - 18 * mm, 6 * mm, f"Page {d.page}")
         c.restoreState()
     buf = BytesIO()
-    SimpleDocTemplate(buf, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=18 * mm, bottomMargin=14 * mm, title="Event Report", author="SwiftInvite").build(story, onFirstPage=deco, onLaterPages=deco)
+    SimpleDocTemplate(buf, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=18 * mm, bottomMargin=14 * mm, title="Event Summary" if summary_only else "Event Report", author="SwiftInvite").build(story, onFirstPage=deco, onLaterPages=deco)
     return buf.getvalue()
 
 
@@ -696,7 +731,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             ev = get_active_event(db)
             for g in db.query(Guest).filter_by(event_id=ev.id if ev else None)\
                        .order_by(Guest.visual_id).all():
-                if not g.phone:
+                if not g.phone or not sms_allowed(to_whatsapp_number(g.phone)):
                     continue
                 if kind == "personal" and (g.pledge_amount or 0) <= (g.paid_amount or 0):
                     continue
@@ -734,6 +769,8 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                 if kind == "personal" and (guest.pledge_amount or 0) <= (guest.paid_amount or 0):
                     return jsonify(success=False, guest_id=guest_id, name=guest.name, error="No outstanding balance")
                 phone = to_whatsapp_number(guest.phone)
+                if not sms_allowed(phone):
+                    return jsonify(success=False, guest_id=guest_id, name=guest.name, error="Not a Tanzanian mobile number - SMS not sent (not charged).")
                 msg = build_reminder_sms(guest, ev, kind, d.get("when_text", ""))
                 result = at_send_sms(phone, msg)
                 if result.get("success"):
@@ -1128,3 +1165,144 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             ok, msg = _wa_call("/verify_code", {"code": code})
             flash("Number verified. Now press Re-register number." if ok else f"Verification failed: {msg}", "success" if ok else "danger")
         return redirect(url_for("whatsapp_status"))
+
+    # ── Contributions Excel report ───────────────────────────────────────
+    @app.route("/contributions.xlsx")
+    @admin_required
+    def contributions_excel():
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            gs = db.query(Guest).filter_by(event_id=ev.id if ev else None).order_by(Guest.visual_id).all()
+            gate = bool(getattr(ev, "contrib_gate", False))
+            mins = (getattr(ev, "min_single", 0) or 0, getattr(ev, "min_double", 0) or 0, getattr(ev, "min_group", 0) or 0)
+            ev_name = (ev.weds_names or ev.name) if ev else "Event"
+            slug = getattr(ev, "slug", "event")
+            data = []
+            for g in gs:
+                pl, pd = int(g.pledge_amount or 0), int(g.paid_amount or 0)
+                status = "Completed" if pl > 0 and pd >= pl else ("Partial" if pd > 0 else ("Not paid" if pl > 0 else "No pledge"))
+                ok, why, _base = card_status(g, ev)
+                card = ("Released - " + why) if gate and ok else ("Waiting" if gate else "-")
+                data.append(dict(vid=int(g.visual_id or 0), name=g.name or "", phone=g.phone or "", ctype=(g.card_type or "single").title(),
+                                 pledge=pl, paid=pd, balance=max(pl - pd, 0), status=status, card=card,
+                                 manual="Yes" if getattr(g, "card_override", False) else "No"))
+        green, gold = PatternFill("solid", start_color="185A3F"), PatternFill("solid", start_color="F0F7F4")
+        thin = Side(style="thin", color="D1D5DB"); box = Border(left=thin, right=thin, top=thin, bottom=thin)
+        wb = Workbook()
+
+        ws = wb.active
+        ws.title = "Contributions"
+        ws["A1"] = f"Contributions - {ev_name}"; ws["A1"].font = Font(size=14, bold=True, color="185A3F")
+        ws["A2"] = f"Generated {now_eat().strftime('%d %B %Y, %H:%M')}"; ws["A2"].font = Font(size=9, color="6B7280")
+        heads = ["Card no.", "Name", "Phone", "Card type", "Pledge (TSh)", "Paid (TSh)", "Balance (TSh)", "Pledge status", "Card release", "Released manually"]
+        for c, h in enumerate(heads, 1):
+            cell = ws.cell(row=4, column=c, value=h)
+            cell.font, cell.fill, cell.border = Font(bold=True, color="FFFFFF"), green, box
+            cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        for i, r in enumerate(data, 5):
+            vals = [r["vid"], r["name"], r["phone"], r["ctype"], r["pledge"], r["paid"], r["balance"], r["status"], r["card"], r["manual"]]
+            for c, v in enumerate(vals, 1):
+                cell = ws.cell(row=i, column=c, value=v)
+                cell.border = box
+                if c in (5, 6, 7):
+                    cell.number_format = "#,##0"
+            colour = {"Completed": "DCFCE7", "Partial": "FEF9C3", "Not paid": "FEE2E2"}.get(r["status"])
+            if colour:
+                ws.cell(row=i, column=8).fill = PatternFill("solid", start_color=colour)
+        last = 4 + len(data)
+        tr = last + 1
+        ws.cell(row=tr, column=2, value="TOTAL").font = Font(bold=True)
+        for c, key in ((5, "pledge"), (6, "paid"), (7, "balance")):
+            cell = ws.cell(row=tr, column=c, value=sum(r[key] for r in data))
+            cell.number_format, cell.font = "#,##0", Font(bold=True)
+        for c in range(1, 11):
+            ws.cell(row=tr, column=c).fill = gold
+            ws.cell(row=tr, column=c).border = box
+        ws.freeze_panes = "A5"
+        if data:
+            ws.auto_filter.ref = f"A4:J{last}"
+        for c, w in enumerate([10, 30, 16, 12, 16, 16, 16, 16, 24, 18], 1):
+            ws.column_dimensions[get_column_letter(c)].width = w
+
+        sm = wb.create_sheet("Summary")
+        total_p, total_d = sum(r["pledge"] for r in data), sum(r["paid"] for r in data)
+        count = lambda st: sum(1 for r in data if r["status"] == st)
+        rows = [("Event", ev_name), ("Guests", len(data)), ("", ""),
+                ("Total pledged (TSh)", total_p), ("Total received (TSh)", total_d), ("Outstanding (TSh)", max(total_p - total_d, 0)),
+                ("Collected", f"{(total_d / total_p * 100):.1f}%" if total_p else "-"), ("", ""),
+                ("Pledges completed", count("Completed")), ("Partly paid", count("Partial")), ("Not paid", count("Not paid")), ("No pledge", count("No pledge")), ("", "")]
+        if gate:
+            rows += [("Card rule", f"ON - minimum Single {mins[0]:,} / Double {mins[1]:,} / Group {mins[2]:,}"),
+                     ("Cards released", sum(1 for r in data if r["card"].startswith("Released"))), ("Cards waiting", sum(1 for r in data if r["card"] == "Waiting")), ("", "")]
+        rows.append(("By card type", ""))
+        for i, (k, v) in enumerate(rows, 1):
+            sm.cell(row=i, column=1, value=k).font = Font(bold=bool(k) and k in ("By card type", "Total pledged (TSh)", "Total received (TSh)", "Outstanding (TSh)"))
+            cell = sm.cell(row=i, column=2, value=v)
+            if isinstance(v, int) and k.endswith("(TSh)"):
+                cell.number_format = "#,##0"
+        r0 = len(rows) + 1
+        for c, h in enumerate(["Card type", "Cards", "Pledged (TSh)", "Received (TSh)"], 1):
+            cell = sm.cell(row=r0, column=c, value=h)
+            cell.font, cell.fill = Font(bold=True, color="FFFFFF"), green
+        for j, t in enumerate(["Single", "Double", "Family"], 1):
+            sub = [r for r in data if r["ctype"] == t]
+            for c, v in enumerate([t, len(sub), sum(r["pledge"] for r in sub), sum(r["paid"] for r in sub)], 1):
+                cell = sm.cell(row=r0 + j, column=c, value=v)
+                if c > 2:
+                    cell.number_format = "#,##0"
+        sm.column_dimensions["A"].width, sm.column_dimensions["B"].width = 28, 34
+        sm.column_dimensions["C"].width, sm.column_dimensions["D"].width = 18, 18
+
+        buf = BytesIO()
+        wb.save(buf)
+        return app.response_class(buf.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                                  headers={"Content-Disposition": f"attachment; filename=Contributions_{slug}_{now_eat().strftime('%Y%m%d')}.xlsx"})
+
+    # ── Phone number safety ──────────────────────────────────────────────
+    app.jinja_env.globals["sms_ok"] = lambda p: sms_allowed(to_whatsapp_number(p or ""))
+
+    @app.route("/phone_check")
+    @admin_required
+    def phone_check():
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            gs = db.query(Guest).filter_by(event_id=ev.id if ev else None).order_by(Guest.visual_id).all()
+            seen, rows = {}, []
+            for g in gs:
+                p = to_whatsapp_number(g.phone or "")
+                issues = []
+                if not (g.phone or "").strip():
+                    issues.append("No phone number")
+                elif not sms_allowed(p):
+                    issues.append("Not a Tanzanian mobile number: SMS will NOT be sent")
+                if p and p in seen:
+                    issues.append(f"Same number as {seen[p]}")
+                seen.setdefault(p, g.name or "")
+                if issues:
+                    rows.append(dict(id=g.id, vid=str(g.visual_id or 0).zfill(4), name=g.name or "", phone=g.phone or "", norm=p, issues=issues))
+            name, total = (ev.name if ev else ""), len(gs)
+        return render_template("phone_check.html", rows=rows, total=total, event_name=name)
+
+    @app.route("/at_balance")
+    @admin_required
+    def at_balance():
+        try:
+            import africastalking
+            import sms_africastalking as _at
+            _at._init()
+            d = africastalking.Application.fetch_application_data()
+            return jsonify(success=True, balance=(d.get("UserData") or {}).get("balance", ""))
+        except Exception as e:
+            return jsonify(success=False, error=str(e))
+
+    @app.route("/treasurer_report")
+    @login_required
+    def treasurer_report_pdf():
+        rep, info, ev = _report_inputs()
+        stamp = now_eat().strftime("%d %B %Y, %H:%M")
+        pdf = build_client_pdf(ev, rep, stamp, summary_only=True)
+        return app.response_class(pdf, mimetype="application/pdf", headers={
+            "Content-Disposition": f"attachment; filename=Event_Summary_{info['slug']}_{now_eat().strftime('%Y%m%d_%H%M')}.pdf"})

@@ -1,6 +1,39 @@
 {% extends "base.html" %}
 {% set title = "Upload Guests (CSV)" %}
 {% block content %}
+{% if report %}
+<div class="mx-auto" style="max-width:720px;">
+  <div class="card mb-3"><div class="card-body">
+    <div class="fw-bold mb-2">Import result — {{ report.filename }}</div>
+    <div class="row g-2 text-center">
+      <div class="col-4"><div class="p-2 rounded bg-success-subtle"><div class="fs-4 fw-bold text-success">{{ report.added }}</div><div class="small text-muted">Added</div></div></div>
+      <div class="col-4"><div class="p-2 rounded bg-info-subtle"><div class="fs-4 fw-bold text-info">{{ report.updated|length }}</div><div class="small text-muted">Updated</div></div></div>
+      <div class="col-4"><div class="p-2 rounded {{ 'bg-warning-subtle' if report.skipped else 'bg-light' }}"><div class="fs-4 fw-bold {{ 'text-warning' if report.skipped else 'text-muted' }}">{{ report.skipped|length }}</div><div class="small text-muted">Skipped</div></div></div>
+    </div>
+    <div class="d-grid gap-2 d-sm-flex mt-3"><a href="{{ url_for('view_all') }}" class="btn btn-success flex-fill">View guests</a><a href="{{ url_for('upload_csv') }}" class="btn btn-outline-secondary flex-fill">Upload another file</a></div>
+  </div></div>
+
+  {% if report.skipped %}
+  <div class="card mb-3 border-warning"><div class="card-body">
+    <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+      <div class="fw-bold text-warning-emphasis">⚠️ {{ report.skipped|length }} guest(s) were skipped (not added)</div>
+      <div class="d-flex gap-2"><button class="btn btn-sm btn-outline-secondary" type="button" id="copySkipped">Copy list</button><button class="btn btn-sm btn-outline-secondary" type="button" id="csvSkipped">Download CSV</button></div>
+    </div>
+    <div class="table-responsive"><table class="table table-sm align-middle mb-0 table-cards" id="skippedTable">
+      <thead><tr><th>Line</th><th>Name</th><th>Phone</th><th>Why skipped</th></tr></thead><tbody>
+      {% for s in report.skipped %}<tr><td data-label="File line">{{ s.line }}</td><td class="cell-title fw-semibold">{{ s.name }}</td><td data-label="Phone">{{ s.phone or '—' }}</td><td data-label="Why">{{ s.reason }}</td></tr>{% endfor %}
+      </tbody></table></div>
+    <div class="small text-muted mt-2">To add them, give each guest a different phone number in your file and upload again. Guests already in the event are not duplicated.</div>
+  </div></div>
+  {% endif %}
+
+  {% if report.updated %}
+  <div class="card mb-3"><div class="card-body"><details><summary class="fw-semibold">{{ report.updated|length }} existing guest(s) had their pledge / payment updated ▾</summary>
+    <ul class="small mt-2 mb-0">{% for s in report.updated %}<li>{{ s.name }} <span class="text-muted">({{ s.phone }})</span></li>{% endfor %}</ul></details></div></div>
+  {% endif %}
+</div>
+{% endif %}
+
 <div class="card mx-auto shadow-sm" style="max-width:720px;">
   <div class="card-body">
     <h2 class="card-title text-center mb-3">Upload Guests &amp; Pledges (CSV)</h2>
@@ -32,4 +65,12 @@ document.getElementById('sample').onclick=function(e){e.preventDefault();
   const t='name,phone,card type,pledge,amount paid,balance\nAsha John,0712345678,single,100000,70000,30000\nMr & Mrs Peter,0754123456,double,150000,150000,0\n';
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/csv'}));a.download='guests_sample.csv';a.click();};
 </script>
+{% if report and report.skipped %}<script>
+const sk={{ report.skipped|tojson }};
+document.getElementById('copySkipped').onclick=async e=>{const t=sk.map(s=>`${s.name} | ${s.phone} | ${s.reason}`).join('\n');
+  try{await navigator.clipboard.writeText(t);e.target.textContent='Copied ✓'}catch(x){prompt('Copy:',t)}setTimeout(()=>e.target.textContent='Copy list',1800)};
+document.getElementById('csvSkipped').onclick=()=>{const q=v=>'"'+String(v||'').replace(/"/g,'""')+'"';
+  const t='line,name,phone,reason\n'+sk.map(s=>[s.line,s.name,s.phone,s.reason].map(q).join(',')).join('\n');
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([t],{type:'text/csv'}));a.download='skipped_guests.csv';a.click()};
+</script>{% endif %}
 {% endblock %}

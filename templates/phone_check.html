@@ -1,0 +1,16 @@
+{% extends "base.html" %}
+{% set title = "Check phone numbers" %}
+{% block content %}
+<div class="mx-auto" style="max-width:860px">
+<h2 class="mb-1">Check phone numbers</h2>
+<p class="text-muted small">{{ event_name }} · {{ total }} guests. SMS is only sent to Tanzanian mobile numbers (255 + 6 or 7 + 8 digits), so international or wrong numbers are never charged. Fix them here.</p>
+{% if not rows %}<div class="alert alert-success">✅ All phone numbers look valid.</div>{% else %}
+<div class="alert alert-warning">⚠️ {{ rows|length }} guest(s) need attention.</div>
+<div class="table-responsive cards-wrap"><table class="table table-sm align-middle table-cards bg-white rounded">
+<thead><tr><th>#</th><th>Guest</th><th>Phone</th><th>Problem</th><th></th></tr></thead><tbody>
+{% for r in rows %}<tr><td data-label="Card no.">{{ r.vid }}</td><td class="cell-title fw-semibold">{{ r.name }}</td><td data-label="Phone">{{ r.phone or '—' }}<div class="small text-muted">{{ r.norm }}</div></td>
+<td data-label="Problem">{% for i in r.issues %}<div class="text-danger small">{{ i }}</div>{% endfor %}</td>
+<td class="cell-actions"><a class="btn btn-sm btn-outline-primary" href="{{ url_for('edit_guest', guest_id=r.id) }}">Fix number</a></td></tr>{% endfor %}
+</tbody></table></div>{% endif %}
+</div>
+{% endblock %}

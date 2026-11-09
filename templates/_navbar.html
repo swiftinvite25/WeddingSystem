@@ -17,6 +17,7 @@
             <li><a class="dropdown-item" href="{{ url_for('upload_csv') }}">Upload guests + pledges (CSV)</a></li>
             <li><a class="dropdown-item" href="{{ url_for('pledges_page') }}">Michango &amp; card rules</a></li>
             <li><a class="dropdown-item" href="{{ url_for('add_guest') }}">Add a single guest</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('phone_check') }}">Check phone numbers</a></li>
           </ul>
         </li>
         <li class="nav-item dropdown">
@@ -40,9 +41,11 @@
           <ul class="dropdown-menu">
             <li><a class="dropdown-item" href="{{ url_for('guest_report') }}">Live guest report</a></li>
             <li><a class="dropdown-item" href="{{ url_for('client_report_pdf') }}">Client report (PDF)</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('treasurer_report_pdf') }}">Treasurer summary (PDF, no guest list)</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_guests_simple', format='pdf') }}">Guest list (PDF)</a></li>
             <li><a class="dropdown-item" href="{{ url_for('export_guests_simple', format='csv') }}">Guest list (CSV)</a></li>
             {% if admin %}<li><a class="dropdown-item" href="{{ url_for('download_excel') }}">Excel report</a></li>
+            <li><a class="dropdown-item" href="{{ url_for('contributions_excel') }}">Contributions (Excel)</a></li>
             <li><hr class="dropdown-divider"></li>
             <li><a class="dropdown-item" href="{{ url_for('send_cards') }}">Thank-you SMS (Send Cards page)</a></li>{% endif %}
           </ul>
