@@ -1828,50 +1828,97 @@ def _handle_rsvp(from_number: str, button_text: str):
 # UNIFIED SEND ENGINE
 # ===========================================================================
 
-def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
-    now        = now_eat()
-    wa_status  = "skipped"
-    sms_status = "skipped"
-    messages   = []
 
+def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
+    now = now_eat()
+    wa_status = "skipped"
+    sms_status = "skipped"
+    messages = []
+
+    # ── Check whether the invitation card is released ───────────────
     _ok, _why, _base = card_status(guest, event)
+
     if not _ok:
-        return {"wa": "skipped", "sms": "skipped", "overall": "failed",
-            "message": f"Card not released: pledge not completed and the minimum of TSh {_base:,} is not reached yet."}
+        return {
+            "wa": "skipped",
+            "sms": "skipped",
+            "overall": "failed",
+            "message": (
+                f"Card not released: pledge not completed and "
+                f"the minimum of TSh {_base:,} is not reached yet."
+            )
+        }
 
     phone = to_whatsapp_number(guest.phone)
-    if not phone:
-        return {"wa": "failed", "sms": "failed",
-                "overall": "failed", "message": "No valid phone number."}
 
-    # ── WhatsApp ──────────────────────────────────────────────────────────
+    if not phone:
+        return {
+            "wa": "failed" if send_wa else "skipped",
+            "sms": "failed" if send_sms else "skipped",
+            "overall": "failed",
+            "message": "No valid phone number."
+        }
+
+    # ── WhatsApp ────────────────────────────────────────────────────
     if send_wa:
-        logging.info(f"[WA] Starting WA send for guest: {guest.name} | phone: {phone}")
+        logging.info(
+            f"[WA] Starting WA send for guest: {guest.name} | phone: {phone}"
+        )
+
         try:
             card_fname = card_filename_from_guest(guest)
 
-            # Try fetching pre-generated card from Supabase first,
-            # fall back to generating locally (no Supabase QR download needed)
+            # Try fetching pre-generated card from Supabase first.
+            # Fall back to generating locally if unavailable.
             card_bytes = None
+
             try:
-                card_bytes = download_from_supabase(CARDS_BUCKET, card_fname)
-                logging.info(f"[WA] Card fetched from Supabase: {len(card_bytes)} bytes")
+                card_bytes = download_from_supabase(
+                    CARDS_BUCKET, card_fname
+                )
+
+                logging.info(
+                    f"[WA] Card fetched from Supabase: {len(card_bytes)} bytes"
+                )
+
             except Exception as supa_err:
-                logging.info(f"[WA] Supabase fetch failed ({supa_err}), regenerating card...")
+                logging.info(
+                    f"[WA] Supabase fetch failed ({supa_err}), "
+                    "regenerating card..."
+                )
+
                 card_bytes = _generate_card_bytes(guest, event=event)
+
                 if card_bytes:
-                    logging.info(f"[WA] Card regenerated: {len(card_bytes)} bytes")
+                    logging.info(
+                        f"[WA] Card regenerated: {len(card_bytes)} bytes"
+                    )
+
                     try:
-                        upload_to_supabase(CARDS_BUCKET, card_fname, card_bytes,
-                                        content_type="image/jpeg")
+                        upload_to_supabase(
+                            CARDS_BUCKET,
+                            card_fname,
+                            card_bytes,
+                            content_type="image/jpeg"
+                        )
+
                     except Exception as up_err:
-                        logging.info(f"[WA] Re-upload to Supabase failed (non-fatal): {up_err}")
+                        logging.info(
+                            f"[WA] Re-upload to Supabase failed "
+                            f"(non-fatal): {up_err}"
+                        )
+
                 else:
-                    logging.info("[WA] Card regeneration also failed!")
+                    logging.info(
+                        "[WA] Card regeneration also failed!"
+                    )
 
             if not card_bytes:
-                raise ValueError("Could not retrieve or generate card image.")
+                raise ValueError(
+                    "Could not retrieve or generate card image."
+                )
 
+            # Send the invitation through WhatsApp.
             wa_result = send_guest_card(
                 to=phone,
                 guest_name=guest.name or "Guest",
@@ -1883,69 +1930,173 @@ def _send_to_guest(guest, db, send_wa=True, send_sms=True, event=None):
                 site_url=event_site_url(event, guest),
                 site_slug=event_site_path(event, guest),
             )
-            
 
-            if wa_result.get("status") == "invalid_number":
-                guest.has_whatsapp        = False
+            # Validate the response before updating guest status.
+            if not isinstance(wa_result, dict):
+                raise ValueError(
+                    f"Unexpected WhatsApp response: {wa_result!r}"
+                )
+
+            wa_response_status = wa_result.get("status")
+
+            if wa_response_status == "invalid_number":
+                guest.has_whatsapp = False
                 guest.whatsapp_checked_at = now
-                guest.whatsapp_sent       = False
-                guest.whatsapp_error      = "Not on WhatsApp"
+                guest.whatsapp_sent = False
+                guest.whatsapp_error = "Not on WhatsApp"
+
                 wa_status = "invalid"
                 messages.append("WhatsApp: not on platform.")
-            else:
-                guest.whatsapp_sent    = True
+
+            elif wa_response_status in ("sent", "success", "accepted"):
+                guest.whatsapp_sent = True
                 guest.whatsapp_sent_at = now
-                guest.whatsapp_error   = None
+                guest.whatsapp_error = None
+
                 wa_status = "sent"
                 messages.append("WhatsApp: sent.")
+
+            else:
+                err_str = str(
+                    wa_result.get(
+                        "error",
+                        f"WhatsApp returned unexpected status: "
+                        f"{wa_response_status!r}"
+                    )
+                )[:500]
+
+                guest.whatsapp_sent = False
+                guest.whatsapp_error = err_str
+
+                wa_status = "failed"
+                messages.append(f"WhatsApp failed: {err_str}")
+
+                logging.error(
+                    f"[WA] Send unsuccessful for {guest.name}: {err_str}"
+                )
+
         except Exception as e:
             import traceback
+
             err_str = str(e)[:500]
-            logging.error(f"[WA] WA send failed for {guest.name}: {err_str}")
-            logging.error(f"[WA] Traceback:\n{traceback.format_exc()}")
-            guest.whatsapp_sent  = False
+
+            logging.error(
+                f"[WA] WA send failed for {guest.name}: {err_str}"
+            )
+            logging.error(
+                f"[WA] Traceback:\n{traceback.format_exc()}"
+            )
+
+            guest.whatsapp_sent = False
             guest.whatsapp_error = err_str
+
             wa_status = "failed"
             messages.append(f"WhatsApp failed: {err_str}")
 
-    # ── Africa's Talking SMS ──────────────────────────────────────────────
+    # ── Africa's Talking SMS ────────────────────────────────────────
     if send_sms:
+
         if not at_configured():
             sms_status = "not_configured"
-            messages.append("SMS: Africa's Talking not configured.")
-        elif not sms_allowed(phone):                       # international / malformed number: never sent, never charged
+            messages.append(
+                "SMS: Africa's Talking not configured."
+            )
+
+        elif not sms_allowed(phone):
+            # International / malformed number: never sent or charged.
             sms_status = "invalid"
-            guest.at_sms_error = "Not a Tanzanian mobile number - SMS not sent (not charged)."
-            messages.append("SMS skipped: not a Tanzanian mobile number (not charged).")
-        elif recently_sent(guest.at_sms_sent_at, 10):      # duplicate guard: same guest, last 10 minutes
+
+            guest.at_sms_error = (
+                "Not a Tanzanian mobile number - "
+                "SMS not sent (not charged)."
+            )
+
+            messages.append(
+                "SMS skipped: not a Tanzanian mobile number (not charged)."
+            )
+
+        elif recently_sent(guest.at_sms_sent_at, 10):
+            # Duplicate guard: same guest, last 10 minutes.
             sms_status = "skipped"
-            messages.append("SMS skipped: already sent in the last 10 minutes (duplicate blocked).")
+
+            messages.append(
+                "SMS skipped: already sent in the last 10 minutes "
+                "(duplicate blocked)."
+            )
+
         else:
             try:
-                guest.at_sms_sent_at = now                 # claim first, so a second request cannot send again
+                # Claim first so a second request cannot send again.
+                guest.at_sms_sent_at = now
                 db.commit()
-                sms_result = at_send_sms(phone, build_sms_message(guest, event=event))
-                if sms_result.get("success"):
-                    guest.at_sms_sent    = True
-                    guest.at_sms_error   = None
+
+                sms_result = at_send_sms(
+                    phone,
+                    build_sms_message(guest, event=event)
+                )
+
+                if sms_result and sms_result.get("success"):
+                    guest.at_sms_sent = True
+                    guest.at_sms_error = None
                     guest.at_sms_sent_at = now
+
                     sms_status = "sent"
                     messages.append("SMS: sent.")
+
                 else:
-                    err_str = str(sms_result.get("error", "Unknown SMS error"))[:500]
-                    guest.at_sms_sent    = False
-                    guest.at_sms_error   = err_str
-                    guest.at_sms_sent_at = None            # release the claim so it can be retried
+                    err_str = str(
+                        (sms_result or {}).get(
+                            "error", "Unknown SMS error"
+                        )
+                    )[:500]
+
+                    guest.at_sms_sent = False
+                    guest.at_sms_error = err_str
+                    guest.at_sms_sent_at = None
+
                     sms_status = "failed"
                     messages.append(f"SMS failed: {err_str}")
+
             except Exception as e:
                 err_str = str(e)[:500]
-                guest.at_sms_sent    = False
-                guest.at_sms_error   = err_str
+
+                guest.at_sms_sent = False
+                guest.at_sms_error = err_str
                 guest.at_sms_sent_at = None
+
                 sms_status = "failed"
                 messages.append(f"SMS error: {err_str}")
-                logging.error(f"SMS send failed for {guest.name}: {e}", exc_info=True)
+
+                logging.error(
+                    f"SMS send failed for {guest.name}: {e}",
+                    exc_info=True
+                )
+
+    # ── Save final updates ──────────────────────────────────────────
+    db.commit()
+
+    # ── Determine overall result ────────────────────────────────────
+    statuses = [wa_status, sms_status]
+
+    sent_count = statuses.count("sent")
+    failed_count = statuses.count("failed") + statuses.count("invalid")
+
+    if sent_count and failed_count:
+        overall = "partial"
+    elif sent_count:
+        overall = "sent"
+    elif failed_count:
+        overall = "failed"
+    else:
+        overall = "skipped"
+
+    return {
+        "wa": wa_status,
+        "sms": sms_status,
+        "overall": overall,
+        "message": " ".join(messages) if messages else "No messages sent."
+    }
+
 
 
 # ── Per-guest ID list endpoint (used by frontend loop) ───────────────────────
