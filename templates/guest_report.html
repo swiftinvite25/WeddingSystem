@@ -14,6 +14,7 @@
     <div><h2 class="mb-0">Event report</h2><div class="text-muted small" id="sub">Loading…</div></div>
     <div class="d-flex flex-wrap gap-2">
       <a id="pdfBtn" class="btn btn-warning fw-semibold" href="{{ url_for('client_report_pdf') }}">⬇ Client report (PDF)</a>
+      <a id="sumBtn" class="btn btn-outline-warning fw-semibold" href="{{ url_for('treasurer_report_pdf') }}">⬇ Treasurer summary (PDF)</a>
       {% if session.get('role') == 'admin' %}<a class="btn btn-success" href="{{ url_for('download_excel') }}">Excel</a>{% endif %}
       <a class="btn btn-outline-secondary" href="{{ url_for('export_guests_simple', format='pdf') }}">Guest list (PDF)</a>
       <a class="btn btn-outline-secondary" href="{{ url_for('export_guests_simple', format='csv') }}">Guest list (CSV)</a>
@@ -69,7 +70,7 @@ async function load(){const d=await fetch('/report_summary?'+params()).then(r=>r
  $('famBox').classList.toggle('d-none',!d.family.length);
  $('fam').innerHTML=d.family.map(r=>`<tr><td>${esc(r.vid)}</td><td>${esc(r.name)}</td><td class="text-end">${r.people}</td><td class="text-end">${r.units}</td><td class="text-end">${r.entered}</td><td class="text-end">${r.units_in}</td></tr>`).join('')
   +`<tr class="fw-bold table-light"><td></td><td>Total</td><td class="text-end">${d.issued.family_people}</td><td class="text-end">${d.issued.family_units}</td><td class="text-end">${d.attended.family_people}</td><td class="text-end">${d.attended.family_units}</td></tr>`;
- $('pdfBtn').href='/client_report?'+params();
+ $('pdfBtn').href='/client_report?'+params();$('sumBtn').href='/treasurer_report?'+params();
  $('pIn').textContent=d.entered_list.length+' cards · '+d.people_entered+' people';$('pNin').textContent=d.not_entered_list.length;
  $('tIn').innerHTML=d.entered_list.length?d.entered_list.map(g=>`<tr data-s="${esc((g.name+' '+g.vid).toLowerCase())}"><td class="fw-bold text-success" data-label="Card no.">${esc(g.vid)}</td><td class="nm cell-title">${esc(g.name)}</td><td class="tt" data-label="Card">${esc(g.type)}</td><td class="text-end" data-label="Entered / allowed">${g.used} / ${g.size}</td><td class="text-muted small" data-label="Time">${esc(g.time)}</td></tr>`).join(''):'<tr><td colspan="5" class="text-center text-muted py-4" style="display:block">No guests have checked in yet.</td></tr>';
  const rs={attending:'<span class="text-success fw-semibold">Confirmed</span>',not_attending:'<span class="text-danger fw-semibold">Declined</span>'};

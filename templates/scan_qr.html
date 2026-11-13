@@ -58,6 +58,13 @@ async function stats(){try{const d=await fetch('/scan_stats').then(r=>r.json());
 const post=b=>fetch('/update_status',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)}).then(r=>r.json());
 async function checkIn(b){try{outcome(await post(b))}catch(e){show('err','📶','No connection','Please check your internet and try again.')}}
 
+async function checkMany(b,n){let done=0,last=null,ok=null;
+ try{for(let i=0;i<n;i++){last=await post(b);if(!last.success)break;ok=last;done++}}
+ catch(e){return show('err','📶','No connection',`${done} of ${n} were saved. Search the guest again to see the exact count.`)}
+ if(!done)return outcome(last);
+ const g=ok.guest||{},r=g.remaining_entries??'—';beep(true);buzz(true);
+ show(done<n?'warn':'ok',done<n?'⚠️':'✅',g.name||'Guest',`${esc((g.card_type||'').toUpperCase())} · <b>#${pad(g.visual_id)}</b><br><b>${done}</b> ${done===1?'person':'people'} checked in${done<n?' (you asked for '+n+': '+esc((last&&last.message)||'limit reached')+')':''}`,`<span class="rem">${r} ${r===1?'entry':'entries'} remaining</span>`);
+ addLog((g.name||'?')+(done>1?' ×'+done:''),g.visual_id,true);stats()}
 function setTab(t){tab=t;$('tabScan').classList.toggle('on',t==='scan');$('tabNum').classList.toggle('on',t==='num');$('pScan').hidden=t!=='scan';$('pNum').hidden=t!=='num';$('result').innerHTML='';
  if(t==='scan')start();else{stop();setTimeout(()=>$('card').focus(),50)}}
 $('tabScan').onclick=()=>setTab('scan');$('tabNum').onclick=()=>setTab('num');
@@ -75,9 +82,19 @@ async function search(){const raw=$('card').value.trim(),n=parseInt(raw,10);if(!
  const b=$('go');b.disabled=true;b.textContent='…';
  try{const d=await fetch('/lookup_guest?visual_id='+n).then(r=>r.json());
   if(d.found){pending=d.visual_id;const used=d.remaining<=0;
-   show(used?'warn':'ok','👤',d.name,`${esc((d.card_type||'').toUpperCase())} · <b>#${pad(d.visual_id)}</b><br>${d.checked_in_count}/${d.group_size} entries used · <b>${d.remaining} remaining</b>`,
-    used?'<div class="mt-2 fw-bold">⚠️ All entries already used</div>':'<button class="btn btn-success big" id="confirm">✅ Confirm check-in</button>');
-   clearTimeout(hideT);const c=$('confirm');if(c)c.onclick=async()=>{c.disabled=true;await checkIn({visual_id:pending});pending=null;$('card').value='';$('card').focus()}}
+   let extra;
+   if(used)extra='<div class="mt-2 fw-bold">⚠️ All entries already used</div>';
+   else if(d.remaining>=2)extra=`<button class="btn btn-success big" data-n="${d.remaining}">✅ Check in ${d.remaining===2?'BOTH (2)':'ALL '+d.remaining}</button>
+     <button class="btn btn-outline-success big" data-n="1" style="margin-top:.5rem">👤 Only 1 now (${d.remaining===2?'the other comes':'the others come'} later)</button>`
+     +(d.remaining>=3?`<div class="d-flex gap-2 mt-2"><input id="nIn" type="number" inputmode="numeric" min="1" max="${d.remaining}" class="form-control" placeholder="How many now?"><button class="btn btn-outline-dark" data-n="custom">Check in</button></div>`:'');
+   else extra='<button class="btn btn-success big" data-n="1">✅ Confirm check-in</button>';
+   show(used?'warn':'ok','👤',d.name,`${esc((d.card_type||'').toUpperCase())} · <b>#${pad(d.visual_id)}</b><br>${d.checked_in_count}/${d.group_size} entries used · <b>${d.remaining} remaining</b>`,extra);
+   clearTimeout(hideT);
+   document.querySelectorAll('#result [data-n]').forEach(btn=>btn.onclick=async()=>{
+    const n=btn.dataset.n==='custom'?parseInt($('nIn').value,10):+btn.dataset.n;
+    if(!n||n<1||n>d.remaining){$('nIn')&&$('nIn').focus();return alert('Enter a number from 1 to '+d.remaining)}
+    document.querySelectorAll('#result button').forEach(x=>x.disabled=true);
+    await checkMany({visual_id:pending},n);pending=null;$('card').value='';$('card').focus()})}
   else show('err','❌','Guest not found',`No guest with card number ${n}`)}
  catch(e){show('err','📶','No connection','Could not reach the server.')}
  b.disabled=false;b.textContent='Search'}

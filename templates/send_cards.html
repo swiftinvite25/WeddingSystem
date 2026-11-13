@@ -9,7 +9,7 @@
 .sc .go{min-height:58px;font-size:1.05rem}.sc details>summary{cursor:pointer;font-weight:600;list-style:none;padding:.4rem 0}.sc details>summary::-webkit-details-marker{display:none}
 </style>
 <div class="sc">
-<h2 class="mb-1">Send cards</h2><p class="text-muted small mb-3">Send each guest their personal card by WhatsApp and SMS.</p>
+<h2 class="mb-1">Send cards</h2><p class="text-muted small mb-1">Send each guest their personal card by WhatsApp and SMS.</p><div id="atBal" class="small text-muted mb-3">📱 SMS balance: checking…</div>
 
 <div class="row g-2 mb-3">
   <div class="col-4 col-md-2"><div class="st"><b>{{ total }}</b><span>Guests</span></div></div>
@@ -64,6 +64,7 @@
   <button class="btn btn-sm btn-outline-info" onclick="filt('sms-pending',this)">SMS pending</button>
   <button class="btn btn-sm btn-outline-primary" onclick="filt('attending',this)">Attending</button>
   {% if contrib_gate %}<button class="btn btn-sm btn-outline-dark" onclick="filt('waiting',this)">Waiting (contribution)</button>{% endif %}
+  <button class="btn btn-sm btn-outline-danger" onclick="filt('invalid',this)">⚠ Invalid numbers</button>
 </div>
 
 <div class="card cards-wrap"><div class="card-body p-0"><div class="table-responsive cards-wrap">
@@ -71,10 +72,10 @@
 <thead class="table-light"><tr><th>#</th><th>Name</th><th>Phone</th><th>Card</th>{% if contrib_gate %}<th>Contribution</th>{% endif %}<th>WhatsApp</th><th>SMS</th><th>RSVP</th><th>Thank-you</th><th>Actions</th></tr></thead>
 <tbody>
 {% for guest in guests %}
-<tr id="row-{{ guest.id }}" data-wa="{{ 'sent' if guest.whatsapp_sent else ('failed' if guest.whatsapp_error else 'pending') }}" data-sms="{{ 'sent' if guest.at_sms_sent else ('failed' if guest.at_sms_error else 'pending') }}" data-rsvp="{{ guest.rsvp_status or 'none' }}" data-waiting="{{ 1 if contrib_gate and not card_state(guest)[0] else 0 }}">
+<tr id="row-{{ guest.id }}" data-wa="{{ 'sent' if guest.whatsapp_sent else ('failed' if guest.whatsapp_error else 'pending') }}" data-sms="{{ 'sent' if guest.at_sms_sent else ('failed' if guest.at_sms_error else 'pending') }}" data-rsvp="{{ guest.rsvp_status or 'none' }}" data-waiting="{{ 1 if contrib_gate and not card_state(guest)[0] else 0 }}" data-bad="{{ 0 if sms_ok(guest.phone) else 1 }}">
   <td data-label="Card no.">{{ (guest.visual_id or 0)|string|zfill(4) }}</td>
   <td class="fw-semibold cell-title">{{ guest.name }}</td>
-  <td data-label="Phone">{{ guest.phone }}</td>
+  <td data-label="Phone">{{ guest.phone }}{% if not sms_ok(guest.phone) %} <span class="badge bg-danger" title="SMS will not be sent">⚠ no SMS</span>{% endif %}</td>
   <td data-label="Card type">{{ (guest.card_type or 'single')|title }}</td>
   {% if contrib_gate %}<td data-label="Contribution">{% if card_state(guest)[0] %}<span class="badge bg-success">Released</span>{% else %}<span class="badge bg-danger">Waiting</span>{% endif %}</td>{% endif %}
   <td data-label="WhatsApp" id="wa-status-{{ guest.id }}">{% if guest.whatsapp_sent %}<span class="badge bg-success">Sent{% if guest.whatsapp_sent_at %} <small>({{ guest.whatsapp_sent_at|fmt_eat('%d %b %H:%M') }})</small>{% endif %}</span>{% elif guest.whatsapp_error %}<span class="badge bg-danger" title="{{ guest.whatsapp_error }}">Failed</span>{% else %}<span class="badge bg-secondary">Pending</span>{% endif %}</td>
@@ -97,14 +98,14 @@ const $=id=>document.getElementById(id),J=(u,o)=>fetch(u,o).then(r=>r.json()),po
 esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const B=(c,t,ti)=>`<span class="badge bg-${c}"${ti?` title="${esc(ti)}"`:''}>${t}</span>`,set=(id,h)=>{const e=$(id);if(e)e.innerHTML=h};
 const waB=s=>s==='sent'?B('success','Sent ✓'):s==='invalid'?B('warning text-dark','Not on WA'):s==='skipped'?B('light text-muted','Skipped'):B('danger','Failed');
-const smsB=s=>s==='sent'?B('info text-white','Sent ✓'):s==='not_configured'?B('secondary','N/A'):s==='skipped'?B('light text-muted','Skipped'):B('danger','Failed');
+const smsB=s=>s==='sent'?B('info text-white','Sent ✓'):s==='not_configured'?B('secondary','N/A'):s==='skipped'?B('light text-muted','Skipped'):s==='invalid'?B('warning text-dark','No SMS (not TZ number)'):B('danger','Failed');
 const sending=id=>set(id,B('info','Sending…'));
 const steps={
  async both(id,c){sending('wa-status-'+id);sending('sms-status-'+id);const d=await post('/send_unified_one/'+id);set('wa-status-'+id,waB(d.wa));set('sms-status-'+id,smsB(d.sms));
-  c.w=(c.w||0)+(d.wa==='sent');c.s=(c.s||0)+(d.sms==='sent');return{ok:d.success!==false,err:d.error||d.message}},
+  c.w=(c.w||0)+(d.wa==='sent');c.s=(c.s||0)+(d.sms==='sent');return{ok:d.success!==false,err:d.error||d.message,stop:d.sms==='failed'&&/insufficient/i.test(d.message||'')}},
  async wa(id,c){sending('wa-status-'+id);const d=await post('/send_card_single/'+id);set('wa-status-'+id,d.success?B('success','Sent ✓'):B('danger','Failed',d.message));return{ok:!!d.success,err:d.message}},
- async sms(id,c){sending('sms-status-'+id);const d=await post('/send_at_sms_single/'+id);set('sms-status-'+id,d.success?B('info text-white','Sent ✓'):B('danger','Failed',d.message));return{ok:!!d.success,err:d.message}},
- async ty(id,c){sending('ty-status-'+id);const d=await post('/send_thankyou_sms_one/'+id);set('ty-status-'+id,d.success?B('warning text-dark','Sent ✓'):B('danger','Failed',d.error));return{ok:!!d.success,err:d.error,name:d.name}}};
+ async sms(id,c){sending('sms-status-'+id);const d=await post('/send_at_sms_single/'+id);set('sms-status-'+id,d.success?B('info text-white','Sent ✓'):B('danger','Failed',d.message));return{ok:!!d.success,err:d.message,stop:/insufficient/i.test(d.message||'')}},
+ async ty(id,c){sending('ty-status-'+id);const d=await post('/send_thankyou_sms_one/'+id);set('ty-status-'+id,d.success?B('warning text-dark','Sent ✓'):B('danger','Failed',d.error));return{ok:!!d.success,err:d.error,name:d.name,stop:/insufficient/i.test(d.error||'')}}};
 const idsFor=(ch,r)=>ch==='ty'?async()=>(await post('/send_thankyou_sms_bulk',{resend:r})).guest_ids:async()=>(await J(`/pending_guest_ids?resend=${r}&channel=${ch==='both'?'both':ch}`)).guest_ids;
 const NAMES={both:'Sending cards',wa:'WhatsApp',sms:'SMS',ty:'Thank-you SMS'};
 const busy=on=>document.querySelectorAll('.bulk').forEach(b=>b.disabled=on);
@@ -115,7 +116,7 @@ async function runBulk(kind,resend){
  if(!ids.length){$('pres').innerHTML='<div class="alert alert-info mb-0">Nobody to send to right now.</div>';bar.style.width='0';busy(false);return}
  const c={},errs=[];let ok=0,fail=0;
  for(let i=0;i<ids.length;i++){$('plabel').textContent=`${NAMES[kind]}: ${i+1} of ${ids.length}`;bar.style.width=Math.round((i+1)/ids.length*100)+'%';
-  try{const r=await steps[kind](ids[i],c);if(r.ok)ok++;else{fail++;errs.push({n:r.name||'ID '+ids[i],e:r.err||'Failed'})}}catch(e){fail++;errs.push({n:'ID '+ids[i],e:String(e)})}
+  try{const r=await steps[kind](ids[i],c);if(r.stop){fail++;errs.push({n:'Stopped at guest '+(i+1)+' of '+ids.length,e:"SMS balance is finished. Recharge Africa's Talking, then press 'Send pending' again. Guests already sent are not sent twice."});break}if(r.ok)ok++;else{fail++;errs.push({n:r.name||'ID '+ids[i],e:r.err||'Failed'})}}catch(e){fail++;errs.push({n:'ID '+ids[i],e:String(e)})}
   $('pcount').textContent=`✔ ${ok} · ✖ ${fail}`}
  $('plabel').textContent='Done!';bar.classList.remove('progress-bar-animated');
  const sum=kind==='both'?`📤 WhatsApp sent <b>${c.w||0}</b> · 📱 SMS sent <b>${c.s||0}</b> · problems <b>${fail}</b>`:`✅ Sent <b>${ok}</b> · ❌ Failed <b>${fail}</b>`;
@@ -124,6 +125,7 @@ async function runBulk(kind,resend){
 const bulkUnified=r=>runBulk('both',r),bulkOne=(k,r)=>runBulk(k,r);
 async function single(kind,id,btn){const t=btn.textContent;btn.disabled=true;btn.textContent='⏳';try{await steps[kind](id,{})}catch(e){}btn.textContent=t;btn.disabled=false}
 function filt(f,btn){document.querySelectorAll('.chips .btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');
- document.querySelectorAll('#guest-table tbody tr[id]').forEach(r=>{const d=r.dataset;r.style.display=({all:1,'wa-failed':d.wa==='failed','wa-pending':d.wa==='pending','sms-failed':d.sms==='failed','sms-pending':d.sms==='pending',attending:d.rsvp==='attending',waiting:d.waiting==='1'})[f]?'':'none'})}
+ document.querySelectorAll('#guest-table tbody tr[id]').forEach(r=>{const d=r.dataset;r.style.display=({all:1,'wa-failed':d.wa==='failed','wa-pending':d.wa==='pending','sms-failed':d.sms==='failed','sms-pending':d.sms==='pending',attending:d.rsvp==='attending',waiting:d.waiting==='1',invalid:d.bad==='1'})[f]?'':'none'})}
+fetch('/at_balance').then(r=>r.json()).then(d=>{$('atBal').innerHTML=d.success?'📱 SMS balance: <b>'+esc(d.balance||'?')+'</b>':'📱 SMS balance unavailable'}).catch(()=>{$('atBal').textContent=''});
 </script>
 {% endblock %}
