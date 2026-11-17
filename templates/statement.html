@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% set title = "Contributions statement" %}
+{% block content %}
+<div class="mx-auto" style="max-width:820px">
+<h2 class="mb-1">Contributions statement (PDF)</h2>
+<p class="text-muted small">{{ event_name }} · a shareable list where guests check their own contributions.</p>
+
+<div class="card mb-3"><div class="card-body">
+<form method="get" action="{{ url_for('statement_pdf') }}">
+  <div class="row g-3">
+    <div class="col-12 col-md-6"><div class="fw-bold mb-1">Show</div>
+      {% for v, l in [('all','All guests'),('unpaid','Not fully paid (balance above zero)'),('notpaid','Not paid at all'),('partial','Partly paid only')] %}
+      <div class="form-check"><input class="form-check-input" type="radio" name="filter" id="f{{ v }}" value="{{ v }}" {{ 'checked' if v == 'all' }}><label class="form-check-label" for="f{{ v }}">{{ l }}</label></div>{% endfor %}</div>
+    <div class="col-12 col-md-6"><div class="fw-bold mb-1">Sort by</div>
+      <div class="form-check"><input class="form-check-input" type="radio" name="sort" id="scard" value="card" checked><label class="form-check-label" for="scard">Card number</label></div>
+      <div class="form-check mb-2"><input class="form-check-input" type="radio" name="sort" id="sname" value="name"><label class="form-check-label" for="sname">Name</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="hide_tests" value="1" id="ht" checked><label class="form-check-label" for="ht">Leave out test names automatically</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="pending" value="1" id="pd" {{ 'checked' if pending }}><label class="form-check-label" for="pd">Include “Guests without a card / phone number”</label></div>
+      <div class="form-check"><input class="form-check-input" type="checkbox" name="full_phone" value="1" id="fp"><label class="form-check-label" for="fp">Show full phone numbers <span class="text-muted">(default hides the middle digits)</span></label></div></div>
+  </div>
+  <button class="btn btn-success w-100 mt-3" style="min-height:52px">⬇ Download PDF</button>
+</form></div></div>
+
+<div class="card mb-3"><div class="card-body">
+<div class="fw-bold mb-1">Statement footer (deadline &amp; payment details)</div>
+<form method="post" action="{{ url_for('statement_note') }}"><textarea class="form-control" name="note" rows="4" placeholder="Contribution deadline: 30 November 2026&#10;Airtel Money: 0689 000 000 (Name)&#10;CRDB: 0150 000 000 000 (Name)">{{ note }}</textarea>
+<button class="btn btn-outline-success mt-2">Save footer</button></form></div></div>
+
+<div class="card mb-3"><div class="card-body">
+<div class="fw-bold mb-1">Guests without a card / phone number</div>
+<p class="small text-muted">People who pledged but are not in the guest list yet. They appear only on the statement, with “SEND NUMBER” in red. When their number arrives, add them as a normal guest and remove them here.</p>
+<form method="post" action="{{ url_for('statement_pending_add') }}" class="row g-2 mb-3">
+  <div class="col-12 col-md-5"><input class="form-control" name="name" placeholder="Name" required></div>
+  <div class="col-6 col-md-3"><input class="form-control" name="pledge" type="number" inputmode="numeric" min="0" placeholder="Pledge"></div>
+  <div class="col-6 col-md-2"><input class="form-control" name="paid" type="number" inputmode="numeric" min="0" placeholder="Paid"></div>
+  <div class="col-12 col-md-2"><button class="btn btn-success w-100">Add</button></div></form>
+{% for p in pending %}<div class="row g-2 align-items-center mb-2" data-id="{{ p.id }}">
+  <div class="col-12 col-md-4"><input class="form-control pn" value="{{ p.name }}"></div>
+  <div class="col-4 col-md-2"><input class="form-control pp" type="number" min="0" value="{{ p.pledge }}"></div>
+  <div class="col-4 col-md-2"><input class="form-control pa" type="number" min="0" value="{{ p.paid }}"></div>
+  <div class="col-4 col-md-4 d-flex gap-1"><button class="btn btn-outline-primary flex-fill ps" type="button">Save</button>
+  <form method="post" action="{{ url_for('statement_pending_delete', pid=p.id) }}" onsubmit="return confirm('Remove {{ p.name|e }}?')"><button class="btn btn-outline-danger">Remove</button></form></div></div>
+{% else %}<div class="text-muted small">None yet.</div>{% endfor %}</div></div>
+
+<div class="card mb-3"><div class="card-body">
+<div class="fw-bold mb-1">Leave guests out of the statement</div>
+<p class="small text-muted">Tick anyone you do not want on the PDF (the choice is remembered). Names containing “test” are left out automatically.</p>
+<input class="form-control mb-2" id="gq" type="search" placeholder="Search…">
+<div style="max-height:320px;overflow:auto">{% for g in guests %}
+<label class="d-flex align-items-center gap-2 py-1 border-bottom gl" data-s="{{ (g.name ~ ' ' ~ g.vid)|lower }}"><input type="checkbox" class="form-check-input hid" data-id="{{ g.id }}" {{ 'checked' if g.hidden }}>
+<span>{{ g.vid }} · {{ g.name }}</span>{% if g.test %}<span class="badge bg-secondary">test name</span>{% endif %}</label>{% endfor %}</div></div></div>
+</div>
+<script>
+const post=(u,b)=>fetch(u,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(b)});
+document.querySelectorAll('.hid').forEach(c=>c.onchange=async()=>{const r=await post('/statement/hide/'+c.dataset.id,{on:c.checked});if(!r.ok)c.checked=!c.checked});
+document.querySelectorAll('.ps').forEach(b=>b.onclick=async()=>{const r=b.closest('[data-id]');const x=await post('/statement/pending/save/'+r.dataset.id,{name:r.querySelector('.pn').value,pledge:r.querySelector('.pp').value,paid:r.querySelector('.pa').value});b.textContent=x.ok?'Saved ✓':'Error';setTimeout(()=>b.textContent='Save',1500)});
+document.getElementById('gq').oninput=e=>{const v=e.target.value.toLowerCase();document.querySelectorAll('.gl').forEach(l=>l.style.display=l.dataset.s.includes(v)?'':'none')};
+</script>
+{% endblock %}

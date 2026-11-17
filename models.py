@@ -70,6 +70,7 @@ def _run_migrations(engine):
             ("gate_scan",         "BOOLEAN DEFAULT FALSE"),
             ("price_single",      "INTEGER DEFAULT 0"),
             ("price_double",      "INTEGER DEFAULT 0"),
+            ("statement_note",    "TEXT"),
         ]:
             if col_def[0] not in ev_cols:
                 try:
@@ -94,6 +95,7 @@ def _run_migrations(engine):
             ("pledge_amount",        "INTEGER DEFAULT 0"),
             ("paid_amount",          "INTEGER DEFAULT 0"),
             ("card_override",        "BOOLEAN DEFAULT FALSE"),
+            ("statement_hidden",     "BOOLEAN DEFAULT FALSE"),
         ]:
             if col_def[0] not in guest_cols:
                 try:
@@ -178,6 +180,7 @@ class Event(Base):
     # Billing rates (TSh per card) used by the client report
     price_single = Column(Integer, default=0)
     price_double = Column(Integer, default=0)
+    statement_note = Column(Text, nullable=True)     # footer of the contributions statement (deadline, payment details)
 
     # Status
     is_active   = Column(Boolean, default=True)
@@ -247,6 +250,7 @@ class Guest(Base):
     pledge_amount = Column(Integer, default=0)
     paid_amount   = Column(Integer, default=0)
     card_override = Column(Boolean, default=False)  # organiser released the card manually
+    statement_hidden = Column(Boolean, default=False)  # left out of the contributions statement PDF
 
     # Relationship
     event = relationship("Event", back_populates="guests")
@@ -271,3 +275,15 @@ def create_guest(session, **kwargs):
     session.commit()
     session.refresh(guest)
     return guest
+
+
+class PendingPledge(Base):
+    """A pledge from someone who has no card / phone number yet (shown only in the contributions statement)."""
+    __tablename__ = 'pending_pledges'
+
+    id         = Column(Integer, primary_key=True)
+    event_id   = Column(Integer, ForeignKey('events.id'), nullable=True, index=True)
+    name       = Column(String, nullable=False, default="")
+    pledge     = Column(Integer, default=0)
+    paid       = Column(Integer, default=0)
+    created_at = Column(DateTime, nullable=True)

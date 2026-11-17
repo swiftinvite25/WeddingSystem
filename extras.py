@@ -19,7 +19,7 @@ from flask import (
 )
 from PIL import Image, ImageOps
 
-from models import Guest, Event, get_db_session
+from models import Guest, Event, get_db_session, PendingPledge
 
 PUBLIC_BASE_URL = (os.getenv("PUBLIC_BASE_URL") or "").rstrip("/")
 SITE_BUCKET     = os.getenv("SUPABASE_SITE_BUCKET", "event-sites")
@@ -588,6 +588,119 @@ def build_client_pdf(ev, rep, generated, summary_only=False):
         c.restoreState()
     buf = BytesIO()
     SimpleDocTemplate(buf, pagesize=A4, leftMargin=18 * mm, rightMargin=18 * mm, topMargin=18 * mm, bottomMargin=14 * mm, title="Event Summary" if summary_only else "Event Report", author="SwiftInvite").build(story, onFirstPage=deco, onLaterPages=deco)
+    return buf.getvalue()
+
+
+# ---------------------------------------------------------------------------
+# Contributions statement (PDF to share with guests)
+# ---------------------------------------------------------------------------
+_STMT_TYPE = {"Wedding": "Harusi", "Send-Off": "Send-Off", "Birthday": "Sikukuu ya Kuzaliwa", "Conference": "Mkutano",
+              "Confirmation": "Kipaimara", "Corporate": "Shughuli ya Kampuni", "Other": "Shughuli"}
+
+
+def contrib_status(pl, pd):
+    return "Completed" if pl > 0 and pd >= pl else ("Partial" if pd > 0 else ("Not paid" if pl > 0 else "No pledge"))
+
+
+def _fmt_phone(p, full=False):
+    d = _re.sub(r"\D", "", p or "")
+    if d.startswith("255") and len(d) == 12:
+        d = "0" + d[3:]
+    if not d:
+        return "-"
+    if full:
+        return f"{d[:4]} {d[4:7]} {d[7:]}".strip() if len(d) == 10 else d
+    return f"{d[:4]} *** {d[-3:]}" if len(d) >= 8 else d
+
+
+def build_statement_data(guests, flt="all", sort="card", hide_tests=True):
+    """-> (every row included on the statement, rows shown after the filter). Shared by the PDF and the page."""
+    allrows = []
+    for g in guests:
+        if getattr(g, "statement_hidden", False) or (hide_tests and "test" in (g.name or "").lower()):
+            continue
+        pl, pd = int(g.pledge_amount or 0), int(g.paid_amount or 0)
+        allrows.append(dict(vid=int(g.visual_id or 0), name=g.name or "", phone=g.phone or "", pledge=pl, paid=pd,
+                            balance=max(pl - pd, 0), status=contrib_status(pl, pd)))
+    pick = {"all": lambda r: True, "unpaid": lambda r: r["balance"] > 0, "notpaid": lambda r: r["status"] == "Not paid",
+            "partial": lambda r: r["status"] == "Partial"}.get(flt, lambda r: True)
+    shown = [r for r in allrows if pick(r)]
+    shown.sort(key=(lambda r: (r["name"].lower(), r["vid"])) if sort == "name" else (lambda r: r["vid"]))
+    return allrows, shown
+
+
+def build_statement_pdf(title, date_str, allrows, shown, pending, flt_label, footer, full_phone=False):
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.units import mm
+    from reportlab.lib import colors
+    from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, HRFlowable, KeepTogether
+    from reportlab.lib.styles import ParagraphStyle
+    from reportlab.lib.enums import TA_CENTER, TA_RIGHT
+    from reportlab.pdfgen import canvas as _cv
+    G, GOLD, GREY, INK, BORDER = (colors.HexColor(x) for x in ("#185a3f", "#c9a84c", "#6b7280", "#1f2937", "#d1d5db"))
+    SC = {"Completed": "#15803d", "Partial": "#b45309", "Not paid": "#dc2626", "No pledge": "#6b7280"}
+    ps = lambda n, **k: ParagraphStyle(n, fontName=k.pop("fontName", "Helvetica"), **k)
+    T = ps("t", fontName="Helvetica-Bold", fontSize=15, leading=19, textColor=G, alignment=TA_CENTER)
+    S = ps("s", fontName="Helvetica-Bold", fontSize=10.5, leading=14, textColor=INK, alignment=TA_CENTER)
+    N = ps("n", fontSize=8.8, leading=12, textColor=GREY, alignment=TA_CENTER)
+    H = ps("h", fontName="Helvetica-Bold", fontSize=8.6, textColor=colors.white, alignment=TA_CENTER)
+    C, R = ps("c", fontSize=9, leading=11.5, textColor=INK), ps("r", fontSize=9, leading=11.5, textColor=INK, alignment=TA_RIGHT)
+    B, BR = ps("b", fontName="Helvetica-Bold", fontSize=9, leading=11.5, textColor=INK), ps("br", fontName="Helvetica-Bold", fontSize=9, leading=11.5, textColor=INK, alignment=TA_RIGHT)
+    SM = ps("sm", fontSize=9, leading=13, textColor=INK, alignment=TA_CENTER)
+    P = lambda t, s=C: Paragraph(_xesc(str(t)), s)
+    st = lambda x: Paragraph(f'<font color="{SC[x]}"><b>{x}</b></font>', ps("x", fontSize=9, alignment=TA_CENTER))
+    cw = [13 * mm, 50 * mm, 28 * mm, 25 * mm, 25 * mm, 25 * mm, 24 * mm]
+    heads = ("Card no.", "Name", "Phone", "Pledge (TSh)", "Paid (TSh)", "Balance (TSh)", "Status")
+    sums = lambda rows: (sum(r["pledge"] for r in rows), sum(r["paid"] for r in rows), sum(r["balance"] for r in rows))
+
+    def table(head_colour, rows, first_col, phone_fn, total_label="TOTAL"):
+        data = [[Paragraph(h, H) for h in heads]]
+        for r in rows:
+            data.append([P(first_col(r), B), P(r["name"]), phone_fn(r), P(f'{r["pledge"]:,}', R), P(f'{r["paid"]:,}', R), P(f'{r["balance"]:,}', R), st(r["status"])])
+        p, d, b = sums(rows)
+        data.append([P("", B), P(total_label, B), "", P(f"{p:,}", BR), P(f"{d:,}", BR), P(f"{b:,}", BR), ""])
+        t = Table(data, colWidths=cw, repeatRows=1)
+        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), head_colour), ("GRID", (0, 0), (-1, -1), .3, BORDER), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+                               ("TOPPADDING", (0, 0), (-1, -1), 4.5), ("BOTTOMPADDING", (0, 0), (-1, -1), 4.5),
+                               ("ROWBACKGROUNDS", (0, 1), (-1, -2), [colors.white, colors.HexColor("#f3f7f5")]),
+                               ("BACKGROUND", (0, -1), (-1, -1), colors.HexColor("#e8f0ec")), ("LINEABOVE", (0, -1), (-1, -1), 1, G)]))
+        return t
+
+    n, pl, pdn, out = len(allrows), *sums(allrows)[:2], sums(allrows)[2]
+    done = sum(1 for r in allrows if r["status"] == "Completed")
+    story = [Paragraph(_xesc(title), T), Spacer(1, 2), Paragraph(f"Contributions Statement \u2014 as of {date_str}", S), Spacer(1, 2),
+             Paragraph("Please check your details below and report any difference to the committee.<br/>Tafadhali hakikisha taarifa zako na utaarifu kamati ukiona tofauti.", N),
+             Spacer(1, 5), HRFlowable(width="100%", thickness=1.2, color=GOLD, spaceAfter=5),
+             Paragraph(f"<b>{n}</b> guests \u00b7 Pledged <b>TSh {pl:,}</b> \u00b7 Received <b>TSh {pdn:,}</b> \u00b7 Outstanding <b>TSh {out:,}</b> \u00b7 Completed pledges <b>{done}</b>", SM)]
+    if flt_label:
+        story.append(Paragraph(f"Showing: {_xesc(flt_label)} ({len(shown)} guests)", N))
+    story += [Spacer(1, 6), table(G, shown, lambda r: str(r["vid"]).zfill(4), lambda r: P(_fmt_phone(r["phone"], full_phone)))]
+    if pending:
+        send = lambda r: Paragraph('<font color="#dc2626"><b>SEND NUMBER</b></font>', ps("sn", fontSize=8.2, alignment=TA_CENTER))
+        pp, pd2, pb = sums(pending)
+        story += [Spacer(1, 12), Paragraph("<b>Guests without a card / phone number</b>", ps("g", fontName="Helvetica-Bold", fontSize=10, textColor=colors.HexColor("#7a4f4a"), spaceAfter=3)),
+                  table(colors.HexColor("#7a4f4a"), pending, lambda r: "-", send, "SUBTOTAL"),
+                  Spacer(1, 6), Paragraph(f"<b>GRAND TOTAL</b> (guests in the system + guests without a card): Pledged <b>TSh {sums(shown)[0] + pp:,}</b> \u00b7 Received <b>TSh {sums(shown)[1] + pd2:,}</b> \u00b7 Outstanding <b>TSh {sums(shown)[2] + pb:,}</b>", SM)]
+    if footer.strip():
+        story += [Spacer(1, 10), HRFlowable(width="100%", thickness=.5, color=BORDER, spaceAfter=4),
+                  Paragraph(_xesc(footer.strip()).replace("\n", "<br/>"), ps("f", fontSize=9, leading=13, textColor=INK, alignment=TA_CENTER))]
+
+    class _Num(_cv.Canvas):
+        def __init__(self, *a, **k):
+            super().__init__(*a, **k); self._saved = []
+        def showPage(self):
+            self._saved.append(dict(self.__dict__)); self._startPage()
+        def save(self):
+            total = len(self._saved)
+            for state in self._saved:
+                self.__dict__.update(state)
+                self.setFont("Helvetica", 8); self.setFillColor(GREY)
+                self.drawCentredString(A4[0] / 2, 7 * mm, f"Page {self._pageNumber} of {total}")
+                super().showPage()
+            super().save()
+    buf = BytesIO()
+    SimpleDocTemplate(buf, pagesize=A4, leftMargin=10 * mm, rightMargin=10 * mm, topMargin=12 * mm, bottomMargin=13 * mm,
+                      title=title, author="SwiftInvite").build(story, canvasmaker=_Num)
     return buf.getvalue()
 
 
@@ -1183,7 +1296,7 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
             data = []
             for g in gs:
                 pl, pd = int(g.pledge_amount or 0), int(g.paid_amount or 0)
-                status = "Completed" if pl > 0 and pd >= pl else ("Partial" if pd > 0 else ("Not paid" if pl > 0 else "No pledge"))
+                status = contrib_status(pl, pd)
                 ok, why, _base = card_status(g, ev)
                 card = ("Released - " + why) if gate and ok else ("Waiting" if gate else "-")
                 data.append(dict(vid=int(g.visual_id or 0), name=g.name or "", phone=g.phone or "", ctype=(g.card_type or "single").title(),
@@ -1256,6 +1369,27 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
         sm.column_dimensions["A"].width, sm.column_dimensions["B"].width = 28, 34
         sm.column_dimensions["C"].width, sm.column_dimensions["D"].width = 18, 18
 
+        with get_db_session() as db2:
+            ev2 = get_active_event(db2)
+            pend = [(p.name or "", int(p.pledge or 0), int(p.paid or 0)) for p in
+                    db2.query(PendingPledge).filter_by(event_id=ev2.id if ev2 else None).order_by(PendingPledge.name).all()]
+        if pend:
+            pw = wb.create_sheet("Without card")
+            for c, h in enumerate(["Name", "Pledge (TSh)", "Paid (TSh)", "Balance (TSh)", "Status"], 1):
+                cell = pw.cell(row=1, column=c, value=h)
+                cell.font, cell.fill = Font(bold=True, color="FFFFFF"), green
+            for i, (n, p_, d_) in enumerate(pend, 2):
+                for c, v in enumerate([n, p_, d_, max(p_ - d_, 0), contrib_status(p_, d_)], 1):
+                    cell = pw.cell(row=i, column=c, value=v)
+                    if c in (2, 3, 4):
+                        cell.number_format = "#,##0"
+            t = len(pend) + 2
+            pw.cell(row=t, column=1, value="TOTAL").font = Font(bold=True)
+            for c, idx in ((2, 1), (3, 2)):
+                cell = pw.cell(row=t, column=c, value=sum(x[idx] for x in pend)); cell.number_format, cell.font = "#,##0", Font(bold=True)
+            pw.cell(row=t, column=4, value=sum(max(x[1] - x[2], 0) for x in pend)).number_format = "#,##0"
+            for c, w in enumerate([30, 16, 16, 16, 14], 1):
+                pw.column_dimensions[get_column_letter(c)].width = w
         buf = BytesIO()
         wb.save(buf)
         return app.response_class(buf.getvalue(), mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -1306,3 +1440,104 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
         pdf = build_client_pdf(ev, rep, stamp, summary_only=True)
         return app.response_class(pdf, mimetype="application/pdf", headers={
             "Content-Disposition": f"attachment; filename=Event_Summary_{info['slug']}_{now_eat().strftime('%Y%m%d_%H%M')}.pdf"})
+
+    # ── Contributions statement (PDF for guests) ─────────────────────────
+    @app.route("/statement")
+    @admin_required
+    def statement_page():
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            eid = ev.id if ev else None
+            gs = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
+            guests = [dict(id=g.id, vid=str(g.visual_id or 0).zfill(4), name=g.name or "", hidden=bool(getattr(g, "statement_hidden", False)),
+                           test="test" in (g.name or "").lower()) for g in gs]
+            pend = [dict(id=p.id, name=p.name or "", pledge=p.pledge or 0, paid=p.paid or 0)
+                    for p in db.query(PendingPledge).filter_by(event_id=eid).order_by(PendingPledge.name).all()]
+            note, name = getattr(ev, "statement_note", None) or "", ev.name if ev else ""
+        return render_template("statement.html", guests=guests, pending=pend, note=note, event_name=name)
+
+    @app.route("/statement.pdf")
+    @admin_required
+    def statement_pdf():
+        flt = request.args.get("filter", "all")
+        sort = "name" if request.args.get("sort") == "name" else "card"
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            eid = ev.id if ev else None
+            gs = db.query(Guest).filter_by(event_id=eid).order_by(Guest.visual_id).all()
+            allrows, shown = build_statement_data(gs, flt, sort, hide_tests=request.args.get("hide_tests", "1") == "1")
+            pend = []
+            if request.args.get("pending") == "1":
+                for p in db.query(PendingPledge).filter_by(event_id=eid).order_by(PendingPledge.name).all():
+                    pl, pd = int(p.pledge or 0), int(p.paid or 0)
+                    pend.append(dict(name=p.name or "", phone="", pledge=pl, paid=pd, balance=max(pl - pd, 0), status=contrib_status(pl, pd)))
+            names = (ev.weds_names or ev.name) if ev else "Event"
+            word = _STMT_TYPE.get((getattr(ev, "event_type", None) or "Wedding"), "Shughuli")
+            note, slug = getattr(ev, "statement_note", None) or "", getattr(ev, "slug", "event")
+        label = {"unpaid": "not fully paid", "notpaid": "not paid at all", "partial": "partly paid"}.get(flt, "")
+        pdf = build_statement_pdf(f"Mchango wa {word} ya {names}", now_eat().strftime("%d %B %Y"), allrows, shown, pend, label, note,
+                                  full_phone=request.args.get("full_phone") == "1")
+        return app.response_class(pdf, mimetype="application/pdf", headers={
+            "Content-Disposition": f"attachment; filename=Contributions_Statement_{slug}_{now_eat().strftime('%Y%m%d')}.pdf"})
+
+    @app.route("/statement/note", methods=["POST"])
+    @admin_required
+    def statement_note():
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            if ev:
+                ev.statement_note = (request.form.get("note") or "").strip()[:1500] or None
+                db.commit()
+        flash("Statement footer saved.", "success")
+        return redirect(url_for("statement_page"))
+
+    @app.route("/statement/hide/<int:gid>", methods=["POST"])
+    @admin_required
+    def statement_hide(gid):
+        with get_db_session() as db:
+            g = db.get(Guest, gid)
+            if not g:
+                return jsonify(success=False), 404
+            g.statement_hidden = bool((request.get_json() or {}).get("on"))
+            db.commit()
+        return jsonify(success=True)
+
+    @app.route("/statement/pending/add", methods=["POST"])
+    @admin_required
+    def statement_pending_add():
+        name = (request.form.get("name") or "").strip()
+        if not name:
+            flash("Type the person's name.", "danger")
+        else:
+            with get_db_session() as db:
+                ev = get_active_event(db)
+                db.add(PendingPledge(event_id=ev.id if ev else None, name=name[:120], pledge=_num(request.form.get("pledge")),
+                                     paid=_num(request.form.get("paid")), created_at=now_eat()))
+                db.commit()
+            flash(f"Added {name} to the list of pledges without a card.", "success")
+        return redirect(url_for("statement_page"))
+
+    @app.route("/statement/pending/save/<int:pid>", methods=["POST"])
+    @admin_required
+    def statement_pending_save(pid):
+        d = request.get_json() or {}
+        with get_db_session() as db:
+            p = db.get(PendingPledge, pid)
+            if not p:
+                return jsonify(success=False), 404
+            if "name" in d: p.name = str(d["name"]).strip()[:120]
+            if "pledge" in d: p.pledge = _num(d["pledge"])
+            if "paid" in d: p.paid = _num(d["paid"])
+            db.commit()
+        return jsonify(success=True)
+
+    @app.route("/statement/pending/delete/<int:pid>", methods=["POST"])
+    @admin_required
+    def statement_pending_delete(pid):
+        with get_db_session() as db:
+            p = db.get(PendingPledge, pid)
+            if p:
+                db.delete(p)
+                db.commit()
+        flash("Removed.", "success")
+        return redirect(url_for("statement_page"))
