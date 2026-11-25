@@ -976,6 +976,7 @@ def logout():
 @admin_required
 def add_guest():
     if request.method == 'POST':
+        import re as _re
         name             = (request.form.get('name') or '').strip()
         phone            = to_whatsapp_number((request.form.get('phone') or '').strip())
         card_type_input  = request.form.get('card_type', 'single')
@@ -985,32 +986,43 @@ def add_guest():
                       if card_type == 'family' and group_size_input.isdigit()
                       else default_size)
 
+        def money(v):        # "100,000", "100000/=", "" -> int or 0
+            d = _re.sub(r'[^0-9]', '', (v or '').split('.')[0])
+            return int(d) if d else 0
+        pledge_raw = request.form.get('pledge', '')
+        paid_raw   = request.form.get('paid', '')
+        pledge, paid = money(pledge_raw), money(paid_raw)
+
         with get_db_session() as db:
             ev  = get_active_event(db)
             eid = ev.id if ev else None
-            if db.query(Guest).filter_by(phone=phone, event_id=eid).first():
-                flash(f"Guest with phone {phone} already exists in this event.", "warning")
-                return redirect(url_for('add_guest'))
+            dup = db.query(Guest).filter_by(phone=phone, event_id=eid).first()
+            if dup:   # do not add; show who already has this number
+                dup_info = {"id": dup.id, "name": dup.name, "phone": dup.phone,
+                            "card": str(dup.visual_id or 0).zfill(4),
+                            "card_type": (dup.card_type or "single").title()}
+                return render_template('add_guest.html', dup=dup_info,
+                                       form={"name": name, "phone": request.form.get('phone', ''),
+                                             "card_type": card_type_input, "group_size": group_size_input,
+                                             "pledge": pledge_raw, "paid": paid_raw})
             visual_id = get_next_visual_id(db, eid)
             qr_id     = f"EV{eid or 0}-GUEST-{visual_id:04d}"
             try:
                 qr_bytes = generate_qr_bytes(qr_id)
                 qr_fname = f"{qr_id}-{get_safe_filename_name_part(name or 'GUEST')}.png"
-                qr_url   = upload_to_supabase(QR_BUCKET, qr_fname, qr_bytes,
-                                              content_type="image/png")
+                qr_url   = upload_to_supabase(QR_BUCKET, qr_fname, qr_bytes, content_type="image/png")
             except Exception as e:
                 current_app.logger.warning(f"QR upload failed: {e}")
                 qr_url = ""
 
-            ev = get_active_event(db)
             db.add(Guest(name=name, phone=phone, qr_code_id=qr_id,
                          qr_code_url=qr_url, visual_id=visual_id,
                          card_type=card_type, group_size=group_size,
-                         checked_in_count=0,
-                         event_id=ev.id if ev else None))
+                         checked_in_count=0, event_id=eid,
+                         pledge_amount=pledge, paid_amount=paid))
             db.commit()
-            flash(f"Guest '{name or phone}' added. Card: {card_type.title()}, "
-                  f"entries: {group_size}.", "success")
+            money_txt = f" Pledge TSh {pledge:,}, paid TSh {paid:,}." if (pledge or paid) else ""
+            flash(f"Guest '{name or phone}' added. Card: {card_type.title()}, entries: {group_size}.{money_txt}", "success")
             return redirect(url_for('view_all'))
 
     return render_template('add_guest.html')

@@ -22,6 +22,16 @@
       <div class="mb-3" id="gwrap" hidden><label class="form-label" for="group_size">Group size</label>
         <input id="group_size" name="group_size" type="number" inputmode="numeric" min="1" class="form-control" placeholder="Number of allowed entries, e.g. 5" value="{{ form.group_size if form else '' }}">
         <div class="form-text">Optional. If left blank a family card allows 5.</div></div>
+      <details id="moneyBox" class="mb-3 border rounded p-3 bg-light" {{ 'open' if contrib_gate or (form and (form.pledge or form.paid)) }}>
+        <summary class="fw-semibold" style="cursor:pointer">💰 Contribution (optional)</summary>
+        <div class="row g-2 mt-1">
+          <div class="col-12 col-sm-6"><label class="form-label" for="pledge">Pledge (TSh)</label>
+            <input id="pledge" name="pledge" type="number" inputmode="numeric" min="0" class="form-control" placeholder="e.g. 100000" value="{{ form.pledge if form else '' }}"></div>
+          <div class="col-12 col-sm-6"><label class="form-label" for="paid">Paid so far (TSh)</label>
+            <input id="paid" name="paid" type="number" inputmode="numeric" min="0" class="form-control" placeholder="e.g. 50000" value="{{ form.paid if form else '' }}"></div>
+        </div>
+        <div class="form-text mt-2">Balance: <b id="bal">TSh 0</b>. Leave both empty for a card-only guest. You can change amounts later on the Michango page.</div>
+      </details>
       <div class="d-grid gap-2 d-sm-flex mt-4">
         <button type="submit" class="btn btn-success flex-fill">Add guest</button>
         <a href="{{ url_for('view_all') }}" class="btn btn-outline-secondary flex-fill">Back to guests</a>
@@ -30,6 +40,10 @@
   </div>
 </div>
 <script>
+const mb=document.getElementById('moneyBox'),pl=document.getElementById('pledge'),pa=document.getElementById('paid'),bl=document.getElementById('bal');
+try{if(localStorage.getItem('addGuestMoney')==='1')mb.open=true}catch(e){}
+mb.addEventListener('toggle',()=>{try{localStorage.setItem('addGuestMoney',mb.open?'1':'0')}catch(e){}});
+function bal(){bl.textContent='TSh '+Math.max((+pl.value||0)-(+pa.value||0),0).toLocaleString('en-US')}pl.oninput=pa.oninput=bal;bal();
 const ct=document.getElementById('card_type'),gw=document.getElementById('gwrap'),gs=document.getElementById('group_size');
 function t(){const f=ct.value==='family';gw.hidden=!f;if(!f)gs.value=''}ct.addEventListener('change',t);t();
 </script>
