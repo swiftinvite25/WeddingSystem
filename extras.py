@@ -709,6 +709,46 @@ def register_extras(app, *, get_active_event, now_eat, to_whatsapp_number,
                     login_required, admin_required,
                     at_send_sms, at_configured):
 
+        # ── Card rules: Single -> Double when the amount reaches the Double minimum ──
+    def _rule_candidates(db, ev, basis):
+        mn = int(getattr(ev, "min_double", 0) or 0) if ev else 0
+        out = []
+        if mn <= 0:
+            return mn, out
+        for g in db.query(Guest).filter_by(event_id=ev.id).order_by(Guest.visual_id).all():
+            if (g.card_type or "single").lower() != "single":
+                continue
+            amt = int((g.pledge_amount if basis == "pledge" else g.paid_amount) or 0)
+            if amt >= mn:
+                out.append(g)
+        return mn, out
+
+    @app.route("/pledges/card_rules", methods=["GET", "POST"])
+    @admin_required
+    def card_rules_page():
+        basis = "pledge" if request.values.get("basis") == "pledge" else "paid"
+        with get_db_session() as db:
+            ev = get_active_event(db)
+            if not ev:
+                flash("Create an event first.", "warning")
+                return redirect(url_for("pledges_page"))
+            mn, cands = _rule_candidates(db, ev, basis)
+            if request.method == "POST":
+                chosen = set(request.form.getlist("gid"))
+                done = 0
+                for g in cands:                      # only guests that still qualify can change
+                    if str(g.id) in chosen:
+                        g.card_type = "double"
+                        g.group_size = max(2, int(g.group_size or 1))
+                        done += 1
+                db.commit()
+                flash(f"{done} card(s) upgraded to Double. Generate the cards again and resend them.", "success")
+                return redirect(url_for("pledges_page"))
+            rows = [dict(id=g.id, vid=str(g.visual_id or 0).zfill(4), name=g.name or "",
+                         paid=int(g.paid_amount or 0), pledge=int(g.pledge_amount or 0)) for g in cands]
+            name = ev.name
+        return render_template("card_rules.html", rows=rows, basis=basis, min_double=mn, event_name=name)
+
     # ── Admin: edit mini-site ───────────────────────────────────────────
     @app.route("/events/<int:event_id>/site", methods=["GET", "POST"])
     @admin_required
