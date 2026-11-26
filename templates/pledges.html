@@ -39,6 +39,7 @@
 
 <div class="box"><h3>Card release rules</h3>
  <form method="post" action="{{ url_for('pledges_settings') }}"><div class="cfg">
+  <a href="{{ url_for('card_rules_page') }}" class="btn btn-outline-primary btn-sm">Apply card rules</a>
   <div><label>Minimum paid — Single card (TSh)</label><input type="number" min="0" name="min_single" value="{{ cfg.single }}"></div>
   <div><label>Minimum paid — Double card (TSh)</label><input type="number" min="0" name="min_double" value="{{ cfg.double }}"></div>
   <div><label>Minimum paid — Group/Family card (TSh)</label><input type="number" min="0" name="min_group" value="{{ cfg.group }}"></div></div>
