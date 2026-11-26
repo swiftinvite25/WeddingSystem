@@ -168,12 +168,14 @@ def inject_events():
 # Card rendering constants  (1240 × 1748 px template)
 # ---------------------------------------------------------------------------
 
+_CRIMSON_PRO_PATH = os.path.join("static","fonts","CrimsonPro-SemiBold.ttf")
 _MONTSERRAT_PATH = os.path.join("static", "fonts", "Montserrat-Bold.ttf")
 _POPPINS_PATH    = "/usr/share/fonts/truetype/google-fonts/Poppins-Bold.ttf"
 _ROBOTO_PATH     = os.path.join("static", "fonts", "Roboto-Bold.ttf")
 
+
 def _bold_font_path() -> str:
-    for p in (_MONTSERRAT_PATH, _ROBOTO_PATH, _POPPINS_PATH):
+    for p in (_CRIMSON_PRO_PATH,_MONTSERRAT_PATH, _ROBOTO_PATH, _POPPINS_PATH):
         if os.path.exists(p):
             return p
     raise FileNotFoundError("No bold font found. Place Montserrat-Bold.ttf in static/fonts/.")
