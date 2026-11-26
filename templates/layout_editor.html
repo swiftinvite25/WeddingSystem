@@ -13,12 +13,12 @@
     .sidebar { width: 320px; min-width: 320px; background: #fff;
                border-right: 1px solid #e2e8f0; height: 100vh;
                overflow-y: auto; padding: 1.25rem; position: sticky; top: 0; }
-    .canvas-area { flex: 1; padding: 1.5rem; overflow: auto;
-                   display: flex; flex-direction: column; align-items: center; }
+    .canvas-area { flex: 1; min-width: 0; padding: 1.5rem; overflow: auto;
+               display: flex; flex-direction: column; align-items: flex-start; }
 
-    .card-wrap { position: relative; display: inline-block; cursor: crosshair;
-                 box-shadow: 0 4px 24px rgba(0,0,0,.15); }
-    .card-wrap img { display: block; max-width: 100%; user-select: none; }
+    .card-wrap { position: relative; display: inline-block; flex: none; margin: 0 auto;
+             cursor: crosshair; box-shadow: 0 4px 24px rgba(0,0,0,.15); }
+    .card-wrap img { display: block; max-width: none; user-select: none; }
 
     /* Draggable element handles */
     .el-handle {
@@ -87,7 +87,7 @@
     .btn-save:hover { background: #0f3d2b; }
     .btn-save:disabled { opacity: .5; cursor: not-allowed; }
 
-    .zoom-bar { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; }
+    .zoom-bar { display: flex; align-items: center; gap: .5rem; margin-bottom: 1rem; align-self: center;}
     .zoom-bar input { width: 120px; }
     .save-badge { display: none; background: #16a34a; color: #fff;
                   padding: .2rem .6rem; border-radius: 4px; font-size: .75rem;
@@ -324,12 +324,25 @@ window.addEventListener('DOMContentLoaded', () => {
 // IMAGE LOAD — set dimensions and render handles
 // ═══════════════════════════════════════════════════════════════════════════
 
+function syncScale() {   // always use the scale the browser really drew
+  const img = document.getElementById('card-img');
+  if (img && img.clientWidth && CARD_W) scale = img.clientWidth / CARD_W;
+}
+
 function onImageLoad() {
   const img = document.getElementById('card-img');
   CARD_W = img.naturalWidth  || 1240;
   CARD_H = img.naturalHeight || 1748;
-  renderHandles();
+  setZoom(document.getElementById('zoom-slider').value);
   rebuildJson();
+}
+
+function renderHandles() {
+  syncScale();
+  placeHandle('card-num');
+  placeHandle('name');
+  placeHandle('qr');
+  placeHandle('card-type');
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -357,12 +370,6 @@ function displayToCard(dispX, dispY) {
   return { x: Math.round(dispX / scale), y: Math.round(dispY / scale) };
 }
 
-function renderHandles() {
-  placeHandle('card-num');
-  placeHandle('name');
-  placeHandle('qr');
-  placeHandle('card-type');
-}
 
 function placeHandle(el) {
   const h = document.getElementById('h-' + el);

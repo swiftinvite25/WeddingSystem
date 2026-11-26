@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <title>Apply card rules — {{ event_name }}</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body class="bg-light">
+{% include "_navbar.html" %}
+<div class="container py-3" style="max-width:720px">
+  <a href="{{ url_for('pledges_page') }}" class="small">&larr; Michango</a>
+  <h5 class="mt-1">Apply card rules</h5>
+  <p class="text-muted small mb-2">
+    {{ event_name }} &middot; Single cards whose
+    <strong>{{ 'pledge' if basis == 'pledge' else 'amount paid' }}</strong>
+    is TSh {{ '{:,}'.format(min_double) }} or more become <strong>Double</strong>
+    (2 entries). Nothing changes until you confirm.
+  </p>
+
+  <div class="btn-group w-100 mb-3">
+    <a href="{{ url_for('card_rules_page', basis='paid') }}"
+       class="btn btn-sm {{ 'btn-primary' if basis == 'paid' else 'btn-outline-primary' }}">Use amount paid</a>
+    <a href="{{ url_for('card_rules_page', basis='pledge') }}"
+       class="btn btn-sm {{ 'btn-primary' if basis == 'pledge' else 'btn-outline-primary' }}">Use pledge</a>
+  </div>
+
+  {% if not min_double %}
+    <div class="alert alert-warning">The Double minimum is not set. Set it on the Michango page first.</div>
+  {% elif not rows %}
+    <div class="alert alert-success">No Single cards qualify. Nothing to change.</div>
+  {% else %}
+  <form method="post" action="{{ url_for('card_rules_page') }}"
+        onsubmit="return confirm('Upgrade the ticked guests to Double cards?')">
+    <input type="hidden" name="basis" value="{{ basis }}">
+    <div class="d-flex justify-content-between align-items-center mb-2">
+      <span class="small fw-semibold">{{ rows|length }} guest(s) qualify</span>
+      <label class="small"><input type="checkbox" checked
+             onchange="document.querySelectorAll('.gid').forEach(c => c.checked = this.checked)"> Tick all</label>
+    </div>
+    <ul class="list-group mb-3">
+      {% for r in rows %}
+      <li class="list-group-item d-flex align-items-center gap-2 small">
+        <input type="checkbox" class="gid" name="gid" value="{{ r.id }}" checked>
+        <span class="flex-grow-1">{{ r.vid }} &middot; <strong>{{ r.name }}</strong>
+          <br><span class="text-muted">Paid {{ '{:,}'.format(r.paid) }} &middot; Pledge {{ '{:,}'.format(r.pledge) }}</span></span>
+        <span class="badge text-bg-secondary">Single &rarr; Double</span>
+      </li>
+      {% endfor %}
+    </ul>
+    <button class="btn btn-primary w-100">Upgrade ticked guests to Double</button>
+    <p class="text-muted small mt-2 mb-0">
+      Afterwards: run Generate Cards again (their cards still say Single) and resend them.
+      Billing counts these as Double cards.
+    </p>
+  </form>
+  {% endif %}
+</div>
+</body>
+</html>

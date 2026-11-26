@@ -183,6 +183,7 @@ def _bold_font_path() -> str:
 NAME_CENTER_X  = 303
 NAME_DOTTED_Y  = 550
 NAME_MAX_WIDTH = 358
+NAME_SIDE_MARGIN = 30   # px kept free at the card edge
 
 QR_SIZE   = 200
 QR_MARGIN = 45
@@ -259,20 +260,15 @@ def generate_qr_bytes(data: str) -> bytes:
 # ---------------------------------------------------------------------------
 
 def _fit_name_font(draw, name: str, max_width: int):
+    """ONE line only. Biggest font (44 down to 16) whose text fits max_width.
+    Returns (font, [name]) so existing callers keep working."""
     font_path = _bold_font_path()
-    for size in range(44, 19, -2):
-        font  = ImageFont.truetype(font_path, size)
-        bbox  = font.getbbox(name)
+    for size in range(44, 15, -2):
+        font = ImageFont.truetype(font_path, size)
+        bbox = font.getbbox(name)
         if bbox[2] - bbox[0] <= max_width:
             return font, [name]
-        wrapped = textwrap.fill(name, width=20)
-        lines   = wrapped.split("\n")
-        widths  = [(font.getbbox(l)[2] - font.getbbox(l)[0]) for l in lines]
-        if max(widths) <= max_width:
-            return font, lines
-    font    = ImageFont.truetype(font_path, 22)
-    wrapped = textwrap.fill(name, width=22)
-    return font, wrapped.split("\n")
+    return ImageFont.truetype(font_path, 16), [name]
 
 
 DEFAULT_CARD_LAYOUT = {
@@ -324,15 +320,18 @@ def _draw_card(guest, qr_img: Image.Image, template_bytes=None, event=None) -> I
 
     if L.get("show_name", True):
         nm       = L["name"]
-        raw_name = (guest.name or "GUEST").upper()
-        name_font, lines = _fit_name_font(draw, raw_name, nm.get("max_width", NAME_MAX_WIDTH))
+        raw_name = " ".join((guest.name or "GUEST").upper().split())   # single line, tidy spaces
+        cx       = nm.get("cx", NAME_CENTER_X)
+        side     = nm.get("side_margin", NAME_SIDE_MARGIN)
+        room     = min(2 * (cx - side), 2 * (img.width - cx - side))   # widest centred line
+        limit    = max(nm.get("max_width", NAME_MAX_WIDTH), room)
+        name_font, lines = _fit_name_font(draw, raw_name, limit)
         sample_bbox = name_font.getbbox("Ag")
         font_h      = sample_bbox[3] - sample_bbox[1]
         line_h      = font_h + 6
         total_h     = line_h * len(lines) - 6
         name_y      = nm.get("y", NAME_DOTTED_Y)
         block_top_y = name_y - total_h // 2
-        cx          = nm.get("cx", NAME_CENTER_X)
         for i, line in enumerate(lines):
             bbox   = draw.textbbox((0, 0), line, font=name_font)
             text_w = bbox[2] - bbox[0]

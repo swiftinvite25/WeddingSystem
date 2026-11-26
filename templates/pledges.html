@@ -42,6 +42,7 @@
   <div><label>Minimum paid — Single card (TSh)</label><input type="number" min="0" name="min_single" value="{{ cfg.single }}"></div>
   <div><label>Minimum paid — Double card (TSh)</label><input type="number" min="0" name="min_double" value="{{ cfg.double }}"></div>
   <div><label>Minimum paid — Group/Family card (TSh)</label><input type="number" min="0" name="min_group" value="{{ cfg.group }}"></div></div>
+  <a href="{{ url_for('card_rules_page') }}" class="btn btn-outline-primary btn-sm">Apply card rules</a>
   <p><label><input type="checkbox" name="contrib_gate" {% if cfg.gate %}checked{% endif %}> <b>Only send cards and event reminders to guests who qualify</b> (pledge fully paid, OR minimum for their card type reached, OR released manually)</label></p>
   <p><label><input type="checkbox" name="gate_scan" {% if cfg.gate_scan %}checked{% endif %}> Also refuse check-in at the gate for guests who do not qualify</label></p>
   <button>Save rules</button> <span class="hint">With the first box OFF the app works exactly as before (everyone gets a card).</span></form></div>
