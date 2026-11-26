@@ -34,12 +34,11 @@
 </style>
 <div class="pg"><div class="w">
 
-<div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap"><h1>Michango — {{ event_name }}</h1><a class="b" style="text-decoration:none;background:#c9a84c;padding:.55rem 1rem;border-radius:8px;color:#fff;font-weight:600" href="{{ url_for('contributions_excel') }}">⬇ Download Excel report</a> <a class="b" style="text-decoration:none;background:#185a3f;padding:.55rem 1rem;border-radius:8px;color:#fff;font-weight:600" href="{{ url_for('statement_page') }}">📄 Statement PDF</a></div>
+<div class="box"><div style="display:flex;justify-content:space-between;align-items:center;gap:.6rem;flex-wrap:wrap"><h1>Michango — {{ event_name }}</h1><a class="b" style="text-decoration:none;background:#c9a84c;padding:.55rem 1rem;border-radius:8px;color:#fff;font-weight:600" href="{{ url_for('contributions_excel') }}">⬇ Download Excel report</a> <a class="b" style="text-decoration:none;background:#185a3f;padding:.55rem 1rem;border-radius:8px;color:#fff;font-weight:600" href="{{ url_for('statement_page') }}">📄 Statement PDF</a> <a class="b" style="text-decoration:none;background:#7a4f4a;padding:.55rem 1rem;border-radius:8px;color:#fff;font-weight:600" href="/pledges/card_rules">🃏 Apply card rules</a></div>
  <div class="t"><div><b id="tp">0</b><span>Pledged (TSh)</span></div><div><b id="td">0</b><span>Paid</span></div><div><b id="tb">0</b><span>Outstanding</span></div><div><b id="cr">0</b><span>Cards released</span></div><div><b id="cw">0</b><span>Waiting</span></div></div></div>
 
 <div class="box"><h3>Card release rules</h3>
  <form method="post" action="{{ url_for('pledges_settings') }}"><div class="cfg">
-  <a href="{{ url_for('card_rules_page') }}" class="btn btn-outline-primary btn-sm">Apply card rules</a>
   <div><label>Minimum paid — Single card (TSh)</label><input type="number" min="0" name="min_single" value="{{ cfg.single }}"></div>
   <div><label>Minimum paid — Double card (TSh)</label><input type="number" min="0" name="min_double" value="{{ cfg.double }}"></div>
   <div><label>Minimum paid — Group/Family card (TSh)</label><input type="number" min="0" name="min_group" value="{{ cfg.group }}"></div></div>
